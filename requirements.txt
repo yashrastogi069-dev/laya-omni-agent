@@ -1,0 +1,20 @@
+# Core System 1 Decision Engine
+laya>=0.3.5
+typesafe-sdk>=0.7.1
+
+# Real-Time Visual Browser Automation
+playwright>=1.50.0
+
+# Windows System & Desktop Diagnostics
+psutil>=7.0.0
+pyperclip>=1.9.0
+pillow>=11.0.0
+
+# Live Web Search & Data Gathering
+tavily-python>=0.5.0
+
+# System 2 Reasoning & Synthesis (Cloud API)
+openai>=1.60.0
+
+# Rich Terminal UI
+rich>=13.0.0

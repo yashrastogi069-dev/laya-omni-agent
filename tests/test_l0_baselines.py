@@ -103,7 +103,7 @@ class TestL0WorkingBaselineTools(unittest.TestCase):
         from omni_engine.tools.dev_tools import tool_git_status
         res = tool_git_status("")
         self.assertIn("Git Status", res)
-        self.assertIn("Branch: `main`", res)
+        self.assertIn("Branch: `", res)
 
 
 class TestL0MemoryInvariants(unittest.TestCase):

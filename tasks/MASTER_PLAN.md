@@ -32,23 +32,25 @@ This guarantees that future multi-agent coordination or supervisor routing can b
   - Comprehensive capability inventory (23 tools), routing analysis, memory schema audit.
   - Confirmed defect reproduction in baseline test suite (`tests/test_l0_baselines.py`).
   - Canonical documentation initialization. (Commit `26be41e`).
-- [ ] **L1 — Critical Local Reliability Repairs**:
-  - Fix `tool_safe_math` NameError via strict `ast.NodeVisitor` arithmetic evaluation with exponent bounds and recursion limits.
-  - Fix `OmniMemory` schema key mismatch (`tool_effectiveness` vs `tool_success_counts`), backward-compatible migration, atomic file persistence, and verified success tracking.
+- [x] **L1 — Critical Local Reliability Repairs & L1.1 Hardening Pass**:
+  - Fix `tool_safe_math` NameError via strict `ast.NodeVisitor` arithmetic evaluation with strict resource bounds (length <= 256, AST nodes <= 40, literal <= 1e100, factorial bounds 0 <= n <= 100, exponent bounds abs <= 100).
+  - Fix `OmniMemory` schema key mismatch, backward-compatible migration, atomic file persistence, 3-state verification tracking (`VERIFIED_SUCCESS`, `VERIFIED_FAILURE`, `UNVERIFIED`), and corrupted file quarantining (`.corrupt.<timestamp>`).
   - Retain legacy System 1 `[:12]` defect test; label current behavior clearly as legacy prototype constraint.
-  - Build smoke test suite (`tests/test_l1_repairs.py`) and verify 100% pass rate across L0 + L1.
-- [ ] **L2 — Foundational Typed Contracts**:
-  - Implement Pydantic data contracts: `DecisionFrame`, `CapabilitySpec`, `ToolResult`, `ActionClass`, `AutonomyProfile`, `ExecutionReceipt`, `VerificationResult`.
-  - Standardize error codes (`INVALID_ARGUMENT`, `NOT_FOUND`, `PERMISSION_DENIED`, `TIMEOUT`, `PROCESS_FAILED`, `UNKNOWN_COMMIT`).
+  - Build test suite (`tests/test_l1_repairs.py`) and verify 100% pass rate across L0 + L1 (22 passed).
+- [x] **L2 — Foundational Typed Contracts**:
+  - Implement Pydantic data contracts: `DecisionFrame`, `CapabilitySpec`, `ToolResult`, `ActionClass`, `AutonomyProfile`, `ExecutionReceipt`, `VerificationResult`, `AgentRequest`, `AgentResponse`, `AgentEvent`, `TraceContext`.
+  - Standardize error codes (`INVALID_ARGUMENT`, `NOT_FOUND`, `PERMISSION_DENIED`, `CONFIRMATION_REJECTED`, `TIMEOUT`, `NETWORK_ERROR`, `PROCESS_FAILED`, `RATE_LIMITED`, `SCHEMA_VIOLATION`, `UNAUTHORIZED_ACTION`, `UNKNOWN_COMMIT`).
+  - Strict validation (`extra="forbid"`, bounded confidence in `[0.0, 1.0]`, NaN/Inf rejection, mutual exclusivity between success and error).
+  - Build test suite (`tests/test_l2_contracts.py`) and verify 100% pass rate across L0 + L1 + L2 (40 passed).
 - [ ] **L3 — Canonical Capability Registry & ToolResult Envelopes**:
   - Wrap all existing 23 tools in `CapabilitySpec` contracts with typed schemas.
   - Enforce `ToolResult` return envelopes across all tools with zero uncaught exceptions.
 
 ### Phase II: System One Nervous System & Hierarchical Routing (L4 – L7)
-- [ ] **L4 — System One Provider Abstraction**:
-  - Abstract base class `SystemOneProvider`.
-  - Implement `LayaProvider` (local ModernBERT-large) and optional `JevProvider` (TypeSafe cloud fallback/benchmark).
-  - Add latency profiling, provider health tracking, and model lifecycle management.
+- [ ] **L4 — Dual Provider Foundation (System One & Generative Abstractions)**:
+  - Abstract base class `SystemOneProvider` with implementations `LayaProvider` (local ModernBERT-large) and `JevProvider` (TypeSafe cloud fallback/benchmark).
+  - Abstract base class `GenerativeProvider` with initial OpenRouter / local LLM interfaces, establishing provider decoupling so downstream planners (L12+) and argument synthesis engines (L8+) never hardcode a specific vendor or model.
+  - Add latency profiling, provider health tracking, and model lifecycle management across both provider classes.
 - [ ] **L5 — Typed DecisionFrame Engine**:
   - Evaluate multi-dimensional signals: `intent`, `task_class`, `urgency`, `importance`, `risk`, `ambiguity`, `requires_clarification`, `requires_action`, `requires_tools`, `requires_plan`, `requires_generative_reasoning`.
   - Calibrated confidence and probability distributions per decision.

@@ -285,5 +285,64 @@ All 10 tests passed with 0 failures and 0 errors:
 
 ---
 
-## Z. Exact Next Engineering Action
-Execute Checkpoint L2 (Foundational Typed Contracts): Implement core Pydantic data models (`DecisionFrame`, `CapabilitySpec`, `ToolResult`, `ActionClass`, `AutonomyProfile`, `ExecutionReceipt`, `VerificationResult`) and validation test suite.
+## Z. L1.1 Hardening Pass Scope & Results (COMPLETED)
+1. **OmniMemory 3-State Outcome Tracking**:
+   - Default outcome explicitly set to `UNVERIFIED` (`None`). Execution never automatically implies verified success.
+   - Distinct tracking for `VERIFIED_SUCCESS`, `VERIFIED_FAILURE`, and `UNVERIFIED`.
+   - Separate counters for `invocation_count`, `verified_success_count`, `verified_failure_count`, and `unverified_count`.
+   - Automatic corrupted/malformed JSON quarantine to `<filepath>.corrupt.<timestamp>`, ensuring zero historical data loss and graceful default reinitialization.
+2. **Deterministic Resource Bounds on `tool_safe_math`**:
+   - Expression length capped at 256 characters.
+   - AST node count capped at 40 nodes.
+   - Numeric literal magnitude capped at `1e100`.
+   - Factorial parameter bounded to integer `0 <= n <= 100`.
+   - Exponent magnitude capped at `abs(exp) <= 100`, base capped at `abs(base) <= 1e6` if `abs(exp) > 10`.
+3. **Branch Creation**:
+   - Created and pushed architecture branch `laya-autonomous-v2`.
+
+---
+
+## AA. L2 Foundational Typed Contracts Scope & Results (COMPLETED)
+1. **Canonical Package Structure (`omni_engine/contracts/`)**:
+   - `base.py`: `BaseContractModel` enforcing `model_config = ConfigDict(extra="forbid", validate_assignment=True)`.
+   - `enums.py`:
+     - `ActionClass`: 11 levels (`READ_ONLY`, `LOCAL_CREATE`, `LOCAL_UPDATE`, `LOCAL_DELETE`, `EXTERNAL_CREATE`, `EXTERNAL_UPDATE`, `EXTERNAL_SEND`, `EXTERNAL_DELETE`, `SYSTEM_ACTION`, `SECURITY_SENSITIVE`, `FINANCIAL`).
+     - `AutonomyProfile`: 5 tiers (`ADVISOR`, `SAFE_ASSISTANT`, `LOCAL_OPERATOR`, `TRUSTED_OPERATOR`, `WORKFLOW_AUTHORIZED`).
+     - `ErrorCode`: 12 codes (`INVALID_ARGUMENT`, `NOT_FOUND`, `PERMISSION_DENIED`, `CONFIRMATION_REJECTED`, `TIMEOUT`, `NETWORK_ERROR`, `PROCESS_FAILED`, `RATE_LIMITED`, `SCHEMA_VIOLATION`, `UNAUTHORIZED_ACTION`, `UNKNOWN_COMMIT`, `UNKNOWN`).
+     - `VerificationStatus`: 3 states (`VERIFIED_SUCCESS`, `VERIFIED_FAILURE`, `UNVERIFIED`).
+     - `DecisionSignalType`: 12 types (`INTENT`, `TASK_CLASS`, `DOMAIN`, `SKILL`, `URGENCY`, `IMPORTANCE`, `RISK`, `REVERSIBILITY`, `AMBIGUITY`, `NEEDS_PLAN`, `NEEDS_TOOLS`, `MODEL_TIER`).
+   - `decision.py`:
+     - `DecisionSignal`: strictly bounded confidence in `[0.0, 1.0]`, NaN/Inf rejection, probability distribution validation, and latency tracking.
+     - `DecisionFrame`: complete System 1 decision packet incorporating all 10 core signals (including Invariant 7 `reversibility`), candidate domains/skills, latency profiling, and provider ID.
+   - `capability.py`:
+     - `CapabilitySpec`: pure JSON-serializable specification separated from callables (`id`, `name`, `version`, `domain`, `description`, `action_class`, `autonomy_profile`, `idempotent`, `side_effects`, `requires_confirmation`, `retryable`, `timeout_seconds`, `input_schema`, `output_schema`, `verification_strategy`).
+     - `ExecutableCapability`: Python-side runtime binding pairing a `CapabilitySpec` with executable callables and availability checks.
+     - `ToolError`: canonical error envelope with `code`, `message`, `details`, `retryable`, and `fix_action`.
+     - `ExecutionReceipt`: physical audit record of execution (`receipt_id`, `operation_id`, `capability_id`, timestamps, `duration_ms`, `exit_code`, bytes read/written, `raw_output_ref`).
+     - `VerificationResult`: physical evidence verification record (`status`, `strategy`, `evidence`, `notes`, `verified_at`).
+     - `ToolResult`: canonical envelope strictly enforcing:
+       - `success == True` -> `error is None`.
+       - `success == False` -> `error is not None` and `data is None`.
+   - `agent.py`:
+     - `TraceContext`: distributed tracing context (`trace_id`, `parent_id`, `session_id`).
+     - `AgentRequest`: inbound user/system query envelope with context and tracing.
+     - `AgentResponse`: structured terminal or intermediate agent output with decision frame, receipts, verifications, and timing.
+     - `AgentEvent`: event envelope for internal asynchronous event bus.
+
+2. **Automated Test Coverage**:
+   - Created `tests/test_l2_contracts.py` with 18 comprehensive tests.
+   - All 40 repository tests (`tests/test_l0_baselines.py`, `tests/test_l1_repairs.py`, `tests/test_l2_contracts.py`) passed in 6.11s with 100% pass rate.
+
+---
+
+## AB. Adversarial Reviews
+- **Adversarial Plan Review**: Subagent reviewed proposed contract schemas against `docs/CAPABILITY_CONTRACT.md` and `AGENTS.md`. Identified `ActionClass` naming nuances, missing `UNKNOWN_COMMIT` and `CONFIRMATION_REJECTED` error codes, and the need to include `REVERSIBILITY` under Invariant 7. All incorporated before coding.
+- **Adversarial Diff Review**: Subagent reviewed implementation diff for race conditions, contract leaks, and schema exclusivity. Status: **PASS** across all dimensions with zero premature runtime logic leaks.
+
+---
+
+## AC. Exact Next Engineering Action
+Begin Checkpoint L3 (Canonical Capability Registry & ToolResult Envelopes):
+- Wrap all 23 existing tools into `CapabilitySpec` contracts with typed schemas.
+- Enforce standardized `ToolResult` return envelopes across all tools with zero uncaught exceptions.
+

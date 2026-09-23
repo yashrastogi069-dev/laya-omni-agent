@@ -460,10 +460,86 @@ Replace flat tool catalog slicing (the legacy `[:12]` truncation defect, ISSUE-0
 
 ---
 
+## Checkpoint L7 — Skills Substrate & Workflow Manifests (COMPLETED)
+
+**Timestamp**: 2026-09-23T12:05:00+05:30  
+**Phase**: Phase II — System 1 Decision Fabric & Capability Routing  
+**Status**: **COMPLETED & VERIFIED**  
+**Associated Commit**: Pending Checkpoint Commit  
+
+### 1. Architectural Motivation & Invariants
+In accordance with Invariant 1 (*Deterministic Control, Probabilistic Reasoning*) and Invariant 4 (*Strongly Typed Capability Contracts*), multi-step agent operations must not rely on unconstrained model improvisation when structured, proven workflows exist.
+Checkpoint L7 introduces the **Skills Substrate**:
+- A **Skill** is a structured, reusable workflow abstraction mapping high-level user objectives to constrained capability sets, declarative workflow step templates, and explicit safety floors.
+- **SkillManifest**: Strongly typed Pydantic contract enforcing schema validation, non-empty workflows when planning is not required, step capability inclusion, phantom dependency prevention, and DAG acyclicity via a 3-color DFS cycle detector.
+- **SkillRegistry**: Thread-safe registry (`RLock`) enforcing zero dangling capabilities against `CapabilityRegistry`, action class encompassment (blocking action-class omission spoofing), constituent high-risk confirmation policy floors, and autonomy ranking floors.
+- **Canonical Skills**: 7 production-grade skills backed 100% by the 23 verified tools in the repository.
+
+### 2. Files Added & Modified
+1. `omni_engine/contracts/skill.py`:
+   - `SkillStepTemplate(BaseContractModel)`: Defines `step_id`, `capability_id`, `description`, `depends_on`, `default_args`, `arg_mappings`, `verification_rule`, `can_fail_silently`.
+   - `SkillManifest(BaseContractModel)`: Canonical contract defining `skill_id`, `version`, `domain`, `name`, `description`, `intent_patterns`, `input_schema`, `output_schema`, `required_capabilities`, `optional_capabilities`, `action_classes`, `workflow_template`, `planning_required`, `verification_strategy`, `applicable_autonomy`, `confirmation_policy`, `escalation_conditions`, and `metadata`.
+   - Built-in Invariant Validators:
+     - Disjoint capability sets: `required_capabilities` and `optional_capabilities` must be strictly disjoint.
+     - Non-empty template enforcement: If `planning_required=False`, `workflow_template` must contain at least 1 step.
+     - Step capability membership: Every step `capability_id` must belong to the manifest's declared capabilities.
+     - Phantom dependency rejection: Any dependency declared in `step.depends_on` must reference a valid step defined in the template.
+     - DAG Acyclicity (DFS Cycle Detector): Three-color cycle detection identifies circular step dependencies (`s1 -> s2 -> s1`) and formats the exact cycle chain in the exception.
+     - High-Risk Confirmation Floor: Manifests declaring high-risk action classes (`LOCAL_DELETE`, `EXTERNAL_DELETE`, `EXTERNAL_SEND`, `SYSTEM_ACTION`, `SECURITY_SENSITIVE`, `FINANCIAL`) cannot declare `confirmation_policy=NEVER`.
+2. `omni_engine/contracts/__init__.py`:
+   - Re-exported `SkillStepTemplate` and `SkillManifest`.
+3. `omni_engine/skills/registry.py`:
+   - `SkillRegistry`: Thread-safe registry (`RLock`) with lazy thread-safe access to `CapabilityRegistry`.
+   - Validations on registration:
+     - Duplicate skill ID rejection.
+     - Zero dangling capabilities: Every required, optional, and step capability must exist in `CapabilityRegistry`.
+     - Action class encompassment: A skill cannot reference a capability whose action class is not declared in `manifest.action_classes` (prevents action-class omission spoofing).
+     - Constituent high-risk confirmation floor: Independently enforces that constituent high-risk capabilities forbid `confirmation_policy=NEVER`.
+     - Autonomy profile floor: A skill cannot declare an autonomy tier weaker than the minimum autonomy required by its constituent capabilities.
+     - Mutation isolation: Deep copy returns prevent internal registry state corruption.
+     - Methods: `register`, `unregister`, `has`, `get`, `list_all`, `list_manifests`, `list_by_domain`, `find_by_intent`, `export_manifests`, `count`.
+4. `omni_engine/skills/definitions.py`:
+   - 7 canonical skills backed 100% by the 23 verified tools:
+     1. `web_research` (domain: `web`, required: `[web_search, scrape_url]`, optional: `[http_api, download_file]`, action_classes: `[READ_ONLY]`)
+     2. `inspect_repository` (domain: `dev`, required: `[directory_tree, search_code, file_read]`, optional: `[git_status]`, action_classes: `[READ_ONLY]`)
+     3. `diagnose_system` (domain: `os`, required: `[system_diagnostics, list_processes]`, optional: `[ping_test]`, action_classes: `[READ_ONLY]`)
+     4. `file_transform` (domain: `os`, required: `[file_read, file_write]`, optional: `[run_python]`, action_classes: `[READ_ONLY, LOCAL_CREATE]`)
+     5. `analyze_data` (domain: `data`, required: `[sqlite_exec, inspect_data]`, optional: `[safe_math]`, action_classes: `[READ_ONLY, LOCAL_UPDATE]`)
+     6. `browser_information_task` (domain: `browser`, required: `[visual_browse]`, optional: `[browser_screenshot]`, action_classes: `[READ_ONLY, SYSTEM_ACTION, LOCAL_CREATE]`)
+     7. `perform_git_inspection` (domain: `dev`, required: `[git_status, search_code, file_read]`, optional: `[]`, action_classes: `[READ_ONLY]`)
+   - `build_canonical_skill_registry()` helper for instant canonical instantiation.
+5. `omni_engine/skills/__init__.py`:
+   - Clean public API export.
+6. `tests/test_l7_skills.py`:
+   - 26 targeted unit and integration tests covering contract invariants, cycle detection, phantom dependency rejection, policy floors, spoofing defenses, thread safety, canonical parity, and legacy non-switching boundaries.
+
+### 3. Adversarial Review & Repairs
+- Initial Adversarial Diff Review identified 5 potential vulnerabilities:
+  1. *Phantom step dependencies*: Resolved via `all_step_ids` set lookup in `SkillManifest`.
+  2. *DAG circular dependencies*: Resolved via 3-color DFS cycle detector in `SkillManifest`.
+  3. *Action class spoofing bypass*: Resolved in `SkillRegistry` by verifying `spec.action_class in manifest.action_classes` and independently checking constituent tools against `confirmation_policy=NEVER`.
+  4. *Canonical skills action class omissions*: Resolved by auditing and including all constituent tool action classes in `definitions.py`.
+  5. *CapabilityRegistry concurrency race*: Resolved via `_get_capability_registry_under_lock()` encapsulated within `with self._lock:`.
+- Final Adversarial Verification verdict: **PASS**.
+
+### 4. Verification & Test Evidence
+- **L7 Test Suite**: `python -m unittest tests/test_l7_skills.py -v`
+  - Output: **26 tests passed in 0.025s (100% pass rate)**.
+- **Full Repository Suite**: `python -m unittest discover tests -v`
+  - Output: **149 tests passed in 191.42s (100% pass rate)** across all checkpoints (L0, L1, L2, L2.1, L3, L4, L5, L6A, L7).
+- **Non-Switching Boundary**: Confirmed legacy `omni_agent.py` and `omni_engine/planner.py` remain untouched and functional.
+
+---
+
 ## Cumulative Summary of Repository Files
 
 | File | Nature / Purpose |
 | :--- | :--- |
+| `omni_engine/contracts/skill.py` | `SkillStepTemplate` and `SkillManifest` boundary contracts with safety floors, DFS cycle detector, and phantom dependency prevention. |
+| `omni_engine/skills/registry.py` | Thread-safe `SkillRegistry` with zero dangling capabilities verification, action-class encompassment, and policy floors. |
+| `omni_engine/skills/definitions.py` | 7 canonical skills backed 100% by the 23 verified tools, and `build_canonical_skill_registry()` builder. |
+| `omni_engine/skills/__init__.py` | Public re-exports for skills substrate (`SkillRegistry`, `CANONICAL_SKILLS`, `build_canonical_skill_registry`). |
+| `tests/test_l7_skills.py` | 26 unit and integration tests covering skill contracts, registry invariants, policy floors, spoofing defenses, and canonical parity. |
 | `omni_engine/contracts/routing.py` | `CapabilityCandidate` and `RouteDecision` boundary contracts with strict validation. |
 | `omni_engine/routing/router.py` | `HierarchicalRouter` with conversational fast-path, multi-step pooling, keyword pinning, and dynamic pruning. |
 | `omni_engine/routing/__init__.py` | Public re-exports for hierarchical routing substrate (`DOMAIN_KEYWORD_MAP`, `CAPABILITY_PIN_MAP`, `HierarchicalRouter`). |

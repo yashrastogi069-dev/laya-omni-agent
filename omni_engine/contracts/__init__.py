@@ -40,6 +40,10 @@ from .routing import (
     CapabilityCandidate,
     RouteDecision,
 )
+from .skill import (
+    SkillStepTemplate,
+    SkillManifest,
+)
 
 __all__ = [
     # Base
@@ -73,4 +77,7 @@ __all__ = [
     # Routing
     "CapabilityCandidate",
     "RouteDecision",
+    # Skill
+    "SkillStepTemplate",
+    "SkillManifest",
 ]

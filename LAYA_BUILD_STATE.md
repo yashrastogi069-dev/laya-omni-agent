@@ -1,9 +1,9 @@
 # LAYA_BUILD_STATE.md — Current Ground Truth State
 
-**Last Updated**: 2026-09-23T11:35:00+05:30  
+**Last Updated**: 2026-09-23T12:15:00+05:30  
 **Current Branch**: `laya-autonomous-v2`  
-**Active Checkpoint**: `L7 — Skills Substrate & Workflow Manifests` (**ACTIVE**)  
-**Last Passing Test Suite**: `tests/test_l0_baselines.py`, `tests/test_l1_repairs.py`, `tests/test_l2_contracts.py`, `tests/test_l2_1_reconciliation.py`, `tests/test_l3_capabilities.py`, `tests/test_l4_providers.py`, `tests/test_l5_decision_fabric.py`, `tests/test_l6a_routing.py` (**123/123 passed in 244.52s (100% pass rate)**)  
+**Active Checkpoint**: `L6B — Final Skill-Aware Hierarchical Router` (**ACTIVE**)  
+**Last Passing Test Suite**: `tests/test_l0_baselines.py`, `tests/test_l1_repairs.py`, `tests/test_l2_contracts.py`, `tests/test_l2_1_reconciliation.py`, `tests/test_l3_capabilities.py`, `tests/test_l4_providers.py`, `tests/test_l5_decision_fabric.py`, `tests/test_l6a_routing.py`, `tests/test_l7_skills.py` (**149/149 passed in 191.42s (100% pass rate)**)  
 **Mission Role**: Complete Standalone Autonomous Operating Agent.
 
 ---
@@ -44,6 +44,18 @@ The repository contains a standalone prototype CLI (`laya_agent.py` / `omni_engi
    - Candidate domain ranking without violating `extra="forbid"`.
    - Standardized 10-prompt benchmark evaluation corpus and runner in `omni_engine/decision/corpus.py`.
    - Comprehensive unit test suite `tests/test_l5_decision_fabric.py` (12 tests).
+9. **Checkpoint L6A Milestone Reached**:
+   - Implemented `HierarchicalRouter` in `omni_engine/routing/router.py` with multi-tier catalog reduction.
+   - Conversational fast-path (<5ms), cross-domain pooling for multi-step tasks, ambiguity fail-open, explicit keyword capability pinning (`CAPABILITY_PIN_MAP`), and "general" domain technical promotion.
+   - Eliminated sequential latency cliff via zero-inference short-circuit (<0.2ms) and fast deterministic lexical scoring (<1ms).
+   - Eliminated legacy `[:12]` tool truncation defect (ISSUE-02).
+   - Comprehensive unit test suite `tests/test_l6a_routing.py` (12 tests).
+10. **Checkpoint L7 Milestone Reached**:
+    - Implemented `SkillManifest` and `SkillStepTemplate` typed contracts in `omni_engine/contracts/skill.py`.
+    - Implemented multi-layer safety floors: phantom dependency rejection, 3-color DFS cycle detector, action class encompassment (blocking omission spoofing), and constituent tool high-risk confirmation policy floors.
+    - Implemented thread-safe `SkillRegistry` in `omni_engine/skills/registry.py` verifying zero dangling capabilities against `CapabilityRegistry`.
+    - Defined 7 canonical skills backed 100% by the 23 verified tools in `omni_engine/skills/definitions.py`.
+    - Comprehensive unit test suite `tests/test_l7_skills.py` (26 tests).
 
 ---
 

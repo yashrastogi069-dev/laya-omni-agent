@@ -81,11 +81,12 @@ This guarantees that future multi-agent coordination or supervisor routing can b
   - "General" domain technical promotion.
   - Elimination of sequential latency cliff: zero-inference short-circuit (<0.2ms) and fast deterministic lexical scoring (<1ms).
   - Elimination of legacy `[:12]` truncation defect (ISSUE-02).
-  - Test suite `tests/test_l6a_routing.py` (12 tests). Full repository test suite: **123 passed in 244.52s (100% pass rate)**.
-- [ ] **L7 — Skills Substrate & Workflow Manifests (ACTIVE)**:
-  - Implement reusable `SkillManifest` abstractions for recurring workflows (`web_research`, `codebase_audit`, `diagnose_system`, `file_transform`, `database_query`, `network_probe`).
+- [x] **L7 — Skills Substrate & Workflow Manifests (COMPLETED)**:
+  - Implement reusable `SkillManifest` abstractions for recurring workflows (`web_research`, `inspect_repository`, `diagnose_system`, `file_transform`, `analyze_data`, `browser_information_task`, `perform_git_inspection`).
   - Zero dangling capabilities: all required capabilities verified against `CapabilityRegistry`.
-- [ ] **L6B — Final Skill-Aware Hierarchical Router**:
+  - Multi-layer safety floors: DAG cycle DFS, phantom dependency prevention, action-class encompassment, high-risk confirmation floor, autonomy ranking floor.
+  - Test suite `tests/test_l7_skills.py` (26 tests). Full repository test suite: **149 passed in 191.42s (100% pass rate)**.
+- [ ] **L6B — Final Skill-Aware Hierarchical Router (ACTIVE)**:
   - Final integration of multi-tier routing: `Request → Domain → Skill → Small Candidate Set → Capability`.
 
 ### Phase III: Argument Resolution & Safety Policy (L8 – L9)

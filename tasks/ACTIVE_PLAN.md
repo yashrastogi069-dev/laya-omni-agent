@@ -1,84 +1,90 @@
-# ACTIVE_PLAN.md — Checkpoint L7: Skills Substrate & Workflow Manifests (ACTIVE)
+# ACTIVE_PLAN.md — Checkpoint L6B: Final Skill-Aware Hierarchical Router (ACTIVE)
 
-## 1. Summary of Completed Checkpoint L6A (Hierarchical Routing Foundation)
+## 1. Summary of Completed Checkpoint L7 (Skills Substrate & Workflow Manifests)
 - **Status**: **COMPLETED & VERIFIED**
 - **Artifacts Created / Hardened**:
-  - `omni_engine/contracts/routing.py`:
-    - `CapabilityCandidate`: Strongly typed individual candidate model with `capability_id`, `domain`, `score` (bounded in [0.0, 1.0]), `rationale`, and `spec_summary`.
-    - `RouteDecision`: Complete hierarchical routing decision envelope containing `selected_domain`, `candidate_domains`, ranked `candidates`, `is_fail_open`, `fallback_reason`, `catalog_reduction_ratio`, `total_registry_capabilities`, `latency_ms`, and `metadata`.
-    - Strict validators: duplicate candidate rejection, fail-open reason consistency, candidate count <= total registry capabilities, finite bounded reduction ratio.
-  - `omni_engine/contracts/__init__.py`: Exported `CapabilityCandidate` and `RouteDecision`.
-  - `omni_engine/routing/router.py`:
-    - `HierarchicalRouter`: Implements multi-tier catalog reduction pipeline (`Request → DecisionFrame → Domain Routing → Candidate Pruning → RouteDecision`).
-    - Conversational Fast-Path: Deterministically bypasses tool scoring for empty/whitespace prompts (<5ms) and informational non-tool queries (`reduction_ratio=1.0`).
-    - Automatic Cross-Domain Pooling (Rec-1): Always pools at least top-2 domains for multi-step tasks (`needs_plan=True` or `task_class in ["multi_step_quest", "code_refactor"]`).
-    - Ambiguity & Low-Confidence Fail-Open (Rec-3): Pools adjacent domains when domain confidence <0.55 or ambiguity >0.65.
-    - Explicit Keyword Capability Pinning (Rec-5): Declarative `CAPABILITY_PIN_MAP` regex scanning unconditionally pins named tools at score=1.0 with rationale `"explicit_keyword_pinned"`.
-    - "General" Domain Technical Promotion (Rec-6): Promotes technical domains when `"general"` co-occurs with `needs_tools=True`.
-    - Elimination of Sequential Latency Cliff (Rec-2): Zero-inference short circuit for single domains (count <= max_candidates) in <0.2ms; fast deterministic lexical token overlap scoring when pruning large sets in <1ms.
-    - Elimination of Legacy Truncation Defect (ISSUE-02): Proved tools 13–23 (previously dropped by legacy `[:12]` slicing like `sqlite_exec`, `inspect_data`, `safe_math`, `powershell`, `ping_test`) are reliably accessible.
-  - `omni_engine/routing/__init__.py`: Exported `DOMAIN_KEYWORD_MAP`, `CAPABILITY_PIN_MAP`, and `HierarchicalRouter`.
-  - `omni_engine/decision/fabric.py`: Fixed ambiguity escalation condition to evaluate ambiguity probability/value rather than raw confidence.
-  - `tests/test_l6a_routing.py`: 12 comprehensive unit and integration tests covering contract validation, empty prompts, conversational gating, single-domain filtering, bound pruning, cross-domain retention, fail-open pooling, keyword pinning, general domain promotion, legacy truncation elimination, non-switching boundary, and live ModernBERT neural routing.
+  - `omni_engine/contracts/skill.py`:
+    - `SkillStepTemplate`: Declarative workflow step model with `step_id`, `capability_id`, `description`, `depends_on`, `default_args`, `arg_mappings`, `verification_rule`, and `can_fail_silently`.
+    - `SkillManifest`: Strongly typed skill contract defining `skill_id`, `version`, `domain`, `name`, `description`, `intent_patterns`, `input_schema`, `output_schema`, `required_capabilities`, `optional_capabilities`, `action_classes`, `workflow_template`, `planning_required`, `verification_strategy`, `applicable_autonomy`, `confirmation_policy`, and `escalation_conditions`.
+    - Invariants & Safety Floors:
+      - Overlap rejection: Capabilities cannot appear in both `required_capabilities` and `optional_capabilities`.
+      - Non-empty template enforcement: If `planning_required=False`, `workflow_template` must not be empty.
+      - Step capability membership: All step `capability_id` values must belong to required or optional sets.
+      - Phantom dependency rejection: `depends_on` entries must reference valid prior step IDs within the template.
+      - Cycle detection: Three-color DFS cycle detector strictly forbids circular dependencies (`s1 -> s2 -> s1`).
+      - High-risk confirmation floor: Skills containing high-risk action classes (`LOCAL_DELETE`, `EXTERNAL_DELETE`, `EXTERNAL_SEND`, `SYSTEM_ACTION`, `SECURITY_SENSITIVE`, `FINANCIAL`) cannot declare `confirmation_policy=NEVER`.
+  - `omni_engine/skills/registry.py`:
+    - `SkillRegistry`: Thread-safe registry (`RLock`) enforcing:
+      - Zero dangling capabilities: Every required, optional, and step capability must exist in `CapabilityRegistry`.
+      - Action class encompassment: A skill cannot reference a capability whose action class is not declared in `manifest.action_classes` (blocks action-class omission spoofing).
+      - High-risk confirmation floor: Registry independently verifies that constituent high-risk capabilities forbid `confirmation_policy=NEVER`.
+      - Autonomy profile floor: A skill cannot declare an autonomy tier weaker than the minimum autonomy required by its constituent capabilities.
+      - Mutation isolation: Deep copy returns prevent internal registry state corruption.
+      - Methods: `register`, `unregister`, `has`, `get`, `list_all`, `list_manifests`, `list_by_domain`, `find_by_intent`, `export_manifests`, `count`.
+  - `omni_engine/skills/definitions.py`:
+    - 7 canonical skills backed 100% by the 23 verified tools:
+      1. `web_research` (web_search, scrape_url, http_api, download_file)
+      2. `inspect_repository` (directory_tree, search_code, file_read, git_status)
+      3. `diagnose_system` (system_diagnostics, list_processes, ping_test)
+      4. `file_transform` (file_read, file_write, run_python)
+      5. `analyze_data` (sqlite_exec, inspect_data, safe_math)
+      6. `browser_information_task` (visual_browse, browser_screenshot)
+      7. `perform_git_inspection` (git_status, search_code, file_read)
+    - `build_canonical_skill_registry()` helper for instant canonical instantiation.
+  - `omni_engine/skills/__init__.py`: Clean public API export.
+  - `tests/test_l7_skills.py`: 26 comprehensive unit and integration tests (contract invariants, cycle detection, phantom dependency rejection, policy floors, spoofing defenses, thread safety, canonical parity, and non-switching boundary).
 - **Test Suite Results**:
-  - `tests/test_l6a_routing.py`: **12/12 passed (100% pass rate)**.
-  - Full repository test suite (`python -m unittest discover tests -v`): **123/123 passed in 244.52s (100% pass rate)**.
-- **Adversarial Diff Review**: **PASS (All invariants and 6 recommendations verified)**.
+  - `tests/test_l7_skills.py`: **26/26 passed in 0.025s (100% pass rate)**.
+  - Full repository test suite (`python -m unittest discover tests -v`): **149/149 passed in 191.42s (100% pass rate)**.
+- **Adversarial Diff Review**: **PASS (All 5 repairs verified: phantom deps, DAG cycle DFS, action-class spoofing gate, canonical parity, thread safety)**.
 
 ---
 
-## 2. Checkpoint L7: Skills Substrate & Workflow Manifests (ACTIVE)
+## 2. Checkpoint L6B: Final Skill-Aware Hierarchical Router (ACTIVE)
 
 ### 2.1 Objectives & Scope
-Create a first-class Skill system above raw capabilities:
-A Skill is NOT simply a prompt. It is a structured, reusable workflow abstraction mapping common user objectives to constrained capability sets, workflow templates, and safety requirements:
-1. `SkillManifest` Data Contract (`omni_engine/contracts/skill.py`):
-   - `skill_id: str`: Unique canonical identifier (e.g. `web_research`, `codebase_audit`, `diagnose_system`).
-   - `version: str`: Semantic version string (e.g. `1.0.0`).
-   - `domain: str`: Primary capability domain (e.g. `web`, `dev`, `os`, `data`).
-   - `description: str`: Human- and System-1-readable description of the skill's purpose.
-   - `intent_patterns: List[str]`: Exemplar queries and trigger phrases for System 1 classification.
-   - `input_requirements: Dict[str, Any]`: JSON-schema or argument requirements.
-   - `required_capabilities: List[str]`: Canonical capability IDs strictly required for execution.
-   - `optional_capabilities: List[str]`: Supporting capability IDs that may enhance execution.
-   - `action_classes: List[ActionClass]`: Maximum risk and action types encompassed by the skill.
-   - `workflow_template: Optional[List[Dict[str, Any]]]`: Deterministic sequence of steps if predefined.
-   - `planning_required: bool`: Whether novel generative DAG planning is required for variations.
-   - `verification_strategy: str`: Method for validating physical completion receipts.
-   - `applicable_autonomy: AutonomyProfile`: Minimum autonomy profile required to execute.
-   - `escalation_conditions: List[str]`: Explicit triggers mandating escalation to human or supervisor.
-2. `SkillRegistry` Substrate (`omni_engine/skills/registry.py`):
-   - Thread-safe registry for loading, querying, validating, and retrieving `SkillManifest` instances.
-   - Validates that all `required_capabilities` exist in `CapabilityRegistry` (zero dangling capabilities).
-3. Initial Canonical Skills (`omni_engine/skills/definitions.py`):
-   - Evidence-driven, backed 100% by the 23 existing tools:
-     - `web_research` (requires `web_search`, `scrape_url`, optional `http_api`, `download_file`)
-     - `codebase_audit` (requires `directory_tree`, `search_code`, `file_read`, optional `git_status`)
-     - `diagnose_system` (requires `system_diagnostics`, `list_processes`, optional `ping_test`)
-     - `file_transform` (requires `file_read`, `file_write`, optional `run_python`)
-     - `database_query` (requires `sqlite_exec`, optional `inspect_data`)
-     - `network_probe` (requires `ping_test`, optional `http_api`)
-4. Non-Switching Principle:
-   - Preserves existing `omni_agent.py` and `omni_engine/planner.py` on the legacy dispatch path.
-   - Dedicated unit tests in `tests/test_l7_skills.py`.
+Now that Checkpoints L3 (Capability Registry), L4 (Providers), L5 (DecisionFabric), L6A (Hierarchical Router Foundation), and L7 (Skills Substrate) are in place, integrate them into the final hierarchical routing pipeline:
+`User Request → DecisionFrame → Domain Router → Skill Router → Skill Manifest → Capability Candidate Set → Capability Router`
+
+Key components:
+1. **Extend `RouteDecision` Contract** (`omni_engine/contracts/routing.py`):
+   - Add `selected_skill: Optional[str] = None`
+   - Add `candidate_skills: List[str] = Field(default_factory=list)`
+   - Add `skill_workflow_template: Optional[List[Dict[str, Any]]] = None`
+   - Add `skill_confirmation_policy: Optional[ConfirmationPolicy] = None`
+2. **Upgrade `HierarchicalRouter`** (`omni_engine/routing/router.py`):
+   - Accept `skill_registry: Optional[SkillRegistry] = None` (defaults to `build_canonical_skill_registry()`).
+   - If `needs_tools=False` and `requires_action=False`, fast-path exits early as conversational (0 skills, 0 capabilities).
+   - Domain resolution matches active domains (with fail-open pooling and keyword pinning as in L6A).
+   - Skill routing:
+     - Queries `skill_registry.list_manifests(domain=domain)` and `skill_registry.find_by_intent(prompt, domain=domain)`.
+     - Matches prompt intent against `skill.intent_patterns` and description.
+     - If a high-confidence matching skill is identified:
+       - Skill required capabilities are automatically guaranteed top priority in candidate set.
+       - Optional capabilities are added if candidate budget permits.
+       - Attaches `selected_skill`, `candidate_skills`, `skill_workflow_template`, and `skill_confirmation_policy` to `RouteDecision`.
+     - If no skill matches with sufficient confidence, router falls back gracefully to raw domain capability routing (fail-open capability routing from L6A).
+   - Maintains sub-35ms warm latency budget (<5ms for deterministic paths).
+3. **Comprehensive Evaluation Corpus & Test Suite** (`tests/test_l6b_skill_routing.py`):
+   - Test 1: Conversational query bypasses both skills and tools.
+   - Test 2: Exact skill match (`"research quantum computing papers" -> web_research`).
+   - Test 3: System diagnostic skill match (`"diagnose cpu usage and high memory" -> diagnose_system`).
+   - Test 4: Repository inspection skill match (`"search the codebase for auth tokens" -> inspect_repository`).
+   - Test 5: Fallback to capability routing when prompt does not cleanly match any predefined skill.
+   - Test 6: Multi-step cross-domain query retains required capabilities from multiple domains/skills.
+   - Test 7: Latency telemetry verifies System 1 performance envelope.
+   - Test 8: Non-switching boundary confirms `omni_agent.py` and `omni_engine/planner.py` remain untouched on legacy dispatch.
+4. **Hard Stopping Boundary**:
+   - STOP BEFORE L8. Do NOT implement Argument Resolver (L8), Policy Engine (L9), Quest runtime (L10), Planner (L12), or DAG Executor (L14).
 
 ---
 
-## 3. Targeted Test Suite (`tests/test_l7_skills.py`)
-1. `TestSkillManifestValidation`: Asserts strict schema, type checking, duplicate detection, and extra="forbid".
-2. `TestSkillRegistryParity`: Asserts all canonical skills register cleanly and verify that required capabilities exist in `CapabilityRegistry`.
-3. `TestSkillLookupByDomain`: Asserts filtering skills by domain.
-4. `TestDanglingCapabilityRejection`: Asserts registering a skill with a non-existent capability ID raises `ValueError`.
-5. `TestSkillWorkflowTemplates`: Asserts deterministic workflow step structures validate schema contracts.
-6. `TestSkillRegistryExport`: Asserts export to JSON-compatible dictionaries round-trips cleanly.
-
----
-
-## 4. Acceptance Criteria
-- [ ] `SkillManifest` contract implemented in `omni_engine/contracts/skill.py`.
-- [ ] `SkillRegistry` implemented in `omni_engine/skills/registry.py`.
-- [ ] Initial canonical skills defined in `omni_engine/skills/definitions.py`.
-- [ ] Zero dangling capabilities: all required capabilities verified against `CapabilityRegistry`.
-- [ ] Comprehensive unit test suite `tests/test_l7_skills.py` passes (100% pass rate).
-- [ ] Full regression test suite passes (>= 123 tests).
-- [ ] Adversarial diff review passes.
+## 3. Acceptance Criteria
+- [ ] `RouteDecision` contract updated with optional skill fields (`selected_skill`, `candidate_skills`, `skill_workflow_template`, `skill_confirmation_policy`).
+- [ ] `HierarchicalRouter` updated to incorporate `SkillRegistry` with intent pattern matching and capability prioritization.
+- [ ] Dedicated test suite `tests/test_l6b_skill_routing.py` implemented and 100% passing.
+- [ ] Full repository test suite passes with 0 regressions.
+- [ ] Adversarial plan & diff reviews completed and verified.
+- [ ] Canonical documentation updated: `tasks/ACTIVE_PLAN.md`, `tasks/MASTER_PLAN.md`, `LAYA_BUILD_STATE.md`, `HANDOFF.md`, and `END_TO_END_EXECUTION_LOG.md`.
+- [ ] Git commit and push to `laya-autonomous-v2`.
+- [ ] Consolidated Long-Run Goal Report (L3-L7/L6B) delivered.

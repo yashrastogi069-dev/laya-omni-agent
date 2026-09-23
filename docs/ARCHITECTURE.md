@@ -6,7 +6,7 @@
 
 ```mermaid
 flowchart TD
-    UserPrompt["User Prompt\n(CLI: laya_agent.py)"] --> Planner["AutonomousPlanner\n(omni_engine/planner.py)"]
+    UserPrompt["User Prompt\n(CLI: laya_agent.py)"] --> Planner["AutonomousPlanner (LEGACY PROTOTYPE)\n(omni_engine/planner.py)"]
     
     Planner --> KeywordCheck{"Prompt contains keywords?\n('dossier', 'report', 'deep research')"}
     
@@ -18,7 +18,7 @@ flowchart TD
     
     %% Single tool dispatch branch
     KeywordCheck -- NO --> Sys1Route["System1Router.route_tool()\n(Local Laya ModernBERT)"]
-    Sys1Route --> Slice12["Truncate tool catalog to [:12]!\n(Tools 13-23 are excluded)"]
+    Sys1Route --> Slice12["Truncate tool catalog to [:12]!\n(Legacy limitation: tools 13-23 excluded)"]
     Slice12 --> LayaPredict["laya_router.predict(prompt, choice_q)"]
     LayaPredict --> SingleTool["Execute tool_func(raw_prompt)!\n(Raw prompt passed as argument)"]
     SingleTool --> MemSave2["OmniMemory.record_mission()"]
@@ -27,82 +27,81 @@ flowchart TD
     MemSave2 --> ReturnOutput
 ```
 
-### Current Architecture Characteristics:
-1. **Shallow Classification**: `System1Router` acts as a single-question tool classifier, evaluating only 12 tools due to a hardcoded array slice.
-2. **Hardcoded Workflows**: Multi-step execution is limited to a single hard-coded research path triggered by string matching against keywords like `"dossier"` and `"report"`.
+### Current Prototype Characteristics:
+1. **Shallow Classification**: `System1Router` acts as a single-question tool classifier evaluating only 12 tools due to a legacy array slice.
+2. **Hardcoded Workflows**: Multi-step execution is limited to a single hard-coded research path triggered by string matching keywords like `"dossier"` and `"report"`.
 3. **No Argument Extraction**: The raw user prompt is passed directly into Python functions (`tool_func(mission_prompt)`).
-4. **No Plan Validation or Graph Execution**: There is no dependency graph, no topological sort, and no state machine.
-5. **No Evidence Verification**: Actions are assumed successful if the function does not crash.
-6. **Flat Unverified Memory**: `OmniMemory` stores raw strings and increments execution counts without evaluating actual task success.
+4. **Standalone Prototype**: All runtime coordination exists in local script files rather than a validated DAG planner-executor.
 
 ---
 
-# SECTION 2: TARGET PRODUCTION ARCHITECTURE (Future L2 – L25)
+# SECTION 2: TARGET ARCHITECTURE (LAYA Complete Standalone Autonomous Agent)
 
 ```mermaid
 flowchart TD
-    User["👤 User Objective / Event Trigger"] --> Norm["1. Normalizer & Trace Initializer\n(traceId, turnId)"]
+    UserEvent["👤 User Request / Event Trigger"] --> Boundary["Clean Interface Boundary\n(AgentRequest / AgentResponse)"]
     
-    subgraph S1["⚡ System 1: Fast Decision Fabric (<35ms)"]
-        Norm --> S1Engine["SystemOneProvider\n(Local Laya ModernBERT / Jev Fallback)"]
-        S1Engine --> DecFrame["2. Typed DecisionFrame\n• Intent & Task Class\n• Urgency & Importance\n• Risk & Ambiguity\n• Needs Plan? Needs Clarification?"]
+    subgraph S1["⚡ SYSTEM 1: FAST DECISION FABRIC (<35ms)"]
+        Boundary --> S1Engine["SystemOneProvider\n(Local Laya ModernBERT / Optional Jev)"]
+        S1Engine --> DecFrame["Typed DecisionFrame\n• Intent & Task Class\n• Urgency, Importance, Risk & Ambiguity\n• Needs Clarification? Needs Plan? Needs Tools?"]
+        
+        subgraph Hierarchical["🧭 Hierarchical Capability Router (L6)"]
+            DecFrame --> DomainRoute["1. Domain Classification\n(web, browser, os, dev, data)"]
+            DomainRoute --> SkillRoute["2. Skill Selection\n(Known workflow template)"]
+            SkillRoute --> CapRoute["3. Small Bounded Candidate Set\n(Fail-open fallback)"]
+        end
     end
     
-    DecFrame --> ClarifyCheck{"Needs Clarification\nor Ambiguous?"}
-    ClarifyCheck -- YES --> ClarifyUser["Ask User Clarification / Await Input"]
+    DecFrame --> ClarifyCheck{"Needs Clarification?"}
+    ClarifyCheck -- YES --> ClarifyUser["Solicit User Input / Clarify Ambiguity"]
     
-    ClarifyCheck -- NO --> RouteCheck{"Single Step\nor Multi-Step?"}
+    ClarifyCheck -- NO --> ModeCheck{"Known Skill / Single Step\nor Novel Multi-Step?"}
     
-    %% Hierarchical Routing
-    subgraph Routing["🧭 Hierarchical Capability Router"]
-        RouteCheck -- Single Step --> DomainRoute["Domain Selection\n(Web, OS, Dev, Browser, Data)"]
-        DomainRoute --> SkillOrCap["Skill Match or Capability Pruning\n(Fail-open Shadow Mode)"]
-    end
+    %% Fast Skill Execution Path
+    ModeCheck -- Skill Template --> SkillExec["Execute Skill Template / Direct Tool"]
     
-    SkillOrCap --> ArgResolve["3. Typed Argument Resolver\n(Regex/AST → Conversation State → Small Structured Model)"]
-    
-    %% Multi-Step Planning
-    subgraph Planning["🗺️ Structured DAG Planner & Validator"]
-        RouteCheck -- Multi-Step --> DAGPlanner["Structured DAG Planner\n(OpenRouter / Antigravity System 2)"]
+    %% Novel Multi-Step Planning Path
+    subgraph Planning["🗺️ STRUCTURED DAG PLANNER & VALIDATOR (L12-L13)"]
+        ModeCheck -- Novel Plan Required --> DAGPlanner["Structured DAG Planner\n(OpenRouter / Generative Tier)"]
         DAGPlanner --> PlanVal["Plan Validator\n(Acyclic check, schema match, budget & permission check)"]
     end
     
-    PlanVal --> QuestCreate["4. Quest Engine (SQLite)\n(Persist Quest, Steps & Dependencies)"]
-    ArgResolve --> QuestCreate
-    
-    %% Deterministic Execution
-    subgraph Execution["⚙️ Deterministic DAG Executor & Policy"]
-        QuestCreate --> DAGExec["DAG Executor\n(Topological Step Traversal)"]
-        DAGExec --> PolicyCheck{"Policy & Autonomy Gate\n(ActionClass Check)"}
-        PolicyCheck -- Requires Confirmation --> ConfirmGate["User Confirmation Prompt"]
-        ConfirmGate -- Approved --> Ledger["Operation Ledger\n(Idempotency: questId:stepId:capabilityId)"]
-        PolicyCheck -- Auto-Permitted --> Ledger
+    %% Persistent Quest Engine
+    subgraph QuestRuntime["🛡️ PERSISTED QUEST RUNTIME (L10)"]
+        PlanVal --> QuestCreate["Persist Quest & QuestSteps\n(SQLite Engine: Survives Restarts)"]
+        SkillExec --> QuestCreate
         
-        Ledger --> DispatchTool["Canonical Capability Dispatch\n(CapabilitySpec Contract)"]
+        QuestCreate --> DAGExec["Deterministic DAG Executor (L14)\n(Topological Step Traversal)"]
+        DAGExec --> ArgResolver["Typed Argument Resolver (L8)\n(Regex/AST → State Extraction → Structured Model)"]
+        
+        ArgResolver --> PolicyGate{"Deterministic Action Policy (L9)\n(ActionClass & Autonomy Profile Gate)"}
+        PolicyGate -- Restricted --> UserConfirm["User Confirmation Gate"]
+        UserConfirm -- Approved --> Ledger["Operation Ledger (L11)\n(Logical Idempotency: questId:stepId:capabilityId)"]
+        PolicyGate -- Permitted --> Ledger
+        
+        Ledger --> DispatchTool["Capability Dispatch\n(Canonical CapabilitySpec & ToolResult Envelope)"]
     end
     
-    %% Verification & Completion
-    subgraph Verify["🔍 Evidence-Based Verifier"]
-        DispatchTool --> DetVerif["Deterministic Verifier\n(File existence, exit code, process state, DOM receipt)"]
+    %% Verification & Telemetry
+    subgraph Verify["🔍 EVIDENCE-BASED COMPLETION ENGINE (L15)"]
+        DispatchTool --> DetVerif["Deterministic Verifier\n(File diff, process state, DOM receipt, exit code)"]
         DetVerif --> SemVerif{"Semantic Check Needed?"}
         SemVerif -- YES --> LayaSemCheck["Cheap Laya Semantic Validation"]
-        SemVerif -- NO --> StepComplete["Mark Step COMPLETED"]
+        SemVerif -- NO --> StepComplete["Mark Step COMPLETED\n(Record ExecutionReceipt)"]
         LayaSemCheck --> StepComplete
     end
     
     StepComplete --> DependCheck{"More Ready Steps?"}
     DependCheck -- YES --> DAGExec
-    DependCheck -- NO --> QuestDone["5. Quest Finalization\n(All steps verified COMPLETED or BLOCKED)"]
+    DependCheck -- NO --> QuestFinal["Finalize Quest\n(All required steps COMPLETED or BLOCKED)"]
     
-    QuestDone --> MemV2["6. Memory V2 (Working, Episodic, Semantic, Procedural)\n(Record verified receipts & outcome telemetry)"]
-    MemV2 --> FinalResp["Produce Accurate Truth-Based Response"]
+    QuestFinal --> MemEngine["Memory Engine (L19)\n(Working, Episodic, Semantic, Procedural Experience)"]
+    MemEngine --> FinalResponse["Return Structured AgentResponse"]
 ```
 
-### Key Target Architectural Invariants:
-1. **DecisionFrame**: System 1 evaluates multi-dimensional signals in parallel (urgency, importance, risk, ambiguity, planning requirements).
-2. **Hierarchical Routing**: Capabilities scale to hundreds without bloating prompt context; candidate capabilities are selected through Domain → Skill → Tool filtering.
-3. **Structured Argument Resolver**: Arguments are deterministically parsed or extracted via schema-guided models before invoking capabilities.
-4. **Persisted Quest Engine**: All tasks run as Quests stored in SQLite, surviving restarts, timeouts, and replans.
-5. **Operation Ledger**: Logical mutation identity prevents duplicate side effects and ensures exactly-once semantics.
-6. **Deterministic DAG Executor**: Steps run with strict dependency management, concurrency on read-only steps, and serialized mutations.
-7. **Evidence-Based Verifier**: Real physical receipts (file diffs, process tables, DOM state, SQL rows) are inspected before any action is marked completed.
+### Standalone Architectural Invariants:
+1. **Fully Autonomous & Standalone**: LAYA possesses its own complete Quest runtime, DAG executor, capability contracts, action policy, and memory engine.
+2. **System 1 Nervous System**: LAYA drives bounded, high-frequency decisions (<35ms) while deterministic code owns execution, state transitions, and safety.
+3. **Hierarchical Routing**: Solves tool scalability via `Request → Domain → Skill → Candidate Set → Capability`, eliminating naive flat catalog dumps.
+4. **Evidence-Based Truth**: No action is reported completed without physical verification (file existence, process table check, DOM state).
+5. **Clean Interface Contracts**: Boundaries use clean schemas (`AgentRequest`, `AgentResponse`, `DecisionFrame`, `Quest`, `CapabilitySpec`, `ToolResult`, `ExecutionReceipt`, `VerificationResult`, `AgentEvent`) ensuring future multi-agent interoperability.

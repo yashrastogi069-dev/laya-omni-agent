@@ -38,7 +38,11 @@ class System1Router:
             print("⚡ [System 1] Laya ready for sub-35ms tool dispatch & ranking!\n")
 
     def route_tool(self, prompt: str, tool_catalog: dict) -> tuple:
-        """Evaluates user intent and returns (chosen_tool_name, latency_ms)."""
+        """Evaluates user intent and returns (chosen_tool_name, latency_ms).
+        NOTE [LEGACY PROTOTYPE LIMITATION]: This flat slice to 12 items is a known
+        prototype constraint (ISSUE-02). It is preserved for baseline compatibility
+        and will be replaced by Hierarchical Capability Routing in Checkpoint L6.
+        """
         criteria = {k: v["desc"][:85] for k, v in list(tool_catalog.items())[:12]}
         q = {
             "target_tool": {

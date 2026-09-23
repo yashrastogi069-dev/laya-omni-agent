@@ -2,7 +2,7 @@
 Data Science, Database & Intelligence Reporting Toolset
 - SQLite database query runner
 - CSV & JSON data inspector
-- Mathematical calculation engine
+- Mathematical calculation engine (AST-based safe evaluation)
 - Report & Dossier formatter
 """
 
@@ -10,9 +10,129 @@ import os
 import json
 import sqlite3
 import math
+import re
+import ast
 
 WORKSPACE_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 DB_PATH = os.path.join(WORKSPACE_ROOT, "omni_data.db")
+
+# Whitelisted mathematical operations and functions for safe AST evaluation
+SAFE_OPERATORS = {
+    ast.Add: lambda a, b: a + b,
+    ast.Sub: lambda a, b: a - b,
+    ast.Mult: lambda a, b: a * b,
+    ast.Div: lambda a, b: a / b,
+    ast.FloorDiv: lambda a, b: a // b,
+    ast.Mod: lambda a, b: a % b,
+    ast.Pow: lambda a, b: a ** b,
+    ast.USub: lambda a: -a,
+    ast.UAdd: lambda a: +a,
+}
+
+SAFE_FUNCTIONS = {
+    "sqrt": math.sqrt,
+    "sin": math.sin,
+    "cos": math.cos,
+    "tan": math.tan,
+    "asin": math.asin,
+    "acos": math.acos,
+    "atan": math.atan,
+    "log": math.log,
+    "log10": math.log10,
+    "log2": math.log2,
+    "exp": math.exp,
+    "floor": math.floor,
+    "ceil": math.ceil,
+    "abs": abs,
+    "round": round,
+    "radians": math.radians,
+    "degrees": math.degrees,
+    "factorial": math.factorial,
+}
+
+SAFE_CONSTANTS = {
+    "pi": math.pi,
+    "e": math.e,
+    "tau": math.tau,
+}
+
+
+def _evaluate_ast_node(node, depth: int = 0):
+    """Recursively evaluates a whitelisted math AST node."""
+    if depth > 40:
+        raise ValueError("Expression too complex (exceeded maximum AST depth).")
+
+    if isinstance(node, ast.Expression):
+        return _evaluate_ast_node(node.body, depth + 1)
+
+    elif isinstance(node, ast.Constant):
+        if isinstance(node.value, (int, float)):
+            return node.value
+        raise ValueError(f"Unsupported constant type: {type(node.value).__name__}")
+
+    elif isinstance(node, ast.Name):
+        if node.id in SAFE_CONSTANTS:
+            return SAFE_CONSTANTS[node.id]
+        raise ValueError(f"Unauthorized variable or constant: '{node.id}'")
+
+    elif isinstance(node, ast.BinOp):
+        op_type = type(node.op)
+        if op_type not in SAFE_OPERATORS:
+            raise ValueError(f"Unsupported operator: {op_type.__name__}")
+
+        left = _evaluate_ast_node(node.left, depth + 1)
+        right = _evaluate_ast_node(node.right, depth + 1)
+
+        # Defense against computational exhaustion (e.g. 9**9**9**9 or large base/exp)
+        if op_type is ast.Pow:
+            if isinstance(right, (int, float)) and right > 100:
+                raise ValueError("Exponent too large (maximum exponent is 100).")
+            if isinstance(left, (int, float)) and abs(left) > 1e6 and right > 10:
+                raise ValueError("Base too large for power operation.")
+
+        if op_type in (ast.Div, ast.FloorDiv, ast.Mod) and right == 0:
+            raise ZeroDivisionError("Division by zero.")
+
+        return SAFE_OPERATORS[op_type](left, right)
+
+    elif isinstance(node, ast.UnaryOp):
+        op_type = type(node.op)
+        if op_type not in SAFE_OPERATORS:
+            raise ValueError(f"Unsupported unary operator: {op_type.__name__}")
+        operand = _evaluate_ast_node(node.operand, depth + 1)
+        return SAFE_OPERATORS[op_type](operand)
+
+    elif isinstance(node, ast.Call):
+        if not isinstance(node.func, ast.Name):
+            raise ValueError(f"Unauthorized indirect function call: {type(node.func).__name__}")
+        func_name = node.func.id
+        if func_name not in SAFE_FUNCTIONS:
+            raise ValueError(f"Unauthorized function: '{func_name}'")
+
+        args = [_evaluate_ast_node(arg, depth + 1) for arg in node.args]
+        return SAFE_FUNCTIONS[func_name](*args)
+
+    else:
+        raise ValueError(f"Unauthorized syntax construct: {type(node).__name__}")
+
+
+def tool_safe_math(expression: str) -> str:
+    """Evaluates mathematical, trigonometric, and arithmetic expressions safely using AST analysis."""
+    clean = re.sub(r'^(calculate|math|what is|compute)\s+', '', expression.strip(), flags=re.IGNORECASE).strip()
+    if not clean:
+        return "Please provide a mathematical expression to evaluate."
+
+    try:
+        parsed = ast.parse(clean, mode='eval')
+        val = _evaluate_ast_node(parsed)
+        if isinstance(val, float) and val.is_integer():
+            val = int(val)
+        return f"### Math Evaluation:\n`{clean}` = **{val}**"
+    except ZeroDivisionError:
+        return f"Math calculation error: Division by zero in `{clean}`"
+    except Exception as e:
+        return f"Math calculation error: {e}"
+
 
 def tool_sqlite_exec(sql_query: str) -> str:
     """Executes a SQL query on local SQLite database (omni_data.db)."""
@@ -62,19 +182,3 @@ def tool_inspect_data(file_path: str) -> str:
         return "Unsupported format for inspector (use .csv or .json)."
     except Exception as e:
         return f"Data inspection error: {e}"
-
-
-def tool_safe_math(expression: str) -> str:
-    """Evaluates mathematical, trigonometric, and arithmetic expressions safely."""
-    clean = re.sub(r'^(calculate|math|what is|compute)\s+', '', expression.strip(), flags=re.IGNORECASE).strip()
-    safe_dict = {k: v for k, v in math.__dict__.items() if not k.startswith("__")}
-    safe_dict["abs"] = abs
-    safe_dict["round"] = round
-    try:
-        # Check against dangerous tokens
-        if any(b in clean for b in ["import", "open", "os", "sys", "exec", "eval", "__"]):
-            return "Expression rejected for safety."
-        val = eval(clean, {"__builtins__": {}}, safe_dict)
-        return f"### Math Evaluation:\n`{clean}` = **{val}**"
-    except Exception as e:
-        return f"Math calculation error: {e}"

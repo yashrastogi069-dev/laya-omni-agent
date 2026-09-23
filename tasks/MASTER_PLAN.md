@@ -1,48 +1,109 @@
-# MASTER_PLAN.md — Strategic Migration Roadmap (L0 – L25)
+# MASTER_PLAN.md — LAYA Standalone Autonomous Agent Roadmap (L0 – L25)
 
-## Overview
-This roadmap governs the disciplined transformation of the **LAYA Omni Agent** from an exploratory multi-tool prototype into a production-grade, persistent, low-latency autonomous personal operating system.
+## 1. Prime Directive & Strategic Vision
+**LAYA Omni Agent** is engineered as a **complete standalone autonomous operating agent** that executes real-world objectives independently.
 
-Execution is strictly phased. No checkpoint may begin until its predecessor passes all acceptance gates and verification tests.
+It does not depend on external agent runtimes. It possesses its own:
+- **System 1 Fast Decision Nervous System** (<35ms bounded structured decisions via local ModernBERT-large);
+- **Persistent Quest Runtime** (SQLite-backed multi-step mission state machine);
+- **Skills Layer & Hierarchical Routing** (`Request → Task Class → Domain → Skill → Candidate Set → Capability`);
+- **Canonical Capability Registry** (strongly typed `CapabilitySpec` and structured `ToolResult` envelopes);
+- **Typed Argument Resolver** (eliminating prompt-as-argument fragility);
+- **Deterministic Action Policy & Autonomy Profiles**;
+- **Operation Ledger** (logical mutation identity & exactly-once idempotency);
+- **Structured DAG Planner & Plan Validator**;
+- **Deterministic DAG Executor & Evidence-Based Verifier**;
+- **Continuous Memory Engine** (working, episodic, semantic, and procedural experience);
+- **Persistent Automation & Event Triggers**.
+
+### Future Compatibility Boundary
+Although LAYA operates 100% independently, all module boundaries adhere to clean, standardized interface types:
+`AgentRequest`, `AgentResponse`, `DecisionFrame`, `Quest`, `CapabilitySpec`, `ToolResult`, `ExecutionReceipt`, `VerificationResult`, and `AgentEvent`.
+This guarantees that future multi-agent coordination or supervisor routing can be achieved cleanly without refactoring LAYA's internal autonomous engine.
 
 ---
 
-## Phased Checkpoints
+## 2. Phased Checkpoint Sequence (L0 – L25)
 
-### Phase I: Foundation & Truth (L0 – L3)
-- [x] **L0 — Repository Truth & Baseline**: Complete codebase audit, file classification, reproducing confirmed defects, establishing baseline test suite (`tests/test_l0_baselines.py`), creating canonical documentation.
-- [ ] **L1 — Critical Defect Repair & Regressions**: Fix `safe_math` NameError, remove `System1Router` `[:12]` catalog truncation, synchronize `OmniMemory` JSON schema, prove fixes via regression tests.
-- [ ] **L2 — Foundational Typed Contracts**: Define typed data models using Pydantic: `DecisionFrame`, `ToolResult`, `CapabilitySpec`, `ActionClass`, `AutonomyProfile`, and structured error models.
-- [ ] **L3 — Canonical Capability Registry + Result Envelope**: Wrap all 23+ tools in `CapabilitySpec` contracts; enforce standard `ToolResult` envelopes with zero uncaught exceptions.
+### Phase I: Ground Truth & Reliability Repairs (L0 – L3)
+- [x] **L0 — Repository Truth & Baseline**:
+  - Full codebase audit of 22 Python files and 5 batch scripts.
+  - Identification of production, prototype, demo, and legacy assets.
+  - Comprehensive capability inventory (23 tools), routing analysis, memory schema audit.
+  - Confirmed defect reproduction in baseline test suite (`tests/test_l0_baselines.py`).
+  - Canonical documentation initialization. (Commit `26be41e`).
+- [ ] **L1 — Critical Local Reliability Repairs**:
+  - Fix `tool_safe_math` NameError via strict `ast.NodeVisitor` arithmetic evaluation with exponent bounds and recursion limits.
+  - Fix `OmniMemory` schema key mismatch (`tool_effectiveness` vs `tool_success_counts`), backward-compatible migration, atomic file persistence, and verified success tracking.
+  - Retain legacy System 1 `[:12]` defect test; label current behavior clearly as legacy prototype constraint.
+  - Build smoke test suite (`tests/test_l1_repairs.py`) and verify 100% pass rate across L0 + L1.
+- [ ] **L2 — Foundational Typed Contracts**:
+  - Implement Pydantic data contracts: `DecisionFrame`, `CapabilitySpec`, `ToolResult`, `ActionClass`, `AutonomyProfile`, `ExecutionReceipt`, `VerificationResult`.
+  - Standardize error codes (`INVALID_ARGUMENT`, `NOT_FOUND`, `PERMISSION_DENIED`, `TIMEOUT`, `PROCESS_FAILED`, `UNKNOWN_COMMIT`).
+- [ ] **L3 — Canonical Capability Registry & ToolResult Envelopes**:
+  - Wrap all existing 23 tools in `CapabilitySpec` contracts with typed schemas.
+  - Enforce `ToolResult` return envelopes across all tools with zero uncaught exceptions.
 
-### Phase II: System One Nervous System (L4 – L7)
-- [ ] **L4 — System One Provider Abstraction**: Implement `SystemOneProvider` base class with `LayaProvider` (local ModernBERT) and `JevProvider` (optional fallback/benchmark); support model caching and latency profiling.
-- [ ] **L5 — DecisionFrame Engine**: Multi-question System 1 evaluation producing intent, task class, urgency, importance, risk, ambiguity, requires_clarification, and requires_plan.
-- [ ] **L6 — Hierarchical Capability Routing (Shadow Mode)**: Two-stage routing (Domain → Skill → Capability) with fail-open fallback; log candidate recall telemetry in shadow mode.
-- [ ] **L7 — Skills Layer & Initial Workflows**: Define `Skill` abstraction for high-frequency recipes (`system_triage`, `codebase_audit`, `web_research_dossier`, `file_transform`); bypass novel planning for known skills.
+### Phase II: System One Nervous System & Hierarchical Routing (L4 – L7)
+- [ ] **L4 — System One Provider Abstraction**:
+  - Abstract base class `SystemOneProvider`.
+  - Implement `LayaProvider` (local ModernBERT-large) and optional `JevProvider` (TypeSafe cloud fallback/benchmark).
+  - Add latency profiling, provider health tracking, and model lifecycle management.
+- [ ] **L5 — Typed DecisionFrame Engine**:
+  - Evaluate multi-dimensional signals: `intent`, `task_class`, `urgency`, `importance`, `risk`, `ambiguity`, `requires_clarification`, `requires_action`, `requires_tools`, `requires_plan`, `requires_generative_reasoning`.
+  - Calibrated confidence and probability distributions per decision.
+- [ ] **L6 — Hierarchical Capability Routing**:
+  - Replace flat tool catalog slicing with multi-tier routing: `Request → Domain → Skill → Small Candidate Set → Capability`.
+  - Dynamic candidate pruning with fail-open fallback (broaden pool or escalate if uncertain).
+- [ ] **L7 — Skills Layer & Workflow Manifests**:
+  - Implement reusable `Skill` abstractions for recurring workflows (`system_triage`, `codebase_audit`, `web_research_dossier`, `file_transform`).
+  - System 1 routes to known skills before falling back to novel generative planning.
 
 ### Phase III: Argument Resolution & Safety Policy (L8 – L9)
-- [ ] **L8 — Capability Argument Resolver**: Multi-tiered argument resolution (Deterministic Regex/AST → State Extraction → Skill Template → Small Structured Model); eliminate passing raw prompts into tools.
-- [ ] **L9 — Action Policy & Autonomy Profiles**: Centralized deterministic policy engine; enforce confirmation gates for destructive actions (`LOCAL_DELETE`, `EXTERNAL_SEND`, `SYSTEM_ACTION`).
+- [ ] **L8 — Typed Capability Argument Resolver**:
+  - Multi-tier argument resolution: Deterministic regex/AST → Conversation state → Skill template → Small structured model.
+  - Strict validation against capability input schemas before dispatch.
+- [ ] **L9 — Deterministic Action Policy & Autonomy Profiles**:
+  - Centralized policy engine enforcing autonomy tiers (`ADVISOR`, `SAFE_ASSISTANT`, `LOCAL_OPERATOR`, `TRUSTED_OPERATOR`, `WORKFLOW_AUTHORIZED`).
+  - Strict confirmation gates for destructive actions (`LOCAL_DELETE`, `EXTERNAL_SEND`, `SYSTEM_ACTION`).
 
 ### Phase IV: Persistent Quest Engine & DAG Execution (L10 – L16)
-- [ ] **L10 — Persisted Quest Engine**: SQLite schema for `Quest`, `QuestStep`, and `OperationExecution`; state survival across restarts and crashes.
-- [ ] **L11 — Operation Ledger & Idempotency**: Logical mutation identity (`questId:stepId:capabilityId`); deduplicate side effects and prevent re-execution of completed operations.
-- [ ] **L12 — Structured DAG Planner**: Generate structured acyclic plans without execution side effects.
-- [ ] **L13 — Plan Validator**: Graph acyclicity checks, argument schema validation, permission checks, depth/budget limits.
-- [ ] **L14 — Deterministic DAG Executor**: Parallel execution of independent read-only steps; serialized mutation barriers; step state transitions.
-- [ ] **L15 — Verification & Completion Engine**: Deterministic outcome verifiers (file checks, exit codes, process absence, DOM state) + cheap semantic completion validation.
-- [ ] **L16 — Controlled Replanner**: Replan only on hard dependency failures; preserve completed step receipts.
+- [ ] **L10 — Persisted SQLite Quest Engine**:
+  - Relational SQLite schema for `Quest`, `QuestStep`, and `OperationExecution`.
+  - State survival across restarts, crashes, and provider timeouts.
+- [ ] **L11 — Operation Ledger & Idempotency**:
+  - Logical mutation identity (`questId:stepId:capabilityId`).
+  - Exactly-once execution semantics; deduplicate side effects and prevent re-executing completed operations.
+- [ ] **L12 — Structured DAG Planner**:
+  - Multi-step goal decomposition generating validated acyclic dependency graphs (`Plan` / `PlanStep`).
+- [ ] **L13 — Plan Validator**:
+  - Graph acyclicity verification, schema checks, capability availability, budget, and depth limits.
+- [ ] **L14 — Deterministic DAG Executor**:
+  - Parallel execution of independent read-only steps; serialized mutation barriers; step lifecycle state transitions.
+- [ ] **L15 — Evidence-Based Verifier & Completion Engine**:
+  - Deterministic outcome checks first (file existence, process checks, DOM state, exit codes) + cheap semantic completion validation.
+  - Never report task completion without physical receipts.
+- [ ] **L16 — Controlled Replanner**:
+  - Replan triggered only on hard dependency failures; preserve completed step receipts.
 
-### Phase V: Advanced Capabilities & Subsystems (L17 – L21)
-- [ ] **L17 — Role-Aware Generative Provider Router**: Swappable model routing for `ARGUMENT_WRITER`, `PLANNER`, `REPLANNER`, `FINALIZER`, and `CODING`.
-- [ ] **L18 — Modular Browser Capabilities**: Rebuild Playwright Edge into atomic primitives (`navigate`, `snapshot`, `click`, `type`, `extract`, `screenshot`, `tabs`).
-- [ ] **L19 — Memory V2 Architecture**: Segregated storage for Working, Episodic, Semantic, and Procedural memory with verified outcome scores.
-- [ ] **L20 — Persistent Automation Engine**: Event-driven triggers (schedule, filesystem events, system thresholds) spawning background Quests.
-- [ ] **L21 — Standard MCP Capability Adapter**: Convert Model Context Protocol (MCP) server endpoints into internal `CapabilitySpec` contracts under full policy governance.
+### Phase V: Advanced Subsystems (L17 – L21)
+- [ ] **L17 — Role-Aware Generative Provider Router**:
+  - Swappable model routing for `ARGUMENT_WRITER`, `PLANNER`, `REPLANNER`, `FINALIZER`, and `CODING`.
+- [ ] **L18 — Modular Browser Capability Rebuild**:
+  - Rebuild Playwright Edge into atomic, session-backed primitives (`navigate`, `snapshot`, `click`, `type`, `extract`, `screenshot`, `tabs`).
+- [ ] **L19 — Memory V2 (Working, Episodic, Semantic, Procedural)**:
+  - Persistent SQLite memory storing verified outcome receipts and skill effectiveness scores.
+- [ ] **L20 — Persistent Event-Driven Automation Engine**:
+  - Triggers (schedule, file events, system thresholds, webhooks) spawning background Quests under policy governance.
+- [ ] **L21 — Standard MCP Capability Adapter**:
+  - Convert Model Context Protocol (MCP) server endpoints into internal `CapabilitySpec` contracts.
 
 ### Phase VI: Hardening, Migration & Canary (L22 – L25)
-- [ ] **L22 — Expanded Capability Families**: Additional desktop, developer, and data science toolsets.
-- [ ] **L23 — Full Evaluation & Hardening**: Run end-to-end evaluation corpus, soak testing, and adversarial prompt injection defenses.
-- [ ] **L24 — Canary Default Runtime**: Promote the new Quest DAG engine to default CLI runner.
-- [ ] **L25 — Legacy Prototype Deprecation & Cleanup**: Archive legacy prototype files after proven stability period.
+- [ ] **L22 — Expanded Capability Families & Evaluation**:
+  - Desktop, developer, and data science tool expansion.
+- [ ] **L23 — Soak Testing & Adversarial Defenses**:
+  - 100-turn soak tests, concurrency validation, and prompt injection defense verification.
+- [ ] **L24 — Canary Default Runtime**:
+  - Promote the Quest DAG engine to default CLI runner.
+- [ ] **L25 — Legacy Prototype Deprecation & Cleanup**:
+  - Archive legacy prototype scripts after proven stability period.

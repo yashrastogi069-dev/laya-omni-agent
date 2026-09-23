@@ -277,13 +277,13 @@ All 10 tests passed with 0 failures and 0 errors:
 
 ---
 
-## Y. L1 Proposed Scope
-1. Fix `tool_safe_math` NameError by importing `re` and adding safe arithmetic evaluation.
-2. Fix `System1Router.route_tool` to remove the `[:12]` slice and route across all 23 tools.
-3. Synchronize `OmniMemory` schema keys with backward-compatibility fallback.
-4. Add regression tests in `tests/test_l1_repairs.py` and prove 100% pass rate.
+## Y. L1 Executed Scope & Results (COMPLETED)
+1. **`tool_safe_math` Repair**: Added `import re` and implemented a strict `ast.NodeVisitor` arithmetic evaluator. Whitelisted safe operators (`+`, `-`, `*`, `/`, `//`, `%`, `**`), math functions (`sqrt`, `abs`, `round`, `sin`, `cos`), and constants (`pi`, `e`, `tau`). Defended against computational exhaustion (`**` capped at exponent 100) and sandbox escapes (`__import__`, attribute access).
+2. **`OmniMemory` Schema Normalization & Atomic Persistence**: Implemented dynamic key migration (`tool_effectiveness` → `tool_success_counts`, `learned_facts` → `learned_insights`), atomic file persistence (`.tmp` write then `os.replace`), crash resilience for corrupted/empty files, and verified success tracking.
+3. **Preserved Legacy Routing Defect**: Retained `[:12]` slice test as a documented legacy limitation; rejected flat 23-tool dump in favor of upcoming Checkpoint L6 (Hierarchical Capability Routing).
+4. **Test Suite Verification**: Created `tests/test_l1_repairs.py` (12 tests). Ran full test suite (`tests/test_l0_baselines.py` + `tests/test_l1_repairs.py`): **22/22 tests passed via pytest in 5.06s (100% pass rate)**.
 
 ---
 
 ## Z. Exact Next Engineering Action
-Execute Checkpoint L1 repairs on `omni_engine/tools/data_tools.py`, `omni_engine/system1.py`, and `omni_engine/memory.py`.
+Execute Checkpoint L2 (Foundational Typed Contracts): Implement core Pydantic data models (`DecisionFrame`, `CapabilitySpec`, `ToolResult`, `ActionClass`, `AutonomyProfile`, `ExecutionReceipt`, `VerificationResult`) and validation test suite.

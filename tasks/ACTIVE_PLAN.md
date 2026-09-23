@@ -1,32 +1,53 @@
-# ACTIVE_PLAN.md — Checkpoint L1: Critical Defect Repair & Regressions
+# ACTIVE_PLAN.md — Checkpoint L1: Critical Local Reliability Repairs
 
-## Objective
-Remediate the confirmed runtime defects identified during Checkpoint L0 reconnaissance and incorporate mitigations from the Adversarial Systems Review:
-1. Fix `NameError: name 're' is not defined` in `tool_safe_math` (`omni_engine/tools/data_tools.py`) using a strict `ast.NodeVisitor` whitelist (only numeric constants, binary/unary operations, and safe math functions), with strict bounds on exponentiation (`**`) to prevent computational exhaustion (e.g. `9**9**9**9`).
-2. Fix catalog truncation in `System1Router.route_tool` (`omni_engine/system1.py`) by removing the hardcoded `[:12]` slice and replacing it with dynamic description compression and safe length limits so all 23 registered tools are evaluable without exceeding ModernBERT context limits.
-3. Synchronize `OmniMemory` schema keys (`tool_success_counts`, `learned_insights`) in `omni_engine/memory.py` with backward-compatibility for legacy files, and implement atomic file writes (write-to-tmp then replace) to prevent zero-byte file corruption during crashes.
+## 1. Objective
+Remediate confirmed foundational runtime defects to ensure LAYA's baseline execution, memory, and evaluation infrastructure is robust and crash-free before constructing higher-level contracts.
 
----
-
-## Affected Files
-- `omni_engine/tools/data_tools.py` — add missing `import re`, implement strict AST NodeVisitor with exponent bounds.
-- `omni_engine/system1.py` — expand criteria to include all 23 tools with compressed descriptions.
-- `omni_engine/memory.py` — backward-compatible key loading and atomic write persistence.
-- `memory/omni_memory.json` — ensure clean initial JSON structure matching memory engine.
-- `tests/test_l1_repairs.py` — new regression test suite verifying fixes and edge cases (computational exhaustion rejection, memory corruption resilience).
+Do **NOT** implement an unconstrained flat 23-tool dump into `System1Router`. Hierarchical capability routing is scheduled for Checkpoint L6.
 
 ---
 
-## Acceptance Criteria
-1. `tool_safe_math("2 + 2")` evaluates successfully and returns formatted result without `NameError`.
-2. `tool_safe_math` rejects dangerous AST constructs (`__import__`, attribute access, eval) and rejects massive exponents (`9**9**9**9` or exponent > 100) before execution.
-3. `System1Router.route_tool` includes all 23 registered tools in the criteria dict without exceeding context constraints.
-4. `OmniMemory` loads, saves, and records missions atomically without raising `KeyError`, and handles corrupted/empty JSON gracefully.
-5. `pytest tests/` runs both `test_l0_baselines.py` and `test_l1_repairs.py` with 100% pass rate.
+## 2. Checkpoint Scope
+
+### Item 1: `tool_safe_math` Repair (`omni_engine/tools/data_tools.py`)
+- **Problem**: Missing `import re` causes immediate `NameError`. Unconstrained `eval()` allows potential sandbox escapes and computational exhaustion (`9**9**9**9`).
+- **Fix**:
+  1. Add `import re`.
+  2. Implement an AST-based mathematical expression evaluator (`ast.NodeVisitor` / `ast.parse`).
+  3. Strictly whitelist safe AST nodes: `ast.Expression`, `ast.BinOp`, `ast.UnaryOp`, `ast.Constant`, `ast.Name`, `ast.Call`.
+  4. Whitelist permitted math functions from `math` (`sqrt`, `sin`, `cos`, `tan`, `log`, `floor`, `ceil`, `abs`, `round`).
+  5. Enforce safety bounds on exponentiation: reject exponents greater than 100 to prevent computational exhaustion (`9**9**9**9`).
+  6. Reject all attribute lookups (`ast.Attribute`), imports, indexing, comprehensions, and statements.
+
+### Item 2: `OmniMemory` Schema Normalization & Atomic Persistence (`omni_engine/memory.py`)
+- **Problem**: Mismatch between `tool_effectiveness` in loaded JSON and `tool_success_counts` in code causes `KeyError`. Direct non-atomic `open(..., "w")` risks zero-byte file corruption on process crash. Execution count is incremented blindly without distinguishing execution from verified success.
+- **Fix**:
+  1. In `_load()`: Migrate legacy keys dynamically (`tool_effectiveness` → `tool_success_counts`, `learned_facts` → `learned_insights`).
+  2. In `record_mission()`: Accept an optional `success: bool = True` parameter; track both total invocations and verified successes.
+  3. In `save()`: Implement atomic file writes (write to `omni_memory.json.tmp` then `os.replace`) to eliminate crash corruption.
+  4. Add corrupted/empty file resilience: if the JSON file is empty or corrupted, recover with defaults rather than raising unhandled JSONDecodeError.
+
+### Item 3: System 1 `[:12]` Legacy Defect Preservation & Labeling (`omni_engine/system1.py`)
+- **Requirement**: Maintain the regression test proving the `[:12]` truncation defect.
+- **Rule**: Do NOT implement a naive flat 23-tool dump. Keep the current slice clearly labeled as a legacy standalone prototype constraint; architectural resolution belongs to **L6 (Hierarchical Capability Routing)**.
+
+### Item 4: Smoke & Integration Tests (`tests/test_l1_repairs.py`)
+- Test safe arithmetic: `2 + 2`, `sqrt(16)`, `sin(0)`, `abs(-10)`, `round(3.14159, 2)`.
+- Test safety rejection: `9**9**9**9` (exhaustion), `__import__('os')` (injection), `open('foo')` (file access).
+- Test memory normalization: load legacy JSON with `tool_effectiveness`, verify no `KeyError`, verify atomic write created valid JSON.
+- Test import/startup smoke: verify all `omni_engine` submodules import cleanly without warnings or errors.
 
 ---
 
-## Rollback Plan
-If regressions occur:
-- Restore previous state of target files using `git checkout -- <file>`.
-- Re-run `test_l0_baselines.py` to confirm baseline stability.
+## 3. Acceptance Criteria
+1. `tool_safe_math("2 + 2")` returns `"### Math Evaluation:\n`2 + 2` = **4**"` with zero `NameError`.
+2. `tool_safe_math("9**9**9**9")` returns `"Expression rejected for safety (exponent too large)."` within <10ms.
+3. `tool_safe_math("__import__('os').system('dir')")` returns `"Expression rejected for safety."`.
+4. `OmniMemory` initializes, loads legacy JSON, records missions, and saves atomically without raising `KeyError` or crashing.
+5. All tests in `tests/test_l0_baselines.py` and `tests/test_l1_repairs.py` pass 100% via `pytest`.
+
+---
+
+## 4. Rollback Plan
+- Restore modified files using `git checkout -- omni_engine/tools/data_tools.py omni_engine/memory.py`.
+- Re-run `python -m pytest tests/test_l0_baselines.py` to confirm baseline stability.

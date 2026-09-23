@@ -46,15 +46,14 @@ class TestL0ToolRegistry(unittest.TestCase):
 
 
 class TestL0ConfirmedDefects(unittest.TestCase):
-    def test_defect_safe_math_missing_re_import(self):
+    def test_safe_math_no_longer_raises_nameerror(self):
         """
-        Defect: tool_safe_math attempts to use `re.sub` but does not import `re`.
-        Expected behavior: Raises NameError until fixed.
+        Verified: tool_safe_math previously raised NameError on missing 're'.
+        Fixed in L1: Now evaluates successfully.
         """
         from omni_engine.tools.data_tools import tool_safe_math
-        with self.assertRaises(NameError) as ctx:
-            tool_safe_math("2 + 2")
-        self.assertIn("name 're' is not defined", str(ctx.exception))
+        res = tool_safe_math("2 + 2")
+        self.assertIn("= **4**", res)
 
     def test_defect_system1_tool_catalog_truncation(self):
         """

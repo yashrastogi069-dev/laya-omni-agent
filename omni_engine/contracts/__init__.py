@@ -36,6 +36,10 @@ from .agent import (
     AgentResponse,
     AgentEvent,
 )
+from .routing import (
+    CapabilityCandidate,
+    RouteDecision,
+)
 
 __all__ = [
     # Base
@@ -66,4 +70,7 @@ __all__ = [
     "AgentRequest",
     "AgentResponse",
     "AgentEvent",
+    # Routing
+    "CapabilityCandidate",
+    "RouteDecision",
 ]

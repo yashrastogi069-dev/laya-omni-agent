@@ -398,11 +398,13 @@ class DecisionFabric:
                 )
 
         # 4c. Ambiguity Escalation
-        if (
-            ambiguity_sig.value == "ambiguous"
-            or ambiguity_sig.confidence > 0.65
+        is_ambiguous = (
+            ambiguity_sig.value in ["ambiguous", True]
+            or (isinstance(ambiguity_sig.value, (int, float)) and ambiguity_sig.value > 0.65)
+            or (ambiguity_sig.probabilities and ambiguity_sig.probabilities.get("ambiguous", 0.0) > 0.65)
             or len(cleaned_prompt.split()) <= 2
-        ):
+        )
+        if is_ambiguous:
             needs_clarification_bool = True
             needs_gen_bool = True
 

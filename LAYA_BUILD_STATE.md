@@ -1,9 +1,9 @@
 # LAYA_BUILD_STATE.md — Current Ground Truth State
 
-**Last Updated**: 2026-09-23T10:35:00+05:30  
+**Last Updated**: 2026-09-23T11:35:00+05:30  
 **Current Branch**: `laya-autonomous-v2`  
-**Active Checkpoint**: `L5 — Typed DecisionFrame Engine` (**COMPLETED**; activating L6A)  
-**Last Passing Test Suite**: `tests/test_l0_baselines.py`, `tests/test_l1_repairs.py`, `tests/test_l2_contracts.py`, `tests/test_l2_1_reconciliation.py`, `tests/test_l3_capabilities.py`, `tests/test_l4_providers.py`, `tests/test_l5_decision_fabric.py` (**111/111 passed in 160.07s (100% pass rate)**)  
+**Active Checkpoint**: `L7 — Skills Substrate & Workflow Manifests` (**ACTIVE**)  
+**Last Passing Test Suite**: `tests/test_l0_baselines.py`, `tests/test_l1_repairs.py`, `tests/test_l2_contracts.py`, `tests/test_l2_1_reconciliation.py`, `tests/test_l3_capabilities.py`, `tests/test_l4_providers.py`, `tests/test_l5_decision_fabric.py`, `tests/test_l6a_routing.py` (**123/123 passed in 244.52s (100% pass rate)**)  
 **Mission Role**: Complete Standalone Autonomous Operating Agent.
 
 ---
@@ -79,7 +79,7 @@ The repository contains a standalone prototype CLI (`laya_agent.py` / `omni_engi
 
 ## 3. Test Suite & Health Metrics Breakdown
 
-- **Total Automated Tests**: 111 tests (+ 23 subtests)
+- **Total Automated Tests**: 123 tests (+ 23 subtests)
   - **L0 Baseline Tests**: 10 passed
   - **L1 & L1.1 Memory and Math Tests**: 12 passed
   - **L2 Contracts Tests**: 18 passed
@@ -87,20 +87,22 @@ The repository contains a standalone prototype CLI (`laya_agent.py` / `omni_engi
   - **L3 Capability Substrate Tests**: 25 passed (+ 23 subtests passed)
   - **L4 Provider Foundations Tests**: 19 passed
   - **L5 Decision Fabric Tests**: 12 passed
-- **Pass Rate**: 100% (111 passed, 0 failed, 0 errors, 23 subtests passed).
-- **Runtime**: ~160.07s via `python -m unittest discover tests -v`.
+  - **L6A Hierarchical Routing Tests**: 12 passed
+- **Pass Rate**: 100% (123 passed, 0 failed, 0 errors, 23 subtests passed).
+- **Runtime**: ~244.52s via `python -m unittest discover tests -v`.
 
 ---
 
 ## 4. Current Blockers
 
-- **None**. Checkpoint L5 is verified, reviewed, and passing 100% of automated tests.
+- **None**. Checkpoint L6A is verified, reviewed, and passing 100% of automated tests.
 
 ---
 
-## 5. Next Checkpoint Scope: L6A (Hierarchical Routing Foundation)
+## 5. Next Checkpoint Scope: L7 (Skills Substrate & Workflow Manifests)
 
-1. Implement `HierarchicalRouter` consuming `DecisionFrame` and mapping `candidate_domains` to candidate capabilities in `CapabilityRegistry`.
-2. Implement dynamic candidate pruning eliminating legacy `[:12]` flat catalog slicing.
-3. Fail-open fallback when uncertainty is high.
-4. Prepare foundations for Checkpoint L7 (Skills Substrate).
+1. Implement `SkillManifest` contract in `omni_engine/contracts/skill.py`.
+2. Implement thread-safe `SkillRegistry` in `omni_engine/skills/registry.py` verifying 100% capability parity (zero dangling capabilities).
+3. Define initial evidence-driven canonical skills in `omni_engine/skills/definitions.py`.
+4. Create test suite `tests/test_l7_skills.py` and execute adversarial reviews.
+5. Prepare for Checkpoint L6B (Final Skill-Aware Hierarchical Router).

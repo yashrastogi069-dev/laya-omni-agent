@@ -71,13 +71,20 @@ This guarantees that future multi-agent coordination or supervisor routing can b
   - Candidate domain ranking without violating `extra="forbid"`.
   - Standardized 10-prompt benchmark evaluation corpus and runner in `omni_engine/decision/corpus.py`.
   - Comprehensive unit test suite `tests/test_l5_decision_fabric.py` (12 tests). Total repository test suite: **111 passed in 160.07s (100% pass rate)**.
-- [ ] **L6A — Hierarchical Capability Routing Foundation**:
+- [x] **L6A — Hierarchical Capability Routing Foundation**:
   - Foundational multi-tier routing: `Request → Domain → Small Candidate Set → Capability`.
-  - Dynamic candidate pruning eliminating flat `[:12]` catalog slicing.
-  - Fail-open fallback broadening candidate pool across adjacent domains when uncertainty is high.
-- [ ] **L7 — Skills Substrate & Workflow Manifests**:
-  - Implement reusable `Skill` abstractions for recurring workflows (`system_triage`, `codebase_audit`, `web_research_dossier`, `file_transform`).
-  - System 1 routes to known skills before falling back to novel generative planning.
+  - Implemented `HierarchicalRouter` in `omni_engine/routing/router.py` and contracts in `omni_engine/contracts/routing.py`.
+  - Conversational gating (<5ms) bypassing tool scoring for non-tool queries.
+  - Automatic cross-domain pooling for multi-step tasks (`needs_plan=True`).
+  - Ambiguity & low-confidence fail-open pooling.
+  - Explicit capability synonym pinning (`CAPABILITY_PIN_MAP`) guaranteeing zero tool dropping.
+  - "General" domain technical promotion.
+  - Elimination of sequential latency cliff: zero-inference short-circuit (<0.2ms) and fast deterministic lexical scoring (<1ms).
+  - Elimination of legacy `[:12]` truncation defect (ISSUE-02).
+  - Test suite `tests/test_l6a_routing.py` (12 tests). Full repository test suite: **123 passed in 244.52s (100% pass rate)**.
+- [ ] **L7 — Skills Substrate & Workflow Manifests (ACTIVE)**:
+  - Implement reusable `SkillManifest` abstractions for recurring workflows (`web_research`, `codebase_audit`, `diagnose_system`, `file_transform`, `database_query`, `network_probe`).
+  - Zero dangling capabilities: all required capabilities verified against `CapabilityRegistry`.
 - [ ] **L6B — Final Skill-Aware Hierarchical Router**:
   - Final integration of multi-tier routing: `Request → Domain → Skill → Small Candidate Set → Capability`.
 

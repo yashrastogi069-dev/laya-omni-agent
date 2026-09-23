@@ -88,6 +88,7 @@ The following canonical documentation files MUST be maintained in exact synchron
 | `docs/CAPABILITY_CONTRACT.md` | Canonical specification for capability schemas, inputs, outputs, and safety. |
 | `docs/AUTOMATION_MODEL.md` | Triggers, scheduled automations, conditions, and Quest dispatch rules. |
 | `docs/SECURITY_AND_POLICY.md` | Action classification, autonomy tiers, approvals, and injection defenses. |
+| `END_TO_END_EXECUTION_LOG.md` | Master cumulative log of all actions, tests, additions, deletions, and results from top to bottom. |
 | `LAYA_CORE_IMPLEMENTATION_REPORT.md` | Long-form evidence report with benchmark data and defect analyses. |
 
 ---

@@ -11,9 +11,9 @@
 | **System Role** | Standalone Autonomous Operating Agent (Independent from Jarvis Core V2) |
 | **Active Architecture Branch** | `laya-autonomous-v2` |
 | **Public GitHub Remote** | `https://github.com/yashrastogi069-dev/laya-omni-agent.git` |
-| **Latest Branch Commit** | `1469f4b` (Preparing L2.1 commit) |
+| **Latest Branch Commit** | `ed9e1e5` — `feat(L2.1): Contract and registry reconciliation, 19 error codes, tool outcome, and invocation context` |
 | **Main Branch Commit** | `6a66787` — `fix(L1.1): Memory 3-state verification, corrupted file quarantine & safe_math resource bounds` |
-| **Total Automated Tests** | **55 / 55 Passing (100%)** in ~6.22 seconds |
+| **Total Automated Tests** | **55 / 55 Passing (100%)** in ~5.71 seconds |
 | **Test Categorization** | **53 Feature Acceptance Tests** + **2 Known Defect Reproduction Tests** |
 | **Checkpoints Completed** | **L0** (Audit), **L1** (Repairs), **L1.1** (Hardening), **L2** (Contracts), **L2.1** (Reconciliation) |
 | **Next Checkpoint** | **L3A** (Canonical Capability Registry) |
@@ -42,7 +42,7 @@
        │ ── 40/40 Tests Passing (Commit: ded73d3 on laya-autonomous-v2)
        ▼
 [L2.1: CONTRACT & REGISTRY RECONCILIATION]
-       │ ── 55/55 Tests Passing (53 Feature Acceptance, 2 Defect Reproduction)
+       │ ── 55/55 Tests Passing (Commit: ed9e1e5 on laya-autonomous-v2)
        ▼
 [L3A: READY — CANONICAL CAPABILITY REGISTRY SUBSTRATE]
 ```
@@ -188,6 +188,7 @@
 | `omni_engine/memory.py` | Continuous memory with atomic `.tmp` persistence, `.corrupt` quarantine, and 3-state outcome tracking. |
 | `omni_engine/tools/data_tools.py` | AST mathematical evaluation with strict deterministic resource bounds. |
 | `requirements.txt` | Core dependencies with pinned compatible range `pydantic>=2.0.0,<3.0.0`. |
+| `pytest.ini` | Pytest configuration scoping test discovery strictly to `tests/` directory. |
 | `AGENTS.md` | Repository invariants, documentation synchronization rules, and phased engineering protocol. |
 | `LAYA_BUILD_STATE.md` | Ground truth build state, health matrix, test categorization breakdown, and blockers. |
 | `HANDOFF.md` | Operational continuation guide for next agent session (preparing L3A). |

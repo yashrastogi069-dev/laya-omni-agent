@@ -1,9 +1,9 @@
 # LAYA_BUILD_STATE.md — Current Ground Truth State
 
-**Last Updated**: 2026-09-23T12:15:00+05:30  
+**Last Updated**: 2026-09-24T05:30:00+05:30  
 **Current Branch**: `laya-autonomous-v2`  
-**Active Checkpoint**: `L6B — Final Skill-Aware Hierarchical Router` (**ACTIVE**)  
-**Last Passing Test Suite**: `tests/test_l0_baselines.py`, `tests/test_l1_repairs.py`, `tests/test_l2_contracts.py`, `tests/test_l2_1_reconciliation.py`, `tests/test_l3_capabilities.py`, `tests/test_l4_providers.py`, `tests/test_l5_decision_fabric.py`, `tests/test_l6a_routing.py`, `tests/test_l7_skills.py` (**149/149 passed in 191.42s (100% pass rate)**)  
+**Active Checkpoint**: `L6B — Final Skill-Aware Hierarchical Router` (**COMPLETED & VERIFIED**)  
+**Last Passing Test Suite**: `tests/test_l0_baselines.py`, `tests/test_l1_repairs.py`, `tests/test_l2_contracts.py`, `tests/test_l2_1_reconciliation.py`, `tests/test_l3_capabilities.py`, `tests/test_l4_providers.py`, `tests/test_l5_decision_fabric.py`, `tests/test_l6a_routing.py`, `tests/test_l7_skills.py`, `tests/test_l6b_skill_routing.py` (**165/165 passed in 148.33s (100% pass rate)**)  
 **Mission Role**: Complete Standalone Autonomous Operating Agent.
 
 ---
@@ -56,6 +56,15 @@ The repository contains a standalone prototype CLI (`laya_agent.py` / `omni_engi
     - Implemented thread-safe `SkillRegistry` in `omni_engine/skills/registry.py` verifying zero dangling capabilities against `CapabilityRegistry`.
     - Defined 7 canonical skills backed 100% by the 23 verified tools in `omni_engine/skills/definitions.py`.
     - Comprehensive unit test suite `tests/test_l7_skills.py` (26 tests).
+11. **Checkpoint L6B Milestone Reached**:
+    - Extended `RouteDecision` in `omni_engine/contracts/routing.py` with strongly typed skill telemetry (`selected_skill`, `candidate_skills`, `skill_workflow_template: List[SkillStepTemplate]`, `skill_confirmation_policy: ConfirmationPolicy`).
+    - Implemented skill-aware multi-tier routing pipeline in `omni_engine/routing/router.py`:
+      `Request → DecisionFrame → Domain Routing → Skill Routing → Small Candidate Set → Capability`
+    - Implemented Dynamic Candidate Floor Expansion (`effective_max = max(max_candidates, len(mandatory_caps))`) ensuring required and pinned capabilities are never dropped.
+    - Implemented Unconditional Cross-Domain Spec Backfill for constituent tools of selected skills.
+    - Implemented Dual-Threshold Gating & Anti-Locking Defenses (destructive verb gate, single generic token gate, description score ceiling at 0.50, morphological stemming).
+    - Preserved zero-latency fast-paths (<5ms) and legacy non-switching boundary.
+    - Comprehensive unit test suite `tests/test_l6b_skill_routing.py` (16 tests).
 
 ---
 
@@ -91,7 +100,7 @@ The repository contains a standalone prototype CLI (`laya_agent.py` / `omni_engi
 
 ## 3. Test Suite & Health Metrics Breakdown
 
-- **Total Automated Tests**: 123 tests (+ 23 subtests)
+- **Total Automated Tests**: 165 tests (+ 23 subtests)
   - **L0 Baseline Tests**: 10 passed
   - **L1 & L1.1 Memory and Math Tests**: 12 passed
   - **L2 Contracts Tests**: 18 passed
@@ -100,21 +109,27 @@ The repository contains a standalone prototype CLI (`laya_agent.py` / `omni_engi
   - **L4 Provider Foundations Tests**: 19 passed
   - **L5 Decision Fabric Tests**: 12 passed
   - **L6A Hierarchical Routing Tests**: 12 passed
-- **Pass Rate**: 100% (123 passed, 0 failed, 0 errors, 23 subtests passed).
-- **Runtime**: ~244.52s via `python -m unittest discover tests -v`.
+  - **L7 Skills Substrate Tests**: 26 passed
+  - **L6B Skill-Aware Routing Tests**: 16 passed
+- **Pass Rate**: 100% (165 passed, 0 failed, 0 errors, 23 subtests passed).
+- **Runtime**: ~148.33s via `python -m unittest discover tests -v`.
 
 ---
 
 ## 4. Current Blockers
 
-- **None**. Checkpoint L6A is verified, reviewed, and passing 100% of automated tests.
+- **None**. Checkpoint L6B is verified, reviewed, and passing 100% of automated tests.
 
 ---
 
-## 5. Next Checkpoint Scope: L7 (Skills Substrate & Workflow Manifests)
+## 5. Next Checkpoint Scope: L8 (Argument Resolution & Extraction Engine) — PAUSED AT HARD STOPPING BOUNDARY
 
-1. Implement `SkillManifest` contract in `omni_engine/contracts/skill.py`.
-2. Implement thread-safe `SkillRegistry` in `omni_engine/skills/registry.py` verifying 100% capability parity (zero dangling capabilities).
-3. Define initial evidence-driven canonical skills in `omni_engine/skills/definitions.py`.
-4. Create test suite `tests/test_l7_skills.py` and execute adversarial reviews.
-5. Prepare for Checkpoint L6B (Final Skill-Aware Hierarchical Router).
+Per the user's explicit instructions:
+- **PAUSE**: Stop before beginning Checkpoint L8 (Argument Resolver).
+- Do NOT implement Argument Resolver (L8), Policy Engine (L9), Quest Engine (L10), Planner (L12), or DAG Executor (L14).
+- Future L8 Scope:
+  1. Build deterministic extractors for structured arguments.
+  2. Implement bounded LLM argument completion fallback (`GenerativeProvider`).
+  3. Validate arguments strictly against target `CapabilitySpec.input_schema`.
+  4. Ensure non-switching boundary remains until policy engine L9.
+

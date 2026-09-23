@@ -5,8 +5,8 @@ Strongly typed boundary contracts for hierarchical capability routing.
 
 Contracts:
 - CapabilityCandidate: Individual capability candidate with score, domain, and rationale.
-- RouteDecision: Complete hierarchical routing decision with candidate reduction telemetry
-  and strict fail-open consistency validation.
+- RouteDecision: Complete hierarchical routing decision with candidate reduction telemetry,
+  skill awareness, and strict fail-open consistency validation.
 """
 
 import math
@@ -15,6 +15,8 @@ from typing import Any, Dict, List, Optional
 from pydantic import Field, field_validator, model_validator
 
 from .base import BaseContractModel
+from .enums import ConfirmationPolicy
+from .skill import SkillStepTemplate
 
 
 class CapabilityCandidate(BaseContractModel):
@@ -22,7 +24,7 @@ class CapabilityCandidate(BaseContractModel):
     capability_id: str = Field(..., description="Canonical capability identifier")
     domain: str = Field(..., description="Capability domain (web, browser, os, dev, data)")
     score: float = Field(..., ge=0.0, le=1.0, description="Relevance confidence score strictly bounded in [0.0, 1.0]")
-    rationale: str = Field(..., description="Selection provenance (e.g. domain_primary, explicit_keyword_pinned, pooled_fallback)")
+    rationale: str = Field(..., description="Selection provenance (e.g. domain_primary, explicit_keyword_pinned, skill_required, pooled_fallback)")
     spec_summary: Optional[str] = Field(default=None, description="Concise capability description for downstream planning context")
 
     @field_validator("score")
@@ -46,6 +48,22 @@ class RouteDecision(BaseContractModel):
     candidate_domains: List[str] = Field(
         default_factory=list,
         description="All active domains included in candidate pooling"
+    )
+    selected_skill: Optional[str] = Field(
+        default=None,
+        description="Canonical ID of skill selected by System 1 router, if matched"
+    )
+    candidate_skills: List[str] = Field(
+        default_factory=list,
+        description="Ranked candidate skill IDs considered during routing"
+    )
+    skill_workflow_template: Optional[List[SkillStepTemplate]] = Field(
+        default=None,
+        description="Deterministic workflow DAG template attached to selected skill"
+    )
+    skill_confirmation_policy: Optional[ConfirmationPolicy] = Field(
+        default=None,
+        description="Human confirmation policy governing selected skill execution"
     )
     candidates: List[CapabilityCandidate] = Field(
         default_factory=list,
@@ -109,5 +127,17 @@ class RouteDecision(BaseContractModel):
             raise ValueError(
                 f"Candidate count ({len(self.candidates)}) cannot exceed total registry capabilities ({self.total_registry_capabilities})."
             )
+
+        # 4. Enforce skill consistency
+        if self.selected_skill is not None:
+            if not self.selected_skill.strip():
+                raise ValueError("selected_skill cannot be an empty or whitespace string.")
+            if self.selected_skill not in self.candidate_skills:
+                self.candidate_skills.insert(0, self.selected_skill)
+        else:
+            if self.skill_workflow_template is not None:
+                raise ValueError("skill_workflow_template must be None when selected_skill is None.")
+            if self.skill_confirmation_policy is not None:
+                raise ValueError("skill_confirmation_policy must be None when selected_skill is None.")
 
         return self

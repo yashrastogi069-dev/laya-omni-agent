@@ -531,18 +531,115 @@ Checkpoint L7 introduces the **Skills Substrate**:
 
 ---
 
+---
+
+## CHECKPOINT L6B — FINAL SKILL-AWARE HIERARCHICAL ROUTER
+
+**Status**: COMPLETED & VERIFIED  
+**Date**: 2026-09-24T05:25:00+05:30  
+**Branch**: `laya-autonomous-v2`  
+**Git Commit**: Pending commit  
+
+### 1. Architectural Mission & Pipeline Flow
+Checkpoint L6B completes Phase 2 of hierarchical capability reduction by unifying the System 1 Decision Fabric (L5), Capability Substrate (L3), and Skills Substrate (L7) into a high-precision, low-latency, skill-aware routing pipeline:
+`Request → DecisionFrame → Domain Routing → Skill Routing → Small Candidate Set → Capability`
+
+Key architectural capabilities implemented:
+1. **Dynamic Candidate Floor Expansion (Blocking-1)**:
+   - When a skill is matched, its `required_capabilities` along with any explicit keyword-pinned tools (`CAPABILITY_PIN_MAP`) are designated as mandatory capabilities.
+   - If the count of mandatory capabilities exceeds `max_candidates` (e.g. 4 required tools with `max_candidates=3`), the router dynamically expands the candidate floor to `len(mandatory_caps)` rather than arbitrarily dropping critical constituent tools.
+   - Emits structured telemetry: `metadata["budget_expanded"] = True` and `metadata["expanded_reason"] = "skill_required_capabilities_exceeded_max"`.
+2. **Unconditional Cross-Domain Spec Backfill (Blocking-2)**:
+   - Constituent capabilities of a skill that originate outside the primary domain (e.g. `file_transform` skill in domain `os` utilizing `run_python` from domain `dev`) are unconditionally backfilled with their `CapabilitySpec` directly from the `CapabilityRegistry`.
+3. **Dual-Threshold Gating & Anti-Locking Defenses (Blocking-3)**:
+   - *Destructive Verb Gate*: Prohibits non-destructive skills from matching queries with destructive actions (`delete`, `remove`, `kill`, `drop`, `purge`, `terminate`).
+   - *Single Generic Token Gate*: Generic single-word tokens (`file`, `run`, `status`, `data`, `system`, `check`, `test`, `web`, `code`, `repo`, `python`) cannot trigger skill locking on their own.
+   - *Description Score Ceiling*: Overlap scores on skill descriptions are capped at 0.50, ensuring that only high-confidence intent pattern matches (>=0.75) select a skill.
+   - *Morphological Stemmer*: Deterministic suffix and terminal-e stripping (`ing`, `tion`, `s`, `ed`, `e`) aligns verbal/noun forms without external NLP dependencies.
+4. **Strongly Typed Skill Telemetry (Blocking-4)**:
+   - `RouteDecision` extended with `selected_skill: Optional[str]`, `candidate_skills: List[str]`, `skill_workflow_template: Optional[List[SkillStepTemplate]]`, and `skill_confirmation_policy: Optional[ConfirmationPolicy]`.
+   - Strict mutual exclusivity validator: If `selected_skill is None`, `skill_workflow_template` and `skill_confirmation_policy` must strictly be `None`.
+5. **Clean Relative Imports (Blocking-5)**:
+   - Imports in `contracts/routing.py` use relative imports (`from .enums import ConfirmationPolicy`, `from .skill import SkillStepTemplate`), completely avoiding circular import deadlocks.
+6. **Unified Deduplication & Multi-Rationale Merging**:
+   - Capabilities satisfying multiple criteria (e.g. pinned by keyword AND required by skill) are cleanly merged to score 1.0 with combined rationale `"explicit_keyword_pinned+skill_required"`.
+7. **Zero-Latency Fast-Paths**:
+   - Empty/whitespace prompts return 0 candidates, `selected_skill=None` in <0.1ms.
+   - Pure conversational queries (`needs_tools=False`, `requires_action=False`) return in <0.2ms.
+8. **Preservation of Non-Switching Boundary**:
+   - Legacy agent loop in `omni_agent.py` and `omni_engine/planner.py` remains untouched and functional.
+
+### 2. Code Changes & Implementation Details
+1. `omni_engine/contracts/routing.py`:
+   - Added `selected_skill: Optional[str] = None`
+   - Added `candidate_skills: List[str] = Field(default_factory=list)`
+   - Added `skill_workflow_template: Optional[List[SkillStepTemplate]] = None`
+   - Added `skill_confirmation_policy: Optional[ConfirmationPolicy] = None`
+   - Added Pydantic `@model_validator(mode="after")` enforcing strict correlation between `selected_skill`, `skill_workflow_template`, and `skill_confirmation_policy`.
+2. `omni_engine/routing/router.py`:
+   - Updated `HierarchicalRouter.__init__` to accept `skill_registry: Optional[SkillRegistry] = None`, defaulting to `build_canonical_skill_registry(self.registry)`.
+   - Integrated skill discovery via `find_by_intent` and tokenized scoring against intent patterns and descriptions.
+   - Enforced dynamic candidate budget expansion, spec backfilling, destructive verb gating, generic token gating, and deduplication.
+3. `tests/test_l6b_skill_routing.py`:
+   - 16 comprehensive unit and integration tests:
+     - `test_route_decision_contract_validation`: Validates typed fields and consistency rules.
+     - `test_route_decision_invalid_skill_inconsistency`: Proves rejection of inconsistent skill workflow / policy state.
+     - `test_empty_prompt_fast_path`: Proves deterministic <5ms response with empty candidates and None skill.
+     - `test_conversational_fast_path`: Proves conversational prompts bypass skills and tool scoring.
+     - `test_exact_canonical_skill_matches`: Tests all 7 canonical skills with typical matching user prompts.
+     - `test_skill_required_capabilities_prioritized`: Verifies skill-required tools receive score 0.95 and top ranking.
+     - `test_dynamic_floor_expansion_blocking_1`: Verifies candidate budget expands when mandatory tools exceed `max_candidates`.
+     - `test_unconditional_cross_domain_spec_backfill_blocking_2`: Verifies cross-domain constituent tool specs are backfilled.
+     - `test_anti_locking_defenses_destructive_verbs_blocking_3`: Verifies destructive verbs prevent non-destructive skill match.
+     - `test_anti_locking_defenses_generic_single_tokens_blocking_3`: Verifies single generic words do not false-lock skills.
+     - `test_unified_deduplication_and_rationale_merging`: Verifies multi-rationale deduplication without duplicate candidates.
+     - `test_budget_conscious_optional_capabilities`: Verifies optional tools receive score 0.75 without triggering budget expansion.
+     - `test_fallback_to_pure_domain_routing`: Verifies ad-hoc domain prompts fall back to capability routing with `selected_skill=None`.
+     - `test_multi_step_cross_domain_pooling_with_skill`: Verifies planning queries pool domains while selecting appropriate skill.
+     - `test_legacy_non_switching_boundary`: Verifies legacy `omni_agent.py` and `omni_engine/planner.py` remain untouched and operational.
+     - `test_live_modernbert_skill_routing`: End-to-end integration test with live ModernBERT-large neural inference.
+4. `tasks/ACTIVE_PLAN.md` & `tasks/MASTER_PLAN.md`:
+   - Updated to mark Checkpoint L6B fully complete and document the hard stop boundary before L8.
+
+### 3. Adversarial Review & Verdict
+- Independent adversarial diff review executed by subagent `9c333b2f-014c-4349-9b51-55a94c982971`.
+- Verified all 5 recommendations: Dynamic candidate floor expansion, unconditional cross-domain spec backfill, dual-threshold anti-locking defenses, strongly typed contracts, and clean relative imports.
+- Final Review Verdict: **PASS ✅**.
+
+### 4. Verification & Test Evidence
+- **L6B Test Suite**: `python -m unittest tests/test_l6b_skill_routing.py -v`
+  - Output: **16 tests passed in 83.82s (100% pass rate)**.
+- **Full Repository Test Suite**: `python -m unittest discover tests -v`
+  - Output: **165 tests passed in 148.33s (100% pass rate)** across all checkpoints (L0, L1, L1.1, L2, L2.1, L3, L4, L5, L6A, L7, L6B).
+  - Breakdown:
+    - `tests/test_l0_baselines.py`: 10 passed
+    - `tests/test_l1_repairs.py`: 12 passed
+    - `tests/test_l2_contracts.py`: 18 passed
+    - `tests/test_l2_1_reconciliation.py`: 15 passed
+    - `tests/test_l3_capabilities.py`: 25 passed (+ 23 subtests passed)
+    - `tests/test_l4_providers.py`: 19 passed
+    - `tests/test_l5_decision_fabric.py`: 12 passed
+    - `tests/test_l6a_routing.py`: 12 passed
+    - `tests/test_l7_skills.py`: 26 passed
+    - `tests/test_l6b_skill_routing.py`: 16 passed
+- **Non-Switching Boundary**: Legacy `omni_agent.py` and `omni_engine/planner.py` verified operational on legacy path.
+- **Stopping Boundary**: Engineering activity paused cleanly before L8 (Argument Resolver).
+
+---
+
 ## Cumulative Summary of Repository Files
 
 | File | Nature / Purpose |
 | :--- | :--- |
+| `omni_engine/contracts/routing.py` | `CapabilityCandidate` and `RouteDecision` boundary contracts extended with strongly typed skill telemetry (`selected_skill`, `skill_workflow_template`, `skill_confirmation_policy`). |
+| `omni_engine/routing/router.py` | `HierarchicalRouter` with full skill-aware pipeline, dynamic floor expansion, cross-domain backfill, and anti-locking defenses. |
+| `omni_engine/routing/__init__.py` | Public re-exports for hierarchical routing substrate (`DOMAIN_KEYWORD_MAP`, `CAPABILITY_PIN_MAP`, `HierarchicalRouter`). |
+| `tests/test_l6b_skill_routing.py` | 16 unit and integration tests covering skill routing, floor expansion, cross-domain backfill, anti-locking, and live ModernBERT evaluation. |
 | `omni_engine/contracts/skill.py` | `SkillStepTemplate` and `SkillManifest` boundary contracts with safety floors, DFS cycle detector, and phantom dependency prevention. |
 | `omni_engine/skills/registry.py` | Thread-safe `SkillRegistry` with zero dangling capabilities verification, action-class encompassment, and policy floors. |
 | `omni_engine/skills/definitions.py` | 7 canonical skills backed 100% by the 23 verified tools, and `build_canonical_skill_registry()` builder. |
 | `omni_engine/skills/__init__.py` | Public re-exports for skills substrate (`SkillRegistry`, `CANONICAL_SKILLS`, `build_canonical_skill_registry`). |
 | `tests/test_l7_skills.py` | 26 unit and integration tests covering skill contracts, registry invariants, policy floors, spoofing defenses, and canonical parity. |
-| `omni_engine/contracts/routing.py` | `CapabilityCandidate` and `RouteDecision` boundary contracts with strict validation. |
-| `omni_engine/routing/router.py` | `HierarchicalRouter` with conversational fast-path, multi-step pooling, keyword pinning, and dynamic pruning. |
-| `omni_engine/routing/__init__.py` | Public re-exports for hierarchical routing substrate (`DOMAIN_KEYWORD_MAP`, `CAPABILITY_PIN_MAP`, `HierarchicalRouter`). |
 | `tests/test_l6a_routing.py` | 12 unit and integration tests covering routing contracts, fast-paths, pooling, pinning, and live ModernBERT evaluation. |
 | `omni_engine/decision/fabric.py` | `DecisionFabric` producing validated `DecisionFrame` packets with fast-paths, safety overrides, and repaired ambiguity check. |
 | `omni_engine/decision/corpus.py` | Standardized 10-prompt benchmark evaluation corpus (`BENCHMARK_CORPUS`) and evaluation runner. |
@@ -576,9 +673,9 @@ Checkpoint L7 introduces the **Skills Substrate**:
 | `pytest.ini` | Pytest configuration scoping test discovery strictly to `tests/` directory. |
 | `AGENTS.md` | Repository invariants, documentation synchronization rules, and phased engineering protocol. |
 | `LAYA_BUILD_STATE.md` | Ground truth build state, health matrix, test categorization breakdown, and blockers. |
-| `HANDOFF.md` | Operational continuation guide for next agent session (preparing L7). |
-| `tasks/MASTER_PLAN.md` | Strategic roadmap (L0–L25) with completed L0, L1, L1.1, L2, L2.1, L3, L4, L5, L6A. |
-| `tasks/ACTIVE_PLAN.md` | Active checkpoint plan detailing L6A completion and L7 Skills Substrate specifications. |
+| `HANDOFF.md` | Operational continuation guide for next agent session (paused before L8). |
+| `tasks/MASTER_PLAN.md` | Strategic roadmap (L0–L25) with completed L0, L1, L1.1, L2, L2.1, L3, L4, L5, L6A, L7, L6B. |
+| `tasks/ACTIVE_PLAN.md` | Active checkpoint plan documenting L6B completion and hard stop before L8. |
 | `tasks/KNOWN_ISSUES.md` | Defect tracking and resolution evidence. |
 | `END_TO_END_EXECUTION_LOG.md` | This document: persistent cumulative chronological evidence ledger. |
 
@@ -589,6 +686,7 @@ Checkpoint L7 introduces the **Skills Substrate**:
 1. **Mandatory Continuous Append**: Every subsequent task, checkpoint, architectural decision, code change, deletion, or test suite execution MUST be logged here chronologically.
 2. **Evidence First**: All reported test results must include exact counts, command lines, and pass/fail statuses.
 3. **Log Hygiene**: Keep this document as an executive and technical evidence ledger, not a raw duplicate of git diffs.
+
 
 
 

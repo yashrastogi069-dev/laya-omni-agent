@@ -1,4 +1,4 @@
-# HANDOFF.md — Operational Continuation Guide (Checkpoint L7 Complete, L6B Active)
+# HANDOFF.md — Operational Continuation Guide (Checkpoint L6B Complete, Paused before L8)
 
 ## What We Are Building
 A **complete standalone autonomous operating agent** powered by:
@@ -12,8 +12,8 @@ A **complete standalone autonomous operating agent** powered by:
 
 ## Current Architecture & State
 - Repository: Public GitHub `https://github.com/yashrastogi069-dev/laya-omni-agent` on branch `laya-autonomous-v2`.
-- Active Checkpoint: **L7 COMPLETED**; **L6B ACTIVE (Final Skill-Aware Hierarchical Router)**.
-- Test Suite: **149/149 tests passing** (+ 23 subtests passed) across:
+- Active Checkpoint: **L6B COMPLETED & VERIFIED**; **PAUSED AT HARD STOPPING BOUNDARY BEFORE L8**.
+- Test Suite: **165/165 tests passing** (+ 23 subtests passed) across:
   - `tests/test_l0_baselines.py` (10 tests)
   - `tests/test_l1_repairs.py` (12 tests)
   - `tests/test_l2_contracts.py` (18 tests)
@@ -23,44 +23,47 @@ A **complete standalone autonomous operating agent** powered by:
   - `tests/test_l5_decision_fabric.py` (12 tests)
   - `tests/test_l6a_routing.py` (12 tests)
   - `tests/test_l7_skills.py` (26 tests)
+  - `tests/test_l6b_skill_routing.py` (16 tests)
 - Governance: All canonical documents synchronized with verified implementation truth.
 
 ---
 
-## Last Changes (Checkpoint L7 Executed)
-1. **Skill Contracts (`omni_engine/contracts/skill.py`)**:
-   - `SkillStepTemplate`: Declarative workflow step model with `step_id`, `capability_id`, `description`, `depends_on`, `default_args`, `arg_mappings`, `verification_rule`, and `can_fail_silently`.
-   - `SkillManifest`: Strongly typed skill contract defining `skill_id`, `version`, `domain`, `name`, `description`, `intent_patterns`, `input_schema`, `output_schema`, `required_capabilities`, `optional_capabilities`, `action_classes`, `workflow_template`, `planning_required`, `verification_strategy`, `applicable_autonomy`, `confirmation_policy`, and `escalation_conditions`.
-   - Multi-Layer Safety Floors:
-     - Phantom dependency rejection: `depends_on` entries must reference valid prior step IDs within the template.
-     - Cycle detection: Three-color DFS cycle detector strictly forbids circular dependencies (`s1 -> s2 -> s1`).
-     - High-risk confirmation floor: Skills containing high-risk action classes cannot declare `confirmation_policy=NEVER`.
-2. **Skill Registry (`omni_engine/skills/registry.py`)**:
-   - `SkillRegistry`: Thread-safe registry (`RLock`) enforcing:
-     - Zero dangling capabilities: Every required, optional, and step capability must exist in `CapabilityRegistry`.
-     - Action class encompassment: A skill cannot reference a capability whose action class is not declared in `manifest.action_classes` (blocks action-class omission spoofing).
-     - High-risk confirmation floor: Registry independently verifies that constituent high-risk capabilities forbid `confirmation_policy=NEVER`.
-     - Autonomy profile floor: A skill cannot declare an autonomy tier weaker than the minimum autonomy required by its constituent capabilities.
-     - Mutation isolation: Deep copy returns prevent internal registry state corruption.
-3. **Canonical Skill Definitions (`omni_engine/skills/definitions.py`)**:
-   - 7 canonical skills backed 100% by the 23 verified tools: `web_research`, `inspect_repository`, `diagnose_system`, `file_transform`, `analyze_data`, `browser_information_task`, `perform_git_inspection`.
-   - `build_canonical_skill_registry()` helper for canonical instantiation.
-4. **Comprehensive Unit & Integration Test Suite (`tests/test_l7_skills.py`)**:
-   - 26 tests covering contract invariants, cycle detection, phantom dependency rejection, policy floors, spoofing defenses, thread safety, canonical parity, and non-switching boundary.
-5. **Regression Verification**:
-   - Full repository test suite passed: **149 passed in 191.42s (100% pass rate)**.
-   - Adversarial diff review passed with all 5 repairs verified.
+## Last Changes (Checkpoint L6B Executed)
+1. **Routing Contracts (`omni_engine/contracts/routing.py`)**:
+   - Extended `RouteDecision` with typed skill fields:
+     - `selected_skill: Optional[str] = None`
+     - `candidate_skills: List[str] = Field(default_factory=list)`
+     - `skill_workflow_template: Optional[List[SkillStepTemplate]] = None`
+     - `skill_confirmation_policy: Optional[ConfirmationPolicy] = None`
+   - Added mutual exclusivity validator: If `selected_skill is None`, `skill_workflow_template` and `skill_confirmation_policy` must strictly be `None`.
+   - Used clean relative imports (`from .enums import ConfirmationPolicy`, `from .skill import SkillStepTemplate`) preventing circular import deadlocks.
+2. **Skill-Aware Router Pipeline (`omni_engine/routing/router.py`)**:
+   - Upgraded `HierarchicalRouter` to execute the full multi-tier routing pipeline:
+     `Request → DecisionFrame → Domain Routing → Skill Routing → Small Candidate Set → Capability`
+   - Injected optional `skill_registry: SkillRegistry` (defaulting to canonical registry).
+   - **Dynamic Candidate Floor Expansion (Blocking-1)**:
+     `effective_max = max(max_candidates, len(mandatory_caps))`
+     guarantees that required capabilities of selected skills and keyword-pinned tools are NEVER dropped due to candidate budget clamping. Emits telemetry in `RouteDecision.metadata`.
+   - **Unconditional Cross-Domain Spec Backfill (Blocking-2)**:
+     Backfills specs from `CapabilityRegistry` for all constituent tools of selected skills across domains.
+   - **Dual-Threshold Gating & Anti-Locking Defenses (Blocking-3)**:
+     - Destructive verb conflict gate: Prevents non-destructive skills from matching queries with destructive actions (`delete`, `remove`, `kill`, `drop`, `purge`, `terminate`).
+     - Single generic token gate: Common generic words (`file`, `run`, `status`, `data`, `system`, `check`, `test`, `web`, `code`, `repo`, `python`) cannot match skills on their own.
+     - Description score ceiling: Description overlap score capped at 0.50, requiring strong intent match (>=0.75) for skill selection.
+     - Morphological stemmer: Handles inflections (`ing`, `tion`, `s`, `ed`, trailing `e`) without third-party dependencies.
+   - Preserved fast-paths (<5ms) and legacy non-switching boundary.
+3. **Comprehensive Unit & Integration Test Suite (`tests/test_l6b_skill_routing.py`)**:
+   - 16 tests covering contracts validation, fast paths, canonical skill matching, floor expansion, cross-domain backfill, anti-locking defenses, deduplication, optional capabilities, legacy boundary, and live ModernBERT neural routing.
+4. **Adversarial Diff Review**:
+   - Independent subagent review verdict: **PASS ✅**. All 5 adversarial plan recommendations verified.
 
 ---
 
 ## NEXT AGENT START HERE
 - **Exact Current Branch**: `laya-autonomous-v2`
-- **Active Checkpoint**: `L6B — Final Skill-Aware Hierarchical Router`
-- **Last Passing Command**: `python -m unittest discover tests -v` (149 passed in 191.42s)
+- **Active Checkpoint**: Paused before Checkpoint L8 (Argument Resolution & Extraction Engine)
+- **Last Passing Command**: `python -m unittest discover tests -v` (165 passed in 148.33s)
 - **Failures / Blockers**: None.
-- **Relevant Files**:
-  - `omni_engine/contracts/routing.py` (extend `RouteDecision` with skill fields)
-  - `omni_engine/routing/router.py` (integrate `SkillRegistry` and intent pattern matching)
-  - `tests/test_l6b_skill_routing.py` (to create: comprehensive evaluation suite)
 - **Hard Stopping Boundary**:
-  - STOP BEFORE L8. Do NOT implement Argument Resolver (L8), Policy Engine (L9), Quest runtime (L10), Planner (L12), or DAG Executor (L14).
+  - **STOP BEFORE L8**. Do NOT implement Argument Resolver (L8), Policy Engine (L9), Quest runtime (L10), Planner (L12), or DAG Executor (L14). Wait for explicit user instruction before proceeding to L8.
+

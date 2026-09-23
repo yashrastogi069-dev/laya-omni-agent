@@ -85,11 +85,12 @@ This guarantees that future multi-agent coordination or supervisor routing can b
   - Implement reusable `SkillManifest` abstractions for recurring workflows (`web_research`, `inspect_repository`, `diagnose_system`, `file_transform`, `analyze_data`, `browser_information_task`, `perform_git_inspection`).
   - Zero dangling capabilities: all required capabilities verified against `CapabilityRegistry`.
   - Multi-layer safety floors: DAG cycle DFS, phantom dependency prevention, action-class encompassment, high-risk confirmation floor, autonomy ranking floor.
-  - Test suite `tests/test_l7_skills.py` (26 tests). Full repository test suite: **149 passed in 191.42s (100% pass rate)**.
-- [ ] **L6B — Final Skill-Aware Hierarchical Router (ACTIVE)**:
+- [x] **L6B — Final Skill-Aware Hierarchical Router (COMPLETED)**:
   - Final integration of multi-tier routing: `Request → Domain → Skill → Small Candidate Set → Capability`.
+  - Dynamic candidate floor expansion, cross-domain spec backfill, dual-threshold anti-locking defenses.
+  - Test suite `tests/test_l6b_skill_routing.py` (16 tests). Full repository test suite: **165 passed in 148.33s (100% pass rate)**.
 
-### Phase III: Argument Resolution & Safety Policy (L8 – L9)
+### Phase III: Argument Resolution & Safety Policy (L8 – L9) (PAUSED - PENDING NEXT USER GOAL)
 - [ ] **L8 — Typed Capability Argument Resolver**:
   - Multi-tier argument resolution: Deterministic regex/AST → Conversation state → Skill template → Small structured model.
   - Strict validation against capability input schemas before dispatch.

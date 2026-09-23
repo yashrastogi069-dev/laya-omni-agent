@@ -58,10 +58,11 @@ This guarantees that future multi-agent coordination or supervisor routing can b
   - Test suite `tests/test_l3_capabilities.py` (25 tests, 23 subtests). Total repository suite: **80 passed in 32.99s**.
 
 ### Phase II: System One Nervous System & Hierarchical Routing (L4 – L7)
-- [ ] **L4 — Dual Provider Foundation (System One & Generative Abstractions)**:
-  - Abstract base class `SystemOneProvider` with implementations `LayaProvider` (local ModernBERT-large) and `JevProvider` (TypeSafe cloud fallback/benchmark).
-  - Abstract base class `GenerativeProvider` with initial OpenRouter / local LLM interfaces, establishing provider decoupling so downstream planners (L12+) and argument synthesis engines (L8+) never hardcode a specific vendor or model.
-  - Add latency profiling, provider health tracking, and model lifecycle management across both provider classes.
+- [x] **L4 — Dual Provider Foundation (System One & Generative Abstractions)**:
+  - Abstract base class `SystemOneProvider` with implementations `LayaProvider` (local ModernBERT-large with RAM-preserving thread lock, single-pass batching, and defensive parsing) and `JevProvider` (graceful non-crashing degradation when unconfigured).
+  - Abstract base class `GenerativeProvider` with implementation `OpenRouterProvider` (markdown code fence extraction, structured JSON validation, configurable timeout budget, and zero local RAM footprint).
+  - Repaired Windows console encoding flaw (`UnicodeEncodeError` under `cp1252`) in `omni_engine/memory.py`.
+  - Comprehensive unit test suite `tests/test_l4_providers.py` (19 tests). Total repository test suite: **99 passed in 123.56s (100% pass rate)**.
 - [ ] **L5 — Typed DecisionFrame Engine**:
   - Evaluate multi-dimensional signals: `intent`, `task_class`, `urgency`, `importance`, `risk`, `ambiguity`, `requires_clarification`, `requires_action`, `requires_tools`, `requires_plan`, `requires_generative_reasoning`.
   - Calibrated confidence and probability distributions per decision.

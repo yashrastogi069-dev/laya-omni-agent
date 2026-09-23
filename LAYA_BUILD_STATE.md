@@ -1,9 +1,9 @@
 # LAYA_BUILD_STATE.md — Current Ground Truth State
 
-**Last Updated**: 2026-09-23T09:20:00+05:30  
+**Last Updated**: 2026-09-23T10:10:00+05:30  
 **Current Branch**: `laya-autonomous-v2`  
-**Active Checkpoint**: `L3 — Canonical Capability Substrate` (**COMPLETED**; preparing L4)  
-**Last Passing Test Suite**: `tests/test_l0_baselines.py`, `tests/test_l1_repairs.py`, `tests/test_l2_contracts.py`, `tests/test_l2_1_reconciliation.py`, `tests/test_l3_capabilities.py` (**80/80 passed + 23 subtests passed via pytest in 32.99s**)  
+**Active Checkpoint**: `L4 — Provider Foundations` (**COMPLETED**; activating L5)  
+**Last Passing Test Suite**: `tests/test_l0_baselines.py`, `tests/test_l1_repairs.py`, `tests/test_l2_contracts.py`, `tests/test_l2_1_reconciliation.py`, `tests/test_l3_capabilities.py`, `tests/test_l4_providers.py` (**99/99 passed in 123.56s (100% pass rate)**)  
 **Mission Role**: Complete Standalone Autonomous Operating Agent.
 
 ---
@@ -31,6 +31,11 @@ The repository contains a standalone prototype CLI (`laya_agent.py` / `omni_engi
    - Created 23 canonical `CapabilitySpec` instances in `omni_engine/capabilities/definitions.py` with 100% parity with source `OMNI_TOOL_REGISTRY`.
    - Guaranteed clean propagation of process-control exceptions (`KeyboardInterrupt`, `SystemExit`).
    - Strictly preserved legacy prototype paths and non-switching boundary (main dispatch unchanged until L8/L9).
+7. **Checkpoint L4 Milestone Reached**:
+   - Implemented `SystemOneProvider(ABC)` with `LayaProvider` (local ModernBERT-large with singleton lock RAM protection, batched multi-question evaluation, bounded numerical sanitization, and defensive extraction) and `JevProvider` (graceful non-crashing degradation when unconfigured).
+   - Implemented `GenerativeProvider(ABC)` with `OpenRouterProvider` (markdown code fence extraction, structured JSON parsing into Pydantic models, configurable timeout budget, non-empty choice validation, and zero local RAM footprint).
+   - Fixed Windows console encoding flaw (`UnicodeEncodeError` on `\u26a0\ufe0f`) in `omni_engine/memory.py`.
+   - Comprehensive unit test suite `tests/test_l4_providers.py` (19 tests).
 
 ---
 
@@ -66,23 +71,27 @@ The repository contains a standalone prototype CLI (`laya_agent.py` / `omni_engi
 
 ## 3. Test Suite & Health Metrics Breakdown
 
-- **Total Automated Tests**: 80 tests (+ 23 subtests)
-  - **Feature Acceptance Tests**: 78 passed (contracts, ast math, atomic memory, baseline diagnostics, registry lifecycle, all 23 invocation adapters).
-  - **Known Defect Reproduction Tests**: 2 passed (asserting expected baseline defects: System 1 `[:12]` catalog truncation and raw prompt passed as argument).
-- **Pass Rate**: 100% (80 passed, 0 failed, 0 errors, 23 subtests passed).
-- **Runtime**: ~32.99s via `pytest`.
+- **Total Automated Tests**: 99 tests (+ 23 subtests)
+  - **L0 Baseline Tests**: 10 passed
+  - **L1 & L1.1 Memory and Math Tests**: 12 passed
+  - **L2 Contracts Tests**: 18 passed
+  - **L2.1 Reconciliation Tests**: 15 passed
+  - **L3 Capability Substrate Tests**: 25 passed (+ 23 subtests passed)
+  - **L4 Provider Foundations Tests**: 19 passed
+- **Pass Rate**: 100% (99 passed, 0 failed, 0 errors, 23 subtests passed).
+- **Runtime**: ~123.56s via `python -m unittest discover tests -v`.
 
 ---
 
 ## 4. Current Blockers
 
-- **None**. Checkpoint L3 is verified, reviewed, and passing 100% of automated tests.
+- **None**. Checkpoint L4 is verified, reviewed, and passing 100% of automated tests.
 
 ---
 
-## 5. Next Checkpoint Scope: L4 (Provider Foundations)
+## 5. Next Checkpoint Scope: L5 (System One Decision Fabric)
 
-1. Implement `SystemOneProvider` interface with `LayaProvider` (local ModernBERT-large) and graceful optional `JevProvider`.
-2. Implement `GenerativeProvider` interface with `OpenRouterProvider` (LLaMA 3.3 70B).
-3. Record model provenance, latency telemetry, and health check APIs.
-4. Strictly enforce zero secrets committed.
+1. Build `DecisionFabric` on top of `LayaProvider`.
+2. Evaluate all 16 canonical `DecisionSignalType` signals simultaneously in single batched pass.
+3. Validate calibrated confidence in [0.0, 1.0] and risk/ambiguity escalation.
+4. Establish evaluation benchmark corpus with latency and accuracy reporting.

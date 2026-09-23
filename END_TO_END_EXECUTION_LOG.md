@@ -221,10 +221,96 @@ Build and verify the canonical capability substrate for the standalone LAYA Omni
 
 ---
 
+## 7. Checkpoint L4: Provider Foundations (System 1 & Generative Abstractions)
+
+### 7.1 Objectives & Scope
+Build vendor-independent provider abstractions for both System 1 (fast reflexive decisions) and Generative (System 2 synthesis/planning) models, decoupling LAYA from specific vendors:
+1. `SystemOneProvider` abstract base contract (`predict_signals()`, `classify()`, `score()`, `health_check()`).
+2. Implement `LayaProvider` wrapping local ModernBERT-large (`laya.Router()`) with thread-safe singleton lock to prevent duplicate weight loading and protect host RAM (8GB limit).
+3. Implement `JevProvider` wrapping TypeSafe cloud API with non-crashing graceful degradation (`ErrorCode.UNCONFIGURED`) when unconfigured.
+4. `GenerativeProvider` abstract base contract (`generate_text()`, `generate_structured()`, `health_check()`).
+5. Implement `OpenRouterProvider` wrapping OpenRouter/OpenAI-compatible APIs with deterministic markdown fence stripping (`extract_json_from_text`), structured Pydantic model validation, configurable timeout budget (default 60s), and non-empty choice validation.
+6. Zero local RAM overhead for generative calls (pure remote HTTP client).
+7. Strict preservation of non-switching boundary (legacy `System1Router` and `System2Engine` intact).
+
+### 7.2 Code Changes & Architectural Additions
+- `omni_engine/providers/base.py`:
+  - `ProviderError`: Exception envelope binding strongly typed `ErrorCode`, provider ID, model ID, and structured details.
+  - `ProviderHealth`: Structured health contract inheriting from `BaseContractModel` (`extra="forbid"`, `validate_assignment=True`) with `latency_ms >= 0.0`.
+  - `GenerationResult`: Normalized chat completion result with token metrics, finish reason, and latency.
+  - `SystemOneProvider(ABC)`: Declaring `predict_signals()`, `classify()`, `score()`, and `health_check()`.
+  - `GenerativeProvider(ABC)`: Declaring `generate_text()`, `generate_structured()`, and `health_check()`.
+- `omni_engine/providers/system1.py`:
+  - Module-level singleton lock `_ROUTER_LOCK = threading.RLock()` and `get_shared_laya_router()` preventing duplicate PyTorch allocations across multiple providers or tests.
+  - `LayaProvider`:
+    - Batched multi-question evaluation in a single forward pass (`predict_signals()`) satisfying the `<35ms` latency budget without $N \times$ sequential passes.
+    - Numerical sanitization helper `sanitize_float` clamping values to `[0.0, 1.0]` and replacing NaN/Inf with `0.0`.
+    - Probability distribution sanitization `sanitize_probabilities`.
+    - Defensive extraction helper `_extract_decision_data` handling both dicts and `RouteDecision` objects, `None` confidence values, and uncalibrated distributions without `TypeError`.
+    - Implemented `score(prompt, criteria)` evaluating criterion match probabilities.
+    - Health check probe returning structured `ProviderHealth` with warm ping latency.
+  - `JevProvider`:
+    - Safe initialization when unconfigured (no credentials crash).
+    - Returns `ProviderHealth(healthy=False, status_code=ErrorCode.UNCONFIGURED)`.
+    - Raises normalized `ProviderError(ErrorCode.UNCONFIGURED)` on calls when missing `TYPESAFE_API_KEY`.
+- `omni_engine/providers/generative.py`:
+  - Deterministic markdown fence stripper `extract_json_from_text` using regex `r"```(?:json)?\s*([\s\S]*?)\s*```"` and bracket fallback.
+  - `OpenRouterProvider`:
+    - Supports configurable model, base URL, and explicit timeout parameter (`timeout: float = 60.0`).
+    - Validates non-empty completion choices (`if not resp.choices: raise ProviderError(ErrorCode.PROCESS_FAILED)`).
+    - Re-raises `ProviderError` directly to prevent masking by generic network exception handler.
+    - Parses JSON into target Pydantic models via `generate_structured()`, wrapping validation errors into `ProviderError(ErrorCode.SCHEMA_VIOLATION)`.
+    - Graceful non-crashing initialization when unconfigured.
+- `omni_engine/providers/__init__.py`: Clean re-exports of all provider substrate components.
+- `omni_engine/memory.py`:
+  - Repaired Windows console encoding flaw (`UnicodeEncodeError` under `cp1252`) by replacing raw Unicode emojis (`⚠️`) with plain text ASCII `[WARNING]`.
+- `tests/test_l4_providers.py`: 19 comprehensive unit tests covering:
+  - Abstract contracts adherence for System 1 and Generative providers.
+  - Batched multi-signal forward pass and single-pass classification with local ModernBERT.
+  - RAM protection proving multiple `LayaProvider` instances share identical ModernBERT router singleton (`assertIs`).
+  - Defensive answer extraction handling `None` confidence, invalid string confidence, and mock objects.
+  - `score()` method evaluation in `[0.0, 1.0]`.
+  - Jev unconfigured initialization, unconfigured health check, unconfigured prediction, and unconfigured score.
+  - OpenRouter unconfigured initialization, unconfigured health check, and unconfigured generation.
+  - Markdown code fence JSON extraction and bracket fallback.
+  - Mocked structured generation into Pydantic models.
+  - Schema violation error wrapping (`ErrorCode.SCHEMA_VIOLATION`).
+  - Empty choices detection (`ErrorCode.PROCESS_FAILED`).
+  - Configurable timeout budget verification.
+
+### 7.3 Adversarial Review & Bug Fixes
+- **Initial Test Run**:
+  - Found eager `float(ans.get("confidence", 0.0))` threw `TypeError` when `confidence: None`. Repaired in `_extract_decision_data` by passing raw values to `sanitize_float`.
+  - Found `OpenRouterProvider` lacked explicit timeout budget (OpenAI client default 600s). Added `timeout: float = 60.0`.
+  - Found empty choices in `OpenRouterProvider` threw unhandled `IndexError`. Added explicit guard raising `ProviderError(ErrorCode.PROCESS_FAILED)`.
+  - Found generic `except Exception` in `OpenRouterProvider.generate_text` masked `ProviderError(ErrorCode.PROCESS_FAILED)` as `ErrorCode.NETWORK_ERROR`. Added `except ProviderError: raise`.
+  - Found `score()` contract method was specified in plan but omitted from ABC. Added `score()` to `SystemOneProvider(ABC)`, `LayaProvider`, and `JevProvider`.
+  - Found Windows `cp1252` console encoding crashed `omni_engine/memory.py` on `\u26a0\ufe0f`. Replaced with ASCII `[WARNING]`.
+- **Adversarial Diff Review**: **PASS (All remediations verified and tested)**.
+
+### 7.4 Test Results
+- Ran: `python -m unittest tests/test_l4_providers.py -v`
+  - Result: **19 passed in 92.49s (100% pass rate)**.
+- Ran: `python -m unittest discover tests -v`
+  - Result: **99 passed in 123.56s (100% pass rate across entire repository)**.
+    - L0 Baseline Tests: 10 passed
+    - L1 & L1.1 Memory and Math Tests: 12 passed
+    - L2 Contracts Tests: 18 passed
+    - L2.1 Reconciliation Tests: 15 passed
+    - L3 Capability Substrate Tests: 25 passed (+ 23 subtests passed)
+    - L4 Provider Foundations Tests: 19 passed
+
+---
+
 ## Cumulative Summary of Repository Files
 
 | File | Nature / Purpose |
 | :--- | :--- |
+| `omni_engine/providers/base.py` | Abstract provider contracts (`SystemOneProvider`, `GenerativeProvider`), `ProviderError`, `ProviderHealth`, `GenerationResult`. |
+| `omni_engine/providers/system1.py` | `LayaProvider` (ModernBERT-large with RAM singleton lock, batching, defensive parsing) and `JevProvider` (graceful degradation). |
+| `omni_engine/providers/generative.py` | `OpenRouterProvider` (markdown code fence stripping, structured Pydantic extraction, timeout budgets). |
+| `omni_engine/providers/__init__.py` | Public re-exports of provider abstractions and helper functions. |
+| `tests/test_l4_providers.py` | 19 unit tests covering provider contracts, ModernBERT batching, Jev unconfigured, OpenRouter structured parsing, and defensive parsing. |
 | `omni_engine/capabilities/registry.py` | Canonical thread-safe `CapabilityRegistry` with fine-grained lock scoping and `ToolResult` boundary. |
 | `omni_engine/capabilities/adapters.py` | Argument normalization adapters and prefix-anchored error interceptors for 23 source tools. |
 | `omni_engine/capabilities/definitions.py` | 23 canonical `CapabilitySpec` definitions and `build_canonical_registry()` builder. |
@@ -241,15 +327,15 @@ Build and verify the canonical capability substrate for the standalone LAYA Omni
 | `tests/test_l2_contracts.py` | 18 unit tests covering contracts validation, serialization, exclusivity, and signal bounds. |
 | `tests/test_l1_repairs.py` | 12 unit tests covering safe math AST evaluation, resource bounds, atomic writes, and 3-state memory. |
 | `tests/test_l0_baselines.py` | 10 unit tests covering baseline tool registry and confirmed defect reproductions. |
-| `omni_engine/memory.py` | Continuous memory with atomic `.tmp` persistence, `.corrupt` quarantine, and 3-state outcome tracking. |
+| `omni_engine/memory.py` | Continuous memory with atomic `.tmp` persistence, `.corrupt` quarantine, 3-state outcome tracking, and ASCII warning logging. |
 | `omni_engine/tools/data_tools.py` | AST mathematical evaluation with strict deterministic resource bounds. |
 | `requirements.txt` | Core dependencies with pinned compatible range `pydantic>=2.0.0,<3.0.0`. |
 | `pytest.ini` | Pytest configuration scoping test discovery strictly to `tests/` directory. |
 | `AGENTS.md` | Repository invariants, documentation synchronization rules, and phased engineering protocol. |
 | `LAYA_BUILD_STATE.md` | Ground truth build state, health matrix, test categorization breakdown, and blockers. |
-| `HANDOFF.md` | Operational continuation guide for next agent session (preparing L4). |
-| `tasks/MASTER_PLAN.md` | Strategic roadmap (L0–L25) with structured sub-phases for L3 (L3A–L3D). |
-| `tasks/ACTIVE_PLAN.md` | Active checkpoint plan detailing L3 completion and L4 Provider Foundations specifications. |
+| `HANDOFF.md` | Operational continuation guide for next agent session (preparing L5). |
+| `tasks/MASTER_PLAN.md` | Strategic roadmap (L0–L25) with completed L0, L1, L1.1, L2, L2.1, L3, L4. |
+| `tasks/ACTIVE_PLAN.md` | Active checkpoint plan detailing L4 completion and L5 System One Decision Fabric specifications. |
 | `tasks/KNOWN_ISSUES.md` | Defect tracking and resolution evidence. |
 | `END_TO_END_EXECUTION_LOG.md` | This document: persistent cumulative chronological evidence ledger. |
 
@@ -260,3 +346,4 @@ Build and verify the canonical capability substrate for the standalone LAYA Omni
 1. **Mandatory Continuous Append**: Every subsequent task, checkpoint, architectural decision, code change, deletion, or test suite execution MUST be logged here chronologically.
 2. **Evidence First**: All reported test results must include exact counts, command lines, and pass/fail statuses.
 3. **Log Hygiene**: Keep this document as an executive and technical evidence ledger, not a raw duplicate of git diffs.
+

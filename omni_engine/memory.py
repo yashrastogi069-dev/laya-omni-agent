@@ -74,9 +74,9 @@ class OmniMemory:
                 corrupt_backup = f"{self.filepath}.corrupt.{int(time.time())}"
                 try:
                     shutil.copy2(self.filepath, corrupt_backup)
-                    print(f"⚠️ Corrupted memory file preserved at: {corrupt_backup} (Error: {e})")
+                    print(f"[WARNING] Corrupted memory file preserved at: {corrupt_backup} (Error: {e})")
                 except Exception as copy_err:
-                    print(f"⚠️ Failed to quarantine corrupted memory file: {copy_err}")
+                    print(f"[WARNING] Failed to quarantine corrupted memory file: {copy_err}")
 
         return defaults
 
@@ -88,7 +88,7 @@ class OmniMemory:
                 json.dump(self.data, f, indent=2, ensure_ascii=False)
             os.replace(tmp_path, self.filepath)
         except Exception as e:
-            print(f"⚠️ Memory save error: {e}")
+            print(f"[WARNING] Memory save error: {e}")
             if os.path.exists(tmp_path):
                 try:
                     os.remove(tmp_path)

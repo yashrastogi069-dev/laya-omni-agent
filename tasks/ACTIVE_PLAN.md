@@ -1,82 +1,66 @@
-# ACTIVE_PLAN.md — Checkpoint L5: System One Decision Fabric (ACTIVE)
+# ACTIVE_PLAN.md — Checkpoint L6A: Hierarchical Routing Foundation (ACTIVE)
 
-## 1. Summary of Completed Checkpoint L4 (Provider Foundations)
+## 1. Summary of Completed Checkpoint L5 (System One Decision Fabric)
 - **Status**: **COMPLETED & VERIFIED**
 - **Artifacts Created / Hardened**:
-  - `omni_engine/providers/base.py`:
-    - Abstract `SystemOneProvider(ABC)` declaring `classify()`, `score()`, `predict_signals()`, `health_check()`.
-    - Abstract `GenerativeProvider(ABC)` declaring `generate_text()`, `generate_structured()`, `health_check()`.
-    - Normalized contract envelopes `ProviderError` (strongly typed `ErrorCode`), `ProviderHealth` (latency and status code tracking), and `GenerationResult` (token counts and finish reason).
-  - `omni_engine/providers/system1.py`:
-    - `LayaProvider` wrapping local ModernBERT-large (`laya.Router()`) with global thread-safe `_ROUTER_LOCK` singleton to eliminate duplicate PyTorch allocations and protect host RAM.
-    - Batched multi-question evaluation in a single forward pass (`predict_signals()`) satisfying the `<35ms` latency budget.
-    - Numerical sanitization (`sanitize_float` clamping to `[0.0, 1.0]`, NaN/Inf replacement).
-    - Defensive extraction helper `_extract_decision_data` handling both dicts and `RouteDecision` objects, `None` values, and uncalibrated distributions without `TypeError`.
-    - Optional `JevProvider` implementing TypeSafe cloud API with non-crashing graceful degradation (`ErrorCode.UNCONFIGURED`) when unconfigured.
-  - `omni_engine/providers/generative.py`:
-    - `OpenRouterProvider` with configurable model, base URL, and explicit timeout budget (default 60s).
-    - Deterministic markdown fence extraction (`extract_json_from_text`) stripping code fences and isolating JSON payloads.
-    - Structured Pydantic object extraction and validation via `generate_structured()`.
-    - Validation of non-empty completion choices and graceful degradation when unconfigured (`ErrorCode.UNCONFIGURED`).
-    - Zero local RAM overhead (remote HTTP client only).
-  - `omni_engine/memory.py`:
-    - Repaired Windows console encoding flaw (`UnicodeEncodeError` under `cp1252`) by replacing raw Unicode emojis (`⚠️`) with ASCII `[WARNING]`.
-  - `tests/test_l4_providers.py`:
-    - 19 comprehensive unit tests covering all provider contracts, batched multi-signal forward passes, unconfigured graceful failure, empty choices guards, timeout parameters, defensive polymorphic parsing, and shared router RAM preservation.
+  - `omni_engine/decision/fabric.py`:
+    - `DecisionFabric` generating strongly typed `DecisionFrame` adhering to `omni_engine/contracts/decision.py`.
+    - Single-pass batched neural evaluation via `LayaProvider.predict_signals()` simultaneously evaluating 15 canonical criteria.
+    - Deterministic fast-path (<1ms) for empty, whitespace, and punctuation-only prompts returning instant clarification frames without calling neural weights.
+    - Sliding-window head-tail truncation for prompts exceeding 3,000 characters.
+    - Deterministic high-risk safety floor pre-emption (`DEFAULT_HIGH_RISK_PATTERNS`) clamping risk to `high_risk_system`, reversibility to `irreversible` (Invariant 7), and forcing `escalation_required=True`.
+    - Ambiguity and low-confidence escalation triggering `needs_clarification=True` and `needs_generative_reasoning=True`.
+    - Conversational disambiguation: informational/chat queries without tools force `requires_action=False`, `needs_plan=False`, `needs_tools=False`, and `model_tier="system_1"`.
+    - Domain contract trap mitigation: ranks domains descending by probability into `candidate_domains: List[str]` without passing illegal `domain` field to `DecisionFrame` (`extra="forbid"`).
+    - Provider failure resilience: catches `ProviderError` and emits safe fallback `DecisionFrame` with `escalation_required=True`, `needs_generative_reasoning=True`, `model_tier="pro"`.
+  - `omni_engine/decision/corpus.py`:
+    - Curated 10-prompt benchmark evaluation corpus (`BENCHMARK_CORPUS`) covering diverse interaction classes (conversational, file read, file write, process kill, powershell, git, sqlite, math, ambiguous, multi-step).
+    - Evaluation runner `evaluate_decision_corpus()` profiling latency metrics (min, max, avg, p95).
+  - `omni_engine/decision/__init__.py`: Package exports for `DecisionFabric`, `BENCHMARK_CORPUS`, `evaluate_decision_corpus`.
+  - `omni_engine/system1.py`: Repaired Windows console encoding crash (`UnicodeEncodeError` under `cp1252`) by replacing raw Unicode emojis (`🤖`, `⚡`) with ASCII `[System 1]`.
+  - `omni_engine/providers/system1.py`: Fixed `preload()` parameter to `_SHARED_ROUTER.preload(["english"])`.
+  - `tests/test_l5_decision_fabric.py`: 12 comprehensive unit and integration tests covering complete contract adherence, empty prompt fast-paths, prompt truncation, safety floor overrides, ambiguity escalation, conversational disambiguation, graceful fallback, candidate domain ordering, benchmark evaluation, and live ModernBERT forward passes.
 - **Test Suite Results**:
-  - `tests/test_l4_providers.py`: **19/19 passed in 92.49s (100% pass rate)**.
-  - Full repository test suite (`python -m unittest discover tests -v`): **99 passed in 123.56s (100% pass rate)**.
-- **Adversarial Diff Review**: **PASS (with all identified repairs incorporated)**.
+  - `tests/test_l5_decision_fabric.py`: **12/12 passed (100% pass rate)**.
+  - Full repository test suite (`python -m unittest discover tests -v`): **111/111 passed in 160.07s (100% pass rate)**.
+- **Adversarial Diff Review**: **PASS (All invariants verified)**.
 
 ---
 
-## 2. Checkpoint L5: System One Decision Fabric (ACTIVE)
+## 2. Checkpoint L6A: Hierarchical Routing Foundation (ACTIVE)
 
-### 2.1 Objectives
-Build the complete high-frequency typed `DecisionFrame` generation engine on top of `LayaProvider`, evaluating the full multi-dimensional decision state in a single low-latency forward pass:
-1. `SystemOneEngine` / `DecisionFabric`:
-   - Inputs: User request (`prompt`), conversation state, session context.
-   - Evaluates all canonical `DecisionSignalType` members:
-     - `INTENT`: Query / task intention category.
-     - `TASK_CLASS`: Single-turn reflex, multi-step quest, deep research, code refactor, system admin.
-     - `DOMAIN`: Target capability domain (`filesystem`, `code`, `system`, `web`, `data`).
-     - `URGENCY`: Critical / immediate vs routine.
-     - `IMPORTANCE`: High consequence vs low consequence.
-     - `RISK`: Safe read-only vs mutating vs high-risk system action.
-     - `REVERSIBILITY`: Reversible vs irreversible (Invariant 7).
-     - `AMBIGUITY`: Unambiguous vs ambiguous.
-     - `REQUIRES_CLARIFICATION`: True/False.
-     - `REQUIRES_ACTION`: True/False.
-     - `REQUIRES_TOOLS`: True/False.
-     - `REQUIRES_PLAN`: Needs multi-step planning (DAG) vs direct execution.
-     - `REQUIRES_GENERATIVE_REASONING`: Needs generative LLM vs deterministic/reflexive execution.
-     - `MODEL_TIER`: System 1 reflex, light generative, or deep reasoning.
-   - Outputs: Fully validated `DecisionFrame` adhering to `omni_engine/contracts/decision.py`.
-2. Latency Budget & Evaluation Corpus:
-   - Target forward-pass latency: `<35ms` for warm batched decision pass.
-   - Construct a standardized evaluation corpus of test prompts representing diverse interaction categories.
-   - Benchmark signal accuracy and report baseline metrics.
-3. Fallback & Uncertainty Handling:
-   - When decision confidence is low or ambiguity is high, escalate signals safely (`requires_clarification=True` or `requires_generative_reasoning=True`).
-4. Non-Switching Principle:
-   - Main agent dispatch (`omni_agent.py`) remains on the legacy path; L5 is tested via dedicated unit and integration tests.
+### 2.1 Objectives & Scope
+Replace flat tool catalog slicing (the legacy `[:12]` truncation defect, ISSUE-02) with the foundational stages of the multi-tier routing architecture:
+`Request → Domain → Small Candidate Set → Capability`:
+1. `HierarchicalRouter` (Phase 1):
+   - Consumes `DecisionFrame` generated by `DecisionFabric` (L5).
+   - Maps `candidate_domains` to candidate capabilities registered in `CapabilityRegistry` (L3).
+   - Prunes candidate set down to a bounded, highly relevant subset (typically 3–6 capabilities).
+   - Fail-open fallback: If confidence in domain routing is low or ambiguity is high, broaden the candidate pool across adjacent domains or escalate.
+2. Capability Score Ranking:
+   - Rank candidate capabilities using System 1 relevance scores (`provider.score(prompt, capability.description)`).
+   - Return structured routing envelopes (`RouteDecision` / `CapabilityCandidateSet`) containing capability IDs, confidence scores, and selection rationales.
+3. Non-Switching Principle:
+   - Keep existing `omni_agent.py` and `omni_engine/planner.py` on the legacy dispatch path.
+   - L6A routing foundation will be validated via dedicated tests in `tests/test_l6a_routing.py`.
+   - L7 (Skills Substrate) will subsequently introduce `Skill` manifests, followed by L6B (Final Skill-Aware Hierarchical Router).
 
 ---
 
-## 3. Targeted Test Suite (`tests/test_l5_decision_fabric.py`)
-1. `TestDecisionFrameGeneration`: Validates complete `DecisionFrame` generated with all required signals.
-2. `TestMultiDimensionalBatchedPass`: Asserts all criteria are evaluated simultaneously in one forward pass.
-3. `TestSignalThresholdsAndEscalation`: Validates ambiguity threshold triggers `requires_clarification`.
-4. `TestHighRiskDetection`: Confirms destructive actions trigger high risk and low reversibility.
-5. `TestEvaluationCorpusBenchmark`: Runs evaluation dataset and reports latency and signal distributions.
+## 3. Targeted Test Suite (`tests/test_l6a_routing.py`)
+1. `TestDomainToCandidateMapping`: Asserts domain selection retrieves only tools belonging to that domain.
+2. `TestMultiDomainCandidatePool`: Asserts top-2 domains pool tools when primary domain confidence is low.
+3. `TestCandidatePruning`: Asserts large domain pools are pruned to top-K candidates based on relevance scoring.
+4. `TestFailOpenFallback`: Asserts ambiguous prompts widen candidate set rather than dropping relevant tools.
+5. `TestRoutingEnvelopeIntegrity`: Validates strongly typed candidate outputs with scores and provenance.
+6. `TestLegacyNonSwitchingBoundary`: Asserts legacy dispatch remains unaffected.
 
 ---
 
 ## 4. Acceptance Criteria
-- [ ] `DecisionFabric` generates valid `DecisionFrame` with all canonical signals populated.
-- [ ] Inference runs via single-pass batched `LayaProvider.predict_signals()` under the `<35ms` warm budget.
-- [ ] Numerical confidences bounded in `[0.0, 1.0]`, provenance populated with provider and model ID.
-- [ ] Ambiguity and risk safely escalate decisions.
-- [ ] Evaluation corpus established and tested with benchmark evidence.
-- [ ] Full regression test suite passes (>= 99 tests + new L5 tests).
+- [ ] `HierarchicalRouter` implemented in `omni_engine/routing/`.
+- [ ] Dynamic candidate pruning eliminates flat `[:12]` truncation without unbounded tool context.
+- [ ] Fail-open fallback implemented when domain confidence is low.
+- [ ] Strongly typed routing result with capability IDs and scores.
+- [ ] Full regression test suite passes (>= 111 tests + new L6A tests).
 - [ ] Adversarial diff review passes.

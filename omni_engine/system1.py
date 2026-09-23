@@ -33,9 +33,9 @@ class System1Router:
                 self.engine = "laya"
 
         if self.engine == "laya":
-            print("🤖 [System 1] Initializing Laya Decision Engine (ModernBERT-large)...")
+            print("[System 1] Initializing Laya Decision Engine (ModernBERT-large)...")
             self.laya_router = Router()
-            print("⚡ [System 1] Laya ready for sub-35ms tool dispatch & ranking!\n")
+            print("[System 1] Laya ready for sub-35ms tool dispatch & ranking!\n")
 
     def route_tool(self, prompt: str, tool_catalog: dict) -> tuple:
         """Evaluates user intent and returns (chosen_tool_name, latency_ms).

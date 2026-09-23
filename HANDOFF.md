@@ -1,4 +1,4 @@
-# HANDOFF.md — Operational Continuation Guide (Checkpoint L4 Complete)
+# HANDOFF.md — Operational Continuation Guide (Checkpoint L5 Complete)
 
 ## What We Are Building
 A **complete standalone autonomous operating agent** powered by:
@@ -11,45 +11,43 @@ A **complete standalone autonomous operating agent** powered by:
 
 ## Current Architecture & State
 - Repository: Public GitHub `https://github.com/yashrastogi069-dev/laya-omni-agent` on branch `laya-autonomous-v2`.
-- Active Checkpoint: **L4 COMPLETED**; **L5 ACTIVE (System One Decision Fabric)**.
-- Test Suite: **99/99 tests passing** (+ 23 subtests passed) across `test_l0_baselines.py`, `test_l1_repairs.py`, `test_l2_contracts.py`, `test_l2_1_reconciliation.py`, `test_l3_capabilities.py`, and `test_l4_providers.py`.
+- Active Checkpoint: **L5 COMPLETED**; **L6A ACTIVE (Hierarchical Routing Foundation)**.
+- Test Suite: **111/111 tests passing** (+ 23 subtests passed) across `test_l0_baselines.py`, `test_l1_repairs.py`, `test_l2_contracts.py`, `test_l2_1_reconciliation.py`, `test_l3_capabilities.py`, `test_l4_providers.py`, and `test_l5_decision_fabric.py`.
 - Governance: All canonical documents synchronized with verified implementation truth.
 
 ---
 
-## Last Changes (Checkpoint L4 Executed)
-1. **Provider Contracts Substrate (`omni_engine/providers/base.py`)**:
-   - `SystemOneProvider(ABC)` declaring `predict_signals()`, `classify()`, `score()`, `health_check()`.
-   - `GenerativeProvider(ABC)` declaring `generate_text()`, `generate_structured()`, `health_check()`.
-   - Normalized envelope models `ProviderError` (strongly typed `ErrorCode`), `ProviderHealth` (latency and status tracking), and `GenerationResult` (token counts and finish reason).
-2. **System 1 Decision Providers (`omni_engine/providers/system1.py`)**:
-   - `LayaProvider` wrapping local ModernBERT-large (`laya.Router()`).
-   - Thread-safe module singleton `_ROUTER_LOCK` preventing duplicate PyTorch allocations and protecting host RAM.
-   - Batched multi-question evaluation in a single forward pass (`predict_signals()`) satisfying the `<35ms` latency budget.
-   - Numerical sanitization (`sanitize_float` clamping to `[0.0, 1.0]`, NaN/Inf replacement).
-   - Defensive extraction helper `_extract_decision_data` handling both dicts and `RouteDecision` objects, `None` values, and uncalibrated distributions without `TypeError`.
-   - `JevProvider` implementing TypeSafe cloud API with non-crashing graceful degradation (`ErrorCode.UNCONFIGURED`) when unconfigured.
-3. **Generative Model Provider (`omni_engine/providers/generative.py`)**:
-   - `OpenRouterProvider` accessing OpenRouter and OpenAI-compatible API endpoints.
-   - Deterministic markdown fence extraction (`extract_json_from_text`) stripping code fences and isolating JSON payloads.
-   - Structured Pydantic object extraction and validation via `generate_structured()`.
-   - Enforces configurable timeout budget (default 60s) and validates non-empty completion choices.
-   - Zero local RAM overhead (remote HTTP client only).
-4. **Memory Hardening (`omni_engine/memory.py`)**:
-   - Repaired Windows console encoding flaw (`UnicodeEncodeError` under `cp1252`) by replacing raw Unicode emojis (`⚠️`) with ASCII `[WARNING]`.
-5. **Comprehensive Unit Test Suite (`tests/test_l4_providers.py`)**:
-   - 19 comprehensive unit tests covering all contracts, multi-signal batching, unconfigured degradation, structured extraction, defensive answer parsing, timeout budgets, and shared router RAM preservation.
+## Last Changes (Checkpoint L5 Executed)
+1. **Decision Fabric Engine (`omni_engine/decision/fabric.py`)**:
+   - `DecisionFabric` producing fully typed, validated `DecisionFrame` packets.
+   - Evaluates 15 canonical decision questions simultaneously in a single batched tensor pass via `LayaProvider.predict_signals()`.
+   - Deterministic fast-path (<1ms) for empty, whitespace, and punctuation-only prompts returning immediate clarification frame without invoking neural model.
+   - Sliding-window head-tail truncation for prompts exceeding 3,000 characters.
+   - High-risk safety floor pre-emption (`DEFAULT_HIGH_RISK_PATTERNS`) clamping risk to `high_risk_system`, reversibility to `irreversible` (Invariant 7), and forcing `escalation_required=True`.
+   - Ambiguity and low-confidence triggers setting `needs_clarification=True` and `needs_generative_reasoning=True`.
+   - Conversational disambiguation: informational/chat queries without tools force `requires_action=False`, `needs_plan=False`, `needs_tools=False`, and `model_tier="system_1"`.
+   - Domain contract trap mitigation: maps domain probabilities to `candidate_domains: List[str]` without passing illegal extra `domain` field to `DecisionFrame` (`extra="forbid"`).
+   - Graceful fallback: provider errors produce an escalated fallback `DecisionFrame` with `escalation_required=True`, `needs_generative_reasoning=True`, `model_tier="pro"`.
+2. **Benchmark Evaluation Corpus & Runner (`omni_engine/decision/corpus.py`)**:
+   - Standardized 10-prompt benchmark dataset (`BENCHMARK_CORPUS`) covering conversational, file read, file write, process kill, powershell, git, sqlite, math, ambiguous, multi-step.
+   - Evaluation runner `evaluate_decision_corpus()` measuring latency (min, max, avg, p95) and reporting signal distributions.
+3. **Console Encoding Hardening (`omni_engine/system1.py`)**:
+   - Replaced Unicode emojis (`🤖`, `⚡`) with ASCII `[System 1]` to prevent Windows `cp1252` `UnicodeEncodeError`.
+4. **Router Preload Fix (`omni_engine/providers/system1.py`)**:
+   - Passed `["english"]` explicitly to `_SHARED_ROUTER.preload()` to prevent multi-gigabyte downloads of unused multilingual models.
+5. **Comprehensive Unit & Integration Test Suite (`tests/test_l5_decision_fabric.py`)**:
+   - 12 comprehensive unit and integration tests covering contract completeness, empty prompt fast-paths, truncation, safety overrides, ambiguity triggers, conversational disambiguation, fallback, candidate domain ranking, benchmark evaluation, and live ModernBERT forward pass.
 6. **Regression Verification**:
-   - Full repository test suite passed: **99 passed, 0 failed in 123.56s (100% pass rate)**.
-   - Adversarial diff review passed with all remediations applied.
+   - Full repository test suite passed: **111 passed in 160.07s (100% pass rate)**.
+   - Adversarial diff review passed with all invariants confirmed.
 
 ---
 
 ## Files to Read Next
-1. `tasks/ACTIVE_PLAN.md` — Target plan for Checkpoint L5 (System One Decision Fabric).
-2. `tasks/MASTER_PLAN.md` — Strategic roadmap (L0–L25).
-3. `omni_engine/providers/system1.py` — High-frequency decision engine provider foundation.
-4. `omni_engine/contracts/decision.py` — Target `DecisionSignal` and `DecisionFrame` schemas.
+1. `tasks/ACTIVE_PLAN.md` — Target plan for Checkpoint L6A (Hierarchical Routing Foundation).
+2. `tasks/MASTER_PLAN.md` — Full strategic roadmap (L0–L25).
+3. `omni_engine/decision/fabric.py` — Completed System 1 Decision Fabric.
+4. `omni_engine/capabilities/registry.py` — Canonical 23-tool CapabilityRegistry.
 
 ---
 
@@ -60,9 +58,8 @@ python -m unittest discover tests -v
 
 ---
 
-## Rules to Enforce During L5
-1. **Host RAM Safety**: Only use `get_shared_laya_router()` to access ModernBERT. Never load duplicate model instances.
-2. **Latency Budget**: Single-pass batched evaluation (`predict_signals()`) to stay under `<35ms` warm budget.
-3. **Bounded Metrics**: Confidences and probabilities must strictly reside in `[0.0, 1.0]`.
-4. **Non-Switching Principle**: Main agent dispatch (`omni_agent.py`) remains on the legacy path.
-5. **End-to-End Log**: Always update `END_TO_END_EXECUTION_LOG.md` with complete evidence.
+## Rules to Enforce During L6A
+1. **Dynamic Candidate Pruning**: Never use flat `[:12]` catalog slicing; rank candidates by domain and relevance.
+2. **Fail-Open Fallback**: Broaden candidate set across adjacent domains when uncertainty is high.
+3. **Non-Switching Principle**: Main agent dispatch (`omni_agent.py`) remains on the legacy path.
+4. **End-to-End Log**: Always update `END_TO_END_EXECUTION_LOG.md` with complete evidence.

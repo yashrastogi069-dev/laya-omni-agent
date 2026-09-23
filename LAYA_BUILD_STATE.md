@@ -1,9 +1,9 @@
 # LAYA_BUILD_STATE.md — Current Ground Truth State
 
-**Last Updated**: 2026-09-23T10:10:00+05:30  
+**Last Updated**: 2026-09-23T10:35:00+05:30  
 **Current Branch**: `laya-autonomous-v2`  
-**Active Checkpoint**: `L4 — Provider Foundations` (**COMPLETED**; activating L5)  
-**Last Passing Test Suite**: `tests/test_l0_baselines.py`, `tests/test_l1_repairs.py`, `tests/test_l2_contracts.py`, `tests/test_l2_1_reconciliation.py`, `tests/test_l3_capabilities.py`, `tests/test_l4_providers.py` (**99/99 passed in 123.56s (100% pass rate)**)  
+**Active Checkpoint**: `L5 — Typed DecisionFrame Engine` (**COMPLETED**; activating L6A)  
+**Last Passing Test Suite**: `tests/test_l0_baselines.py`, `tests/test_l1_repairs.py`, `tests/test_l2_contracts.py`, `tests/test_l2_1_reconciliation.py`, `tests/test_l3_capabilities.py`, `tests/test_l4_providers.py`, `tests/test_l5_decision_fabric.py` (**111/111 passed in 160.07s (100% pass rate)**)  
 **Mission Role**: Complete Standalone Autonomous Operating Agent.
 
 ---
@@ -36,6 +36,14 @@ The repository contains a standalone prototype CLI (`laya_agent.py` / `omni_engi
    - Implemented `GenerativeProvider(ABC)` with `OpenRouterProvider` (markdown code fence extraction, structured JSON parsing into Pydantic models, configurable timeout budget, non-empty choice validation, and zero local RAM footprint).
    - Fixed Windows console encoding flaw (`UnicodeEncodeError` on `\u26a0\ufe0f`) in `omni_engine/memory.py`.
    - Comprehensive unit test suite `tests/test_l4_providers.py` (19 tests).
+8. **Checkpoint L5 Milestone Reached**:
+   - Implemented `DecisionFabric` in `omni_engine/decision/fabric.py` evaluating 15 canonical decision signals in a single batched neural pass.
+   - Deterministic fast-path (<1ms) for empty/whitespace prompts.
+   - Deterministic safety floor overrides for high-risk commands and Invariant 7 reversibility clamping.
+   - Ambiguity detection and clarifying question triggers.
+   - Candidate domain ranking without violating `extra="forbid"`.
+   - Standardized 10-prompt benchmark evaluation corpus and runner in `omni_engine/decision/corpus.py`.
+   - Comprehensive unit test suite `tests/test_l5_decision_fabric.py` (12 tests).
 
 ---
 
@@ -71,27 +79,28 @@ The repository contains a standalone prototype CLI (`laya_agent.py` / `omni_engi
 
 ## 3. Test Suite & Health Metrics Breakdown
 
-- **Total Automated Tests**: 99 tests (+ 23 subtests)
+- **Total Automated Tests**: 111 tests (+ 23 subtests)
   - **L0 Baseline Tests**: 10 passed
   - **L1 & L1.1 Memory and Math Tests**: 12 passed
   - **L2 Contracts Tests**: 18 passed
   - **L2.1 Reconciliation Tests**: 15 passed
   - **L3 Capability Substrate Tests**: 25 passed (+ 23 subtests passed)
   - **L4 Provider Foundations Tests**: 19 passed
-- **Pass Rate**: 100% (99 passed, 0 failed, 0 errors, 23 subtests passed).
-- **Runtime**: ~123.56s via `python -m unittest discover tests -v`.
+  - **L5 Decision Fabric Tests**: 12 passed
+- **Pass Rate**: 100% (111 passed, 0 failed, 0 errors, 23 subtests passed).
+- **Runtime**: ~160.07s via `python -m unittest discover tests -v`.
 
 ---
 
 ## 4. Current Blockers
 
-- **None**. Checkpoint L4 is verified, reviewed, and passing 100% of automated tests.
+- **None**. Checkpoint L5 is verified, reviewed, and passing 100% of automated tests.
 
 ---
 
-## 5. Next Checkpoint Scope: L5 (System One Decision Fabric)
+## 5. Next Checkpoint Scope: L6A (Hierarchical Routing Foundation)
 
-1. Build `DecisionFabric` on top of `LayaProvider`.
-2. Evaluate all 16 canonical `DecisionSignalType` signals simultaneously in single batched pass.
-3. Validate calibrated confidence in [0.0, 1.0] and risk/ambiguity escalation.
-4. Establish evaluation benchmark corpus with latency and accuracy reporting.
+1. Implement `HierarchicalRouter` consuming `DecisionFrame` and mapping `candidate_domains` to candidate capabilities in `CapabilityRegistry`.
+2. Implement dynamic candidate pruning eliminating legacy `[:12]` flat catalog slicing.
+3. Fail-open fallback when uncertainty is high.
+4. Prepare foundations for Checkpoint L7 (Skills Substrate).

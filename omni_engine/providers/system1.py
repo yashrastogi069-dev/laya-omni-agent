@@ -41,7 +41,7 @@ def get_shared_laya_router(preload: bool = False):
                     _SHARED_ROUTER = laya.Router(max_loaded=1)
                     if preload:
                         try:
-                            _SHARED_ROUTER.preload()
+                            _SHARED_ROUTER.preload(["english"])
                         except Exception:
                             pass
     return _SHARED_ROUTER

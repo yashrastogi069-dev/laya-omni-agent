@@ -63,15 +63,23 @@ This guarantees that future multi-agent coordination or supervisor routing can b
   - Abstract base class `GenerativeProvider` with implementation `OpenRouterProvider` (markdown code fence extraction, structured JSON validation, configurable timeout budget, and zero local RAM footprint).
   - Repaired Windows console encoding flaw (`UnicodeEncodeError` under `cp1252`) in `omni_engine/memory.py`.
   - Comprehensive unit test suite `tests/test_l4_providers.py` (19 tests). Total repository test suite: **99 passed in 123.56s (100% pass rate)**.
-- [ ] **L5 — Typed DecisionFrame Engine**:
-  - Evaluate multi-dimensional signals: `intent`, `task_class`, `urgency`, `importance`, `risk`, `ambiguity`, `requires_clarification`, `requires_action`, `requires_tools`, `requires_plan`, `requires_generative_reasoning`.
-  - Calibrated confidence and probability distributions per decision.
-- [ ] **L6 — Hierarchical Capability Routing**:
-  - Replace flat tool catalog slicing with multi-tier routing: `Request → Domain → Skill → Small Candidate Set → Capability`.
-  - Dynamic candidate pruning with fail-open fallback (broaden pool or escalate if uncertain).
-- [ ] **L7 — Skills Layer & Workflow Manifests**:
+- [x] **L5 — Typed DecisionFrame Engine**:
+  - Implemented `DecisionFabric` in `omni_engine/decision/fabric.py` evaluating 15 canonical decision signals in a single batched neural pass.
+  - Deterministic fast-path (<1ms) for empty/whitespace prompts.
+  - Deterministic safety floor overrides for high-risk commands and Invariant 7 reversibility clamping.
+  - Ambiguity detection and clarifying question triggers.
+  - Candidate domain ranking without violating `extra="forbid"`.
+  - Standardized 10-prompt benchmark evaluation corpus and runner in `omni_engine/decision/corpus.py`.
+  - Comprehensive unit test suite `tests/test_l5_decision_fabric.py` (12 tests). Total repository test suite: **111 passed in 160.07s (100% pass rate)**.
+- [ ] **L6A — Hierarchical Capability Routing Foundation**:
+  - Foundational multi-tier routing: `Request → Domain → Small Candidate Set → Capability`.
+  - Dynamic candidate pruning eliminating flat `[:12]` catalog slicing.
+  - Fail-open fallback broadening candidate pool across adjacent domains when uncertainty is high.
+- [ ] **L7 — Skills Substrate & Workflow Manifests**:
   - Implement reusable `Skill` abstractions for recurring workflows (`system_triage`, `codebase_audit`, `web_research_dossier`, `file_transform`).
   - System 1 routes to known skills before falling back to novel generative planning.
+- [ ] **L6B — Final Skill-Aware Hierarchical Router**:
+  - Final integration of multi-tier routing: `Request → Domain → Skill → Small Candidate Set → Capability`.
 
 ### Phase III: Argument Resolution & Safety Policy (L8 – L9)
 - [ ] **L8 — Typed Capability Argument Resolver**:

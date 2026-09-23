@@ -58,3 +58,5 @@ screenshots/*
 !screenshots/.gitkeep
 escalations/*
 !escalations/.gitkeep
+*.png
+*.db

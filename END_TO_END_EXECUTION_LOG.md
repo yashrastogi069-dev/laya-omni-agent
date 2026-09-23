@@ -11,12 +11,12 @@
 | **System Role** | Standalone Autonomous Operating Agent (Independent from Jarvis Core V2) |
 | **Active Architecture Branch** | `laya-autonomous-v2` |
 | **Public GitHub Remote** | `https://github.com/yashrastogi069-dev/laya-omni-agent.git` |
-| **Latest Branch Commit** | `ed9e1e5` — `feat(L2.1): Contract and registry reconciliation, 19 error codes, tool outcome, and invocation context` |
+| **Latest Branch Commit** | `84d01a6` (Preparing L3 commit) |
 | **Main Branch Commit** | `6a66787` — `fix(L1.1): Memory 3-state verification, corrupted file quarantine & safe_math resource bounds` |
-| **Total Automated Tests** | **55 / 55 Passing (100%)** in ~5.71 seconds |
-| **Test Categorization** | **53 Feature Acceptance Tests** + **2 Known Defect Reproduction Tests** |
-| **Checkpoints Completed** | **L0** (Audit), **L1** (Repairs), **L1.1** (Hardening), **L2** (Contracts), **L2.1** (Reconciliation) |
-| **Next Checkpoint** | **L3A** (Canonical Capability Registry) |
+| **Total Automated Tests** | **80 / 80 Passing (100%)** (+ 23 subtests) in ~32.99 seconds |
+| **Test Categorization** | **78 Feature Acceptance Tests** + **2 Known Defect Reproduction Tests** |
+| **Checkpoints Completed** | **L0** (Audit), **L1** (Repairs), **L1.1** (Hardening), **L2** (Contracts), **L2.1** (Reconciliation), **L3** (Capability Substrate) |
+| **Next Checkpoint** | **L4** (Provider Foundations) |
 
 ---
 
@@ -44,7 +44,10 @@
 [L2.1: CONTRACT & REGISTRY RECONCILIATION]
        │ ── 55/55 Tests Passing (Commit: ed9e1e5 on laya-autonomous-v2)
        ▼
-[L3A: READY — CANONICAL CAPABILITY REGISTRY SUBSTRATE]
+[L3: CANONICAL CAPABILITY SUBSTRATE]
+       │ ── 80/80 Tests Passing + 23 Subtests (Commit on laya-autonomous-v2)
+       ▼
+[L4: ACTIVE — PROVIDER FOUNDATIONS (SYSTEM 1 & GENERATIVE)]
 ```
 
 ---
@@ -170,10 +173,63 @@
 
 ---
 
+## 6. Checkpoint L3: Canonical Capability Substrate
+
+### 6.1 Objectives & Scope
+Build and verify the canonical capability substrate for the standalone LAYA Omni Agent:
+1. Every source-verified capability (23 tools) has exactly one canonical typed `CapabilitySpec` and registration entry in `CapabilityRegistry`.
+2. Execution boundary enforces `CapabilityInvocation` -> `ToolResult` envelopes with automatic `ExecutionReceipt` generation.
+3. Read-only capabilities normalize operational exceptions without swallowing process-control exceptions (`KeyboardInterrupt`, `SystemExit`).
+4. Mutation/system capabilities are declaratively wrapped with strict safety characteristics (`ActionClass`, `AutonomyProfile`, `ConfirmationPolicy`, `RetryPolicy`, `IdempotencyClass`).
+5. Legacy CLI and prototype paths remain completely operational via non-switching boundary (main dispatch remains on legacy path until L8/L9).
+
+### 6.2 Code Changes & Architectural Additions
+- `omni_engine/capabilities/registry.py`:
+  - Implemented thread-safe `CapabilityRegistry` using `threading.RLock()` with fine-grained scoping (lock held strictly for dictionary mutations and lookups, never during tool execution).
+  - Enforced unique capability IDs; rejected duplicate registrations and unawaited async coroutine functions.
+  - Implemented `invoke(CapabilityInvocation) -> ToolResult` boundary.
+  - Automatically generates `ExecutionReceipt` with sub-millisecond durations and epoch timestamps.
+  - Re-raises `(KeyboardInterrupt, SystemExit, GeneratorExit)` without catching.
+  - Translates `FileNotFoundError` $\to$ `NOT_FOUND`, `PermissionError` $\to$ `PERMISSION_DENIED`, `TimeoutError` $\to$ `TIMEOUT`, `URLError`/`ConnectionError` $\to$ `NETWORK_ERROR`, `CalledProcessError` $\to$ `PROCESS_FAILED`, `ValidationError` $\to$ `SCHEMA_VIOLATION`, `ValueError`/`TypeError` $\to$ `INVALID_ARGUMENT`.
+- `omni_engine/capabilities/adapters.py`:
+  - Implemented dedicated argument normalization adapters for all 12 tools whose signatures or formats differ from canonical schemas: `visual_browse`, `list_processes`, `kill_process`, `search_code`, `directory_tree`, `run_python`, `sqlite_exec`, `file_write`, `http_api`, `download_file`, `clipboard`, `inspect_data`.
+  - Implemented prefix-anchored error interceptor (`intercept_legacy_error_string`), catching legacy tool error strings (`❌ File not found:`, `Write error:`, `Git error:`, `Ping test error:`, `Failed to terminate process:`, `Unsupported format for inspector`).
+  - Anchored checks to eliminate false-positives on content-bearing tools (`file_read`, `search_code`) when file contents contain strings like "Access is denied" or "API key missing".
+- `omni_engine/capabilities/definitions.py`:
+  - Defined all 23 canonical `CapabilitySpec` instances with 100% 1:1 parity with source `OMNI_TOOL_REGISTRY`.
+  - Built `build_canonical_registry()` assembling all specs and specialized adapters.
+- `omni_engine/capabilities/__init__.py`: Clean re-exports of capability substrate components.
+- `tests/test_l3_capabilities.py`: 25 unit tests (and 23 subtests) covering:
+  - Registration lifecycle, duplicate rejection, coroutine rejection, query methods, JSON metadata export.
+  - 100% 1:1 parity with `OMNI_TOOL_REGISTRY` (23 tools).
+  - Read-only execution, error string interception (`safe_math`, `file_read`, `system_diagnostics`, `git_status`).
+  - Process-control exception propagation (`KeyboardInterrupt`, `SystemExit`).
+  - Mutation capability policies (non-`READ_ONLY`, side effects, strict confirmation on `kill_process`, `powershell`, `run_python`).
+  - Parameterized invocation of **all 23 capabilities** with valid schema arguments, proving zero `TypeError` crashes.
+  - False-positive prevention on content-bearing tools (`file_read` with sensitive strings).
+  - Preservation of legacy CLI/prototype path and non-switching boundary.
+
+### 6.3 Adversarial Review Remediation
+- **Adversarial Plan Review**: Identified swallowed exceptions in legacy tools, argument mismatch (kwargs vs payload strings), and potential lock contention during tool execution. Remediated in plan before coding.
+- **Adversarial Diff Review**: Identified 7 tools lacking kwarg adapters, 5 unintercepted error strings, unanchored substring false-positives on content tools, and `ToolResult` early return bypassing receipts. All 4 defects were repaired: specialized adapters created for all 12 differing tools, prefix-anchored checks added, false-positive checks eliminated, and receipt creation unified.
+
+### 6.4 Test Results
+- Ran: `python -m pytest tests/ -v`
+- Result: **80 passed, 23 subtests passed in 32.99s (100% pass rate)**.
+  - **Feature Acceptance Tests**: 78 passed
+  - **Known Defect Reproduction Tests**: 2 passed
+
+---
+
 ## Cumulative Summary of Repository Files
 
 | File | Nature / Purpose |
 | :--- | :--- |
+| `omni_engine/capabilities/registry.py` | Canonical thread-safe `CapabilityRegistry` with fine-grained lock scoping and `ToolResult` boundary. |
+| `omni_engine/capabilities/adapters.py` | Argument normalization adapters and prefix-anchored error interceptors for 23 source tools. |
+| `omni_engine/capabilities/definitions.py` | 23 canonical `CapabilitySpec` definitions and `build_canonical_registry()` builder. |
+| `omni_engine/capabilities/__init__.py` | Public exports of canonical capability substrate. |
+| `tests/test_l3_capabilities.py` | 25 unit tests (+ 23 subtests) covering registry, parity, execution boundaries, and all 23 tool invocations. |
 | `omni_engine/contracts/enums.py` | Canonical enums: `ActionClass` (11), `AutonomyProfile` (5), `ConfirmationPolicy` (3), `RetryPolicy` (4), `IdempotencyClass` (5), `ToolOutcome` (3), `VerificationStatus` (3), `ErrorCode` (19), `DecisionSignalType` (16). |
 | `omni_engine/contracts/base.py` | `BaseContractModel` enforcing `extra="forbid"` and `validate_assignment=True`. |
 | `omni_engine/contracts/trace.py` | `TraceContext` with multi-tier causal correlation fields (`trace_id`, `quest_id`, `plan_id`, etc.). |
@@ -191,9 +247,9 @@
 | `pytest.ini` | Pytest configuration scoping test discovery strictly to `tests/` directory. |
 | `AGENTS.md` | Repository invariants, documentation synchronization rules, and phased engineering protocol. |
 | `LAYA_BUILD_STATE.md` | Ground truth build state, health matrix, test categorization breakdown, and blockers. |
-| `HANDOFF.md` | Operational continuation guide for next agent session (preparing L3A). |
+| `HANDOFF.md` | Operational continuation guide for next agent session (preparing L4). |
 | `tasks/MASTER_PLAN.md` | Strategic roadmap (L0–L25) with structured sub-phases for L3 (L3A–L3D). |
-| `tasks/ACTIVE_PLAN.md` | Active checkpoint plan detailing L2.1 completion and L3A–L3D specifications. |
+| `tasks/ACTIVE_PLAN.md` | Active checkpoint plan detailing L3 completion and L4 Provider Foundations specifications. |
 | `tasks/KNOWN_ISSUES.md` | Defect tracking and resolution evidence. |
 | `END_TO_END_EXECUTION_LOG.md` | This document: persistent cumulative chronological evidence ledger. |
 

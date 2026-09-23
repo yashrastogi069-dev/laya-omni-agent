@@ -50,11 +50,12 @@ This guarantees that future multi-agent coordination or supervisor routing can b
   - Add `CapabilityInvocation` context and extend `TraceContext` with multi-tier causal correlation.
   - Pinned `pydantic>=2.0.0,<3.0.0`.
   - Add test suite (`tests/test_l2_1_reconciliation.py`) bringing repository to 55 passing tests.
-- [ ] **L3 — Canonical Capability Registry & Phased Boundary Envelopes**:
-  - **L3A — Canonical Capability Registry**: Create `CapabilityRegistry` registering the source-verified 23 tools. Validate IDs, domains, schemas, action classes. Do NOT switch production dispatch yet.
-  - **L3B — Read-Only Capability Result Boundary**: Wrap read-only tools first with `ToolResult`. Normalize runtime exceptions without swallowing process-control exceptions (`KeyboardInterrupt`, `SystemExit`).
-  - **L3C — Mutation/System Capability Wrappers**: Add declarative wrappers for mutation tools without broad autonomous dispatch before L9 (Policy Engine).
-  - **L3D — Legacy Compatibility**: Keep legacy CLI/runtime operational via legacy path. Exercise new contracts through typed `CapabilityInvocation` objects. Non-switching principle strictly preserved.
+- [x] **L3 — Canonical Capability Registry & Phased Boundary Envelopes**:
+  - **L3A — Canonical Capability Registry**: Created thread-safe `CapabilityRegistry` registering all 23 source tools with 100% parity.
+  - **L3B — Read-Only Capability Result Boundary**: Wrapped read-only capabilities with `ToolResult`, prefix-anchored error interception, and clean process-control propagation (`KeyboardInterrupt`, `SystemExit` never caught).
+  - **L3C — Mutation/System Capability Wrappers**: Declarative `CapabilitySpec` contracts with explicit policies for all 12 mutation/system tools.
+  - **L3D — Legacy Compatibility**: Fully preserved legacy prototype path; non-switching boundary strictly enforced.
+  - Test suite `tests/test_l3_capabilities.py` (25 tests, 23 subtests). Total repository suite: **80 passed in 32.99s**.
 
 ### Phase II: System One Nervous System & Hierarchical Routing (L4 – L7)
 - [ ] **L4 — Dual Provider Foundation (System One & Generative Abstractions)**:

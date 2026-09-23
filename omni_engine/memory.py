@@ -17,7 +17,7 @@ import shutil
 WORKSPACE_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MEMORY_PATH = os.path.join(WORKSPACE_ROOT, "memory", "omni_memory.json")
 os.makedirs(os.path.dirname(MEMORY_PATH), exist_ok=True)
-
+# Continuous memory storage format schema version (intentionally decoupled from application versioning)
 SCHEMA_VERSION = "2.5.0"
 
 class OmniMemory:

@@ -1,9 +1,9 @@
 # LAYA_BUILD_STATE.md — Current Ground Truth State
 
-**Last Updated**: 2026-09-23T08:08:00+05:30  
+**Last Updated**: 2026-09-23T08:50:00+05:30  
 **Current Branch**: `laya-autonomous-v2`  
-**Active Checkpoint**: `L2 — Foundational Typed Contracts` (**COMPLETED**; preparing L3)  
-**Last Passing Test Suite**: `tests/test_l0_baselines.py`, `tests/test_l1_repairs.py`, `tests/test_l2_contracts.py` (**40/40 passed via pytest in 6.11s**)  
+**Active Checkpoint**: `L2.1 — Contract & Registry Reconciliation` (**COMPLETED**; preparing L3A)  
+**Last Passing Test Suite**: `tests/test_l0_baselines.py`, `tests/test_l1_repairs.py`, `tests/test_l2_contracts.py`, `tests/test_l2_1_reconciliation.py` (**55/55 passed via pytest in 6.22s**)  
 **Mission Role**: Complete Standalone Autonomous Operating Agent.
 
 ---
@@ -17,46 +17,68 @@ The repository contains a standalone prototype CLI (`laya_agent.py` / `omni_engi
 4. **Checkpoint L1 & L1.1 Milestone Reached**:
    - `tool_safe_math` rewritten with strict AST NodeVisitor, length limits (<= 256), node limits (<= 40), literal limits (<= 1e100), factorial limits (0 <= n <= 100), and exponent bounds (abs <= 100).
    - `OmniMemory` rewritten with dynamic schema key migration, atomic file persistence, corruption quarantining (`.corrupt.<timestamp>`), and 3-state verification tracking (`VERIFIED_SUCCESS`, `VERIFIED_FAILURE`, `UNVERIFIED`).
-5. **Checkpoint L2 Milestone Reached**:
-   - Canonical typed contracts created in `omni_engine/contracts/` using Pydantic v2.
-   - Enums: `ActionClass` (11 levels), `AutonomyProfile` (5 tiers), `ErrorCode` (12 codes including `UNKNOWN_COMMIT`), `VerificationStatus` (3 states), `DecisionSignalType` (12 types including `REVERSIBILITY`).
-   - System 1 Contracts: `DecisionSignal` (strictly bounded confidence in [0.0, 1.0], NaN/Inf rejection), `DecisionFrame`.
-   - Capability Contracts: `CapabilitySpec` (pure JSON-serializable separated from callables), `ExecutableCapability`, `ToolError`, `ExecutionReceipt`, `VerificationResult`, `ToolResult` (enforcing mutual exclusivity between success and error).
-   - Agent Envelopes: `AgentRequest`, `AgentResponse`, `TraceContext`, `AgentEvent`.
-   - Global strict validation: `extra="forbid"` and `validate_assignment=True` across all models.
+5. **Checkpoint L2 & L2.1 Milestone Reached**:
+   - Canonical typed contracts created in `omni_engine/contracts/` using Pydantic v2 (`pydantic>=2.0.0,<3.0.0`).
+   - True 23-tool source inventory verified (Web: 4, Browser: 2, OS: 8, Dev: 6, Data: 3) with zero unregistered functions.
+   - 19-member `ErrorCode` taxonomy distinguishing `PERMISSION_DENIED` (external/OS denial) from `UNAUTHORIZED_ACTION` (internal policy refusal) and encapsulating `UNKNOWN_COMMIT` (mutation uncertainty).
+   - System 1 Contracts: `DecisionSignal` with provider provenance fields (`provider_id`, `model_id`, calibration), bounded confidence in [0.0, 1.0], NaN/Inf rejection, and extended signals (`NEEDS_CLARIFICATION`, `REQUIRES_ACTION`, `NEEDS_GENERATIVE_REASONING`, `ESCALATION_REQUIRED`).
+   - Capability Contracts: `CapabilitySpec` with explicit policy enums (`minimum_autonomy_profile`, `ConfirmationPolicy`, `RetryPolicy`, `IdempotencyClass`), `CapabilityInvocation` execution boundary, `ToolError`, `ExecutionReceipt`, `VerificationResult`, `ToolResult` (supporting `ToolOutcome: SUCCESS, PARTIAL, FAILURE`).
+   - Agent Envelopes: `AgentRequest`, `AgentResponse`, `AgentEvent`, and extended `TraceContext` (with multi-tier causal correlation: `turn_id`, `quest_id`, `plan_id`, `step_id`, `operation_id`).
+   - Wire/persisted contract schema versioning (`schema_version = "1.0.0"`).
 
 ---
 
-## 2. Component Health Matrix
+## 2. Canonical 23-Tool Source Inventory Matrix
 
-| Component | Status | Operational Notes |
-| :--- | :--- | :--- |
-| `omni_engine.contracts` | **WORKING (VERIFIED)** | Canonical typed contracts package. Pydantic v2 data models with `extra="forbid"`, JSON round-trip serialization, strict error/success exclusivity. 18 dedicated tests passing. |
-| `tool_safe_math` | **WORKING (VERIFIED)** | Strict AST NodeVisitor arithmetic evaluator with resource bounds (expression length <= 256, AST nodes <= 40, literal magnitude <= 1e100, factorial bounds 0 <= n <= 100, exponent bounds abs <= 100). Tested against sandbox escapes and computational exhaustion. |
-| `OmniMemory` | **WORKING (VERIFIED)** | Backward-compatible schema migration (`schema_version = "2.5.0"`), atomic temporary-file persistence, corruption quarantining (`.corrupt.<timestamp>`), and explicit 3-state verification tracking (`VERIFIED_SUCCESS`, `VERIFIED_FAILURE`, `UNVERIFIED`). |
-| `System1Router` | **PROTOTYPE (LEGACY LIMITATION)** | Functional for first 12 registered tools. Legacy `[:12]` slice preserved for baseline regression testing; hierarchical capability routing scheduled for Checkpoint L6. |
-| `AutonomousPlanner` | **LEGACY STANDALONE PROTOTYPE** | Rudimentary keyword matching. Scheduled for replacement by Structured DAG Planner & Deterministic DAG Executor in Checkpoints L12–L14. |
-| `System2Engine` | **PROTOTYPE / REFERENCE** | OpenRouter LLaMA 3.3 70B client. Retained for generative planning, argument synthesis, and dossier generation. |
-| Baseline Tools (OS, Dev, Web) | **WORKING / LEGACY** | Baseline capabilities functional. Scheduled for wrapping into canonical `CapabilitySpec` and `ToolResult` envelopes in Checkpoint L3. |
+| Domain | Tool ID | Implementation Function | Blast Radius | Notes / Status |
+| :--- | :--- | :--- | :--- | :--- |
+| **web** | `web_search` | `tool_web_search` | `READ_ONLY` | Verified source tool (Tavily search) |
+| **web** | `scrape_url` | `tool_scrape_url_content` | `EXTERNAL_READ` | Verified source tool (HTTP scrape) |
+| **web** | `http_api` | `tool_http_api_request` | `EXTERNAL_CREATE` / `READ` | Verified source tool (README alias: `api_request`) |
+| **web** | `download_file` | `tool_download_file` | `LOCAL_CREATE` | Verified source tool |
+| **browser** | `visual_browse` | `tool_visual_browse` | `EXTERNAL_READ` / `SYSTEM` | Verified source tool (monolithic Edge runner) |
+| **browser** | `browser_screenshot` | `tool_browser_screenshot` | `LOCAL_CREATE` | Verified source tool |
+| **os** | `system_diagnostics` | `tool_system_diagnostics` | `READ_ONLY` | Verified source tool (README alias: `hardware_diagnostics`) |
+| **os** | `list_processes` | `tool_list_processes` | `READ_ONLY` | Verified source tool |
+| **os** | `kill_process` | `tool_kill_process` | `SYSTEM_ACTION` | Destructive: mandates confirmation gate in L9 |
+| **os** | `launch_app` | `tool_launch_app` | `SYSTEM_ACTION` | Verified source tool |
+| **os** | `desktop_screenshot` | `tool_desktop_screenshot` | `LOCAL_CREATE` | Verified source tool (README alias: `take_screenshot`) |
+| **os** | `clipboard` | `tool_clipboard` | `LOCAL_UPDATE` / `READ` | Unified tool (README aliases: `read/write_clipboard`) |
+| **os** | `powershell` | `tool_powershell` | `SYSTEM_ACTION` | Destructive: mandates confirmation gate in L9 |
+| **os** | `ping_test` | `tool_ping_test` | `EXTERNAL_READ` | Verified source tool |
+| **dev** | `file_read` | `tool_file_read` | `READ_ONLY` | Verified source tool (README alias: `read_file`) |
+| **dev** | `file_write` | `tool_file_write` | `LOCAL_CREATE` / `UPDATE` | Destructive: mandates confirmation gate in L9 |
+| **dev** | `search_code` | `tool_search_code` | `READ_ONLY` | Verified source tool (README alias: `search_codebase`) |
+| **dev** | `directory_tree` | `tool_directory_tree` | `READ_ONLY` | Verified source tool |
+| **dev** | `run_python` | `tool_run_python` | `SYSTEM_ACTION` | Sandboxed Python code runner |
+| **dev** | `git_status` | `tool_git_status` | `READ_ONLY` | Verified source tool |
+| **data** | `sqlite_exec` | `tool_sqlite_exec` | `LOCAL_UPDATE` / `READ` | Verified source tool (README alias: `sql_query`) |
+| **data** | `inspect_data` | `tool_inspect_data` | `READ_ONLY` | Verified source tool (README alias: `inspect_dataset`) |
+| **data** | `safe_math` | `tool_safe_math` | `READ_ONLY` | AST arithmetic evaluator with resource bounds |
 
 ---
 
-## 3. Current Blockers
+## 3. Test Suite & Health Metrics Breakdown
 
-- **None**. Checkpoints L0, L1, L1.1, and L2 are verified and passing 100% of automated tests (40/40).
+> [!IMPORTANT]
+> A 100% green test suite (55/55 passed) confirms baseline integrity, defect isolation, and contract soundness; it does **not** imply that the autonomous agent is functionally complete. Destructive policy gates (L9), multi-step DAG planning (L12), and autonomous execution (L14) remain sequentially scheduled.
+
+- **Total Automated Tests**: 55 tests
+  - **Feature Acceptance Tests**: 53 passed (contracts, ast math, atomic memory, baseline diagnostics).
+  - **Known Defect Reproduction Tests**: 2 passed (asserting expected baseline defects: System 1 `[:12]` catalog truncation and raw prompt passed as argument).
+- **Pass Rate**: 100% (55 passed, 0 failed, 0 errors).
+- **Runtime**: 6.22s via `pytest`.
 
 ---
 
-## 4. Test Suite Baseline
+## 4. Current Blockers
 
-- **Total Automated Tests**: 40 tests (`tests/test_l0_baselines.py`, `tests/test_l1_repairs.py`, `tests/test_l2_contracts.py`).
-- **Pass Rate**: 100% (40 passed, 0 failed, 0 errors).
-- **Runtime**: 6.11s via `pytest`.
+- **None**. Checkpoint L2.1 is verified, reviewed, and passing 100% of automated tests.
 
 ---
 
-## 5. Next Checkpoint Scope: L3 (Canonical Capability Registry & ToolResult Envelopes)
+## 5. Next Checkpoint Scope: L3A (Canonical Capability Registry)
 
-1. Wrap all 23 existing tools into `CapabilitySpec` contracts with typed schemas.
-2. Enforce standardized `ToolResult` return envelopes across all tools with zero uncaught exceptions.
-3. Migrate tool execution from raw text strings to structured envelopes.
+1. Implement `CapabilityRegistry` registering the verified 23 canonical tools.
+2. Validate canonical IDs, semvers, domains, and Pydantic argument schemas.
+3. Strict Non-Switching Principle: Main agent dispatch remains on legacy path until L8 typed argument resolution and L9 policy engine exist.

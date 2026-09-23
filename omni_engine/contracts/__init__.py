@@ -9,7 +9,11 @@ from .base import BaseContractModel
 from .enums import (
     ActionClass,
     AutonomyProfile,
+    ConfirmationPolicy,
     ErrorCode,
+    IdempotencyClass,
+    RetryPolicy,
+    ToolOutcome,
     VerificationStatus,
     DecisionSignalType,
 )
@@ -19,6 +23,7 @@ from .decision import (
 )
 from .capability import (
     CapabilitySpec,
+    CapabilityInvocation,
     ExecutableCapability,
     ToolError,
     ExecutionReceipt,
@@ -38,7 +43,11 @@ __all__ = [
     # Enums
     "ActionClass",
     "AutonomyProfile",
+    "ConfirmationPolicy",
     "ErrorCode",
+    "IdempotencyClass",
+    "RetryPolicy",
+    "ToolOutcome",
     "VerificationStatus",
     "DecisionSignalType",
     # Decision
@@ -46,6 +55,7 @@ __all__ = [
     "DecisionFrame",
     # Capability
     "CapabilitySpec",
+    "CapabilityInvocation",
     "ExecutableCapability",
     "ToolError",
     "ExecutionReceipt",

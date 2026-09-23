@@ -2,8 +2,9 @@
 Agent Communication & Tracing Contracts
 =======================================
 Structures defining:
-- Distributed TraceContext
-- Inbound AgentRequest envelope
+- Distributed TraceContext with multi-tier causal correlation fields
+  (trace_id, parent_id, session_id, turn_id, quest_id, plan_id, step_id, operation_id)
+- Inbound AgentRequest envelope with explicit contract schema versioning
 - Outbound structured AgentResponse envelope with physical audit receipts
 - Asynchronous AgentEvent envelope
 """
@@ -14,17 +15,15 @@ from pydantic import Field
 from .base import BaseContractModel
 from .capability import ExecutionReceipt, VerificationResult
 from .decision import DecisionFrame
-
-
-class TraceContext(BaseContractModel):
-    """Context for distributed tracing and causal correlation across agent operations."""
-    trace_id: str = Field(..., description="Root trace identifier")
-    parent_id: Optional[str] = Field(default=None, description="Parent span or caller operation identifier")
-    session_id: Optional[str] = Field(default=None, description="Persistent user conversation/session identifier")
+from .trace import TraceContext
 
 
 class AgentRequest(BaseContractModel):
     """Inbound agent request envelope wrapping user prompts or trigger events."""
+    schema_version: str = Field(
+        default="1.0.0",
+        description="Contract schema version for AgentRequest"
+    )
     request_id: str = Field(..., description="Unique request identifier")
     user_prompt: str = Field(..., description="Raw or preprocessed user prompt or trigger instruction")
     context: Dict[str, Any] = Field(
@@ -40,6 +39,10 @@ class AgentRequest(BaseContractModel):
 
 class AgentResponse(BaseContractModel):
     """Outbound structured agent response envelope containing execution receipts and verification."""
+    schema_version: str = Field(
+        default="1.0.0",
+        description="Contract schema version for AgentResponse"
+    )
     request_id: str = Field(..., description="Correlation request identifier matching AgentRequest")
     content: str = Field(..., description="Synthesized response or completion summary for the user")
     decision_frame: Optional[DecisionFrame] = Field(
@@ -68,6 +71,10 @@ class AgentResponse(BaseContractModel):
 
 class AgentEvent(BaseContractModel):
     """Event envelope for internal agent event bus, telemetry, and background notifications."""
+    schema_version: str = Field(
+        default="1.0.0",
+        description="Contract schema version for AgentEvent"
+    )
     event_id: str = Field(..., description="Unique event identifier")
     event_type: str = Field(..., description="Domain event type, e.g. 'step.started', 'verification.failed'")
     payload: Dict[str, Any] = Field(

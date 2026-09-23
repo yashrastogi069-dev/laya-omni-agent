@@ -39,12 +39,22 @@ This guarantees that future multi-agent coordination or supervisor routing can b
   - Build test suite (`tests/test_l1_repairs.py`) and verify 100% pass rate across L0 + L1 (22 passed).
 - [x] **L2 — Foundational Typed Contracts**:
   - Implement Pydantic data contracts: `DecisionFrame`, `CapabilitySpec`, `ToolResult`, `ActionClass`, `AutonomyProfile`, `ExecutionReceipt`, `VerificationResult`, `AgentRequest`, `AgentResponse`, `AgentEvent`, `TraceContext`.
-  - Standardize error codes (`INVALID_ARGUMENT`, `NOT_FOUND`, `PERMISSION_DENIED`, `CONFIRMATION_REJECTED`, `TIMEOUT`, `NETWORK_ERROR`, `PROCESS_FAILED`, `RATE_LIMITED`, `SCHEMA_VIOLATION`, `UNAUTHORIZED_ACTION`, `UNKNOWN_COMMIT`).
   - Strict validation (`extra="forbid"`, bounded confidence in `[0.0, 1.0]`, NaN/Inf rejection, mutual exclusivity between success and error).
   - Build test suite (`tests/test_l2_contracts.py`) and verify 100% pass rate across L0 + L1 + L2 (40 passed).
-- [ ] **L3 — Canonical Capability Registry & ToolResult Envelopes**:
-  - Wrap all existing 23 tools in `CapabilitySpec` contracts with typed schemas.
-  - Enforce `ToolResult` return envelopes across all tools with zero uncaught exceptions.
+- [x] **L2.1 — Contract & Registry Reconciliation**:
+  - Re-establish exact 23-tool source inventory (Web: 4, Browser: 2, OS: 8, Dev: 6, Data: 3) and resolve documentation discrepancies.
+  - Complete 19-member `ErrorCode` taxonomy, distinguishing `PERMISSION_DENIED` (external/OS refusal) from `UNAUTHORIZED_ACTION` (internal policy refusal) and representing `UNKNOWN_COMMIT`.
+  - Extend `DecisionSignal` with provenance fields (`provider_id`, `model_id`, calibration) and add signals `NEEDS_CLARIFICATION`, `REQUIRES_ACTION`, `NEEDS_GENERATIVE_REASONING`, `ESCALATION_REQUIRED`.
+  - Clarify `CapabilitySpec` policy semantics: `minimum_autonomy_profile`, `ConfirmationPolicy`, `RetryPolicy`, `IdempotencyClass`.
+  - Adopt `ToolOutcome: SUCCESS, PARTIAL, FAILURE` distinct from physical `VerificationStatus`.
+  - Add `CapabilityInvocation` context and extend `TraceContext` with multi-tier causal correlation.
+  - Pinned `pydantic>=2.0.0,<3.0.0`.
+  - Add test suite (`tests/test_l2_1_reconciliation.py`) bringing repository to 55 passing tests.
+- [ ] **L3 — Canonical Capability Registry & Phased Boundary Envelopes**:
+  - **L3A — Canonical Capability Registry**: Create `CapabilityRegistry` registering the source-verified 23 tools. Validate IDs, domains, schemas, action classes. Do NOT switch production dispatch yet.
+  - **L3B — Read-Only Capability Result Boundary**: Wrap read-only tools first with `ToolResult`. Normalize runtime exceptions without swallowing process-control exceptions (`KeyboardInterrupt`, `SystemExit`).
+  - **L3C — Mutation/System Capability Wrappers**: Add declarative wrappers for mutation tools without broad autonomous dispatch before L9 (Policy Engine).
+  - **L3D — Legacy Compatibility**: Keep legacy CLI/runtime operational via legacy path. Exercise new contracts through typed `CapabilityInvocation` objects. Non-switching principle strictly preserved.
 
 ### Phase II: System One Nervous System & Hierarchical Routing (L4 – L7)
 - [ ] **L4 — Dual Provider Foundation (System One & Generative Abstractions)**:

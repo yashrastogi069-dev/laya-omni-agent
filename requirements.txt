@@ -1,7 +1,7 @@
 # Core System 1 Decision Engine
 laya>=0.3.5
 typesafe-sdk>=0.7.1
-pydantic>=2.0.0
+pydantic>=2.0.0,<3.0.0
 
 # Real-Time Visual Browser Automation
 playwright>=1.50.0

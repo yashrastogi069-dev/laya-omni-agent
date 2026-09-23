@@ -29,6 +29,14 @@ SAFE_OPERATORS = {
     ast.UAdd: lambda a: +a,
 }
 
+def _safe_factorial(n):
+    """Bounds factorial computation to prevent CPU exhaustion."""
+    if not isinstance(n, int) or isinstance(n, bool):
+        raise ValueError("Factorial argument must be an integer.")
+    if not (0 <= n <= 100):
+        raise ValueError(f"Factorial argument out of bounds: {n} (allowed: 0 <= n <= 100).")
+    return math.factorial(n)
+
 SAFE_FUNCTIONS = {
     "sqrt": math.sqrt,
     "sin": math.sin,
@@ -47,7 +55,7 @@ SAFE_FUNCTIONS = {
     "round": round,
     "radians": math.radians,
     "degrees": math.degrees,
-    "factorial": math.factorial,
+    "factorial": _safe_factorial,
 }
 
 SAFE_CONSTANTS = {
@@ -67,6 +75,8 @@ def _evaluate_ast_node(node, depth: int = 0):
 
     elif isinstance(node, ast.Constant):
         if isinstance(node.value, (int, float)):
+            if abs(node.value) > 1e100:
+                raise ValueError("Numeric literal magnitude exceeds maximum allowed limit (1e100).")
             return node.value
         raise ValueError(f"Unsupported constant type: {type(node.value).__name__}")
 
@@ -85,9 +95,9 @@ def _evaluate_ast_node(node, depth: int = 0):
 
         # Defense against computational exhaustion (e.g. 9**9**9**9 or large base/exp)
         if op_type is ast.Pow:
-            if isinstance(right, (int, float)) and right > 100:
-                raise ValueError("Exponent too large (maximum exponent is 100).")
-            if isinstance(left, (int, float)) and abs(left) > 1e6 and right > 10:
+            if isinstance(right, (int, float)) and abs(right) > 100:
+                raise ValueError("Exponent magnitude too large (maximum exponent is 100).")
+            if isinstance(left, (int, float)) and abs(left) > 1e6 and abs(right) > 10:
                 raise ValueError("Base too large for power operation.")
 
         if op_type in (ast.Div, ast.FloorDiv, ast.Mod) and right == 0:
@@ -121,9 +131,14 @@ def tool_safe_math(expression: str) -> str:
     clean = re.sub(r'^(calculate|math|what is|compute)\s+', '', expression.strip(), flags=re.IGNORECASE).strip()
     if not clean:
         return "Please provide a mathematical expression to evaluate."
+    if len(clean) > 256:
+        return "Math calculation error: Expression length exceeds maximum allowed limit of 256 characters."
 
     try:
         parsed = ast.parse(clean, mode='eval')
+        node_count = sum(1 for _ in ast.walk(parsed))
+        if node_count > 40:
+            return f"Math calculation error: Expression complexity exceeded (AST node count {node_count} > 40)."
         val = _evaluate_ast_node(parsed)
         if isinstance(val, float) and val.is_integer():
             val = int(val)

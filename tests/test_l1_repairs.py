@@ -52,12 +52,31 @@ class TestL1SafeMathRepairs(unittest.TestCase):
         self.assertIn("5.436", res_e)
 
     def test_computational_exhaustion_protection(self):
-        """Defends against massive exponents that could lock the GIL."""
+        """Defends against massive exponents, deep ASTs, large literals, and unbounded factorials."""
         res = tool_safe_math("9**9**9**9")
-        self.assertIn("Exponent too large", res)
+        self.assertIn("Exponent magnitude too large", res)
 
         res_large_exp = tool_safe_math("2**1000")
-        self.assertIn("Exponent too large", res_large_exp)
+        self.assertIn("Exponent magnitude too large", res_large_exp)
+
+        # Factorial bounds
+        self.assertIn("= **120**", tool_safe_math("factorial(5)"))
+        res_fact_large = tool_safe_math("factorial(101)")
+        self.assertIn("Factorial argument out of bounds", res_fact_large)
+        res_fact_neg = tool_safe_math("factorial(-1)")
+        self.assertIn("Factorial argument out of bounds", res_fact_neg)
+
+        # Literal magnitude bounds
+        res_huge_literal = tool_safe_math("1" + "0" * 105)
+        self.assertIn("Numeric literal magnitude exceeds", res_huge_literal)
+
+        # Expression length bounds (> 256 chars)
+        res_long_expr = tool_safe_math("1 + " * 70 + "1")
+        self.assertIn("Expression length exceeds maximum allowed limit", res_long_expr)
+
+        # AST node count bounds (> 40 nodes)
+        res_many_nodes = tool_safe_math(" + ".join(["1"] * 25))
+        self.assertIn("Expression complexity exceeded", res_many_nodes)
 
     def test_security_and_sandbox_rejection(self):
         """Rejects dangerous statements, imports, and attribute access."""
@@ -116,25 +135,46 @@ class TestL1MemoryRepairs(unittest.TestCase):
         self.assertEqual(saved["total_missions"], 1)
         self.assertEqual(saved["tool_success_counts"]["web_search"], 1)
 
-    def test_distinguish_execution_from_verified_success(self):
-        """Execution count increments always; success count increments only when verified."""
+    def test_distinguish_execution_from_verified_success_three_state(self):
+        """Execution count increments always; outcome tracks 3 distinct states."""
         mem = OmniMemory(filepath=self.mem_file)
         # Succeeded run
         mem.record_mission("query 1", "file_read", "ok", verified_success=True)
         # Failed run
         mem.record_mission("query 2", "file_read", "error: not found", verified_success=False)
+        # Unverified run (default)
+        mem.record_mission("query 3", "file_read", "invoked but unverified")
 
-        self.assertEqual(mem.data["tool_invocations"]["file_read"], 2)
-        self.assertEqual(mem.data["tool_success_counts"]["file_read"], 1)
+        self.assertEqual(mem.data["invocation_count"]["file_read"], 3)
+        self.assertEqual(mem.data["verified_success_count"]["file_read"], 1)
+        self.assertEqual(mem.data["verified_failure_count"]["file_read"], 1)
+        self.assertEqual(mem.data["unverified_count"]["file_read"], 1)
 
-    def test_corrupted_file_recovery(self):
-        """Recovers cleanly from empty or malformed JSON without raising unhandled errors."""
+        # Missions check
+        missions = mem.data["missions"]
+        self.assertEqual(missions[0]["outcome_status"], "VERIFIED_SUCCESS")
+        self.assertEqual(missions[1]["outcome_status"], "VERIFIED_FAILURE")
+        self.assertEqual(missions[2]["outcome_status"], "UNVERIFIED")
+        self.assertIsNone(missions[2]["verified_success"])
+
+    def test_corrupted_file_recovery_and_quarantine(self):
+        """Recovers cleanly from malformed JSON and quarantines original file with timestamp."""
+        corrupt_content = "{invalid_json_content,,"
         with open(self.mem_file, "w", encoding="utf-8") as f:
-            f.write("{invalid_json_content,,")
+            f.write(corrupt_content)
 
         mem = OmniMemory(filepath=self.mem_file)
         self.assertIsInstance(mem.data, dict)
         self.assertEqual(mem.data["total_missions"], 0)
+
+        # Check quarantine file was created
+        quarantine_files = [
+            f for f in os.listdir(self.test_dir.name)
+            if f.startswith("test_memory.json.corrupt.")
+        ]
+        self.assertEqual(len(quarantine_files), 1)
+        with open(os.path.join(self.test_dir.name, quarantine_files[0]), "r", encoding="utf-8") as qf:
+            self.assertEqual(qf.read(), corrupt_content)
 
 
 class TestL1PackageSmoke(unittest.TestCase):

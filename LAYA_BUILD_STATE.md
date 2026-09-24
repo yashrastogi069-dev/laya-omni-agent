@@ -1,10 +1,10 @@
 # LAYA_BUILD_STATE.md — Current Ground Truth State
 
-**Last Updated**: 2026-09-24T21:40:00+05:30  
+**Last Updated**: 2026-09-24T22:05:00+05:30  
 **Current Branch**: `laya-autonomous-v2`  
-**Active Milestone Goal**: `Real Capability Engines: Foundation Gate (COMPLETE) → Phase R1: Deep Research Engine (COMPLETE & VERIFIED) → Phase R2: Real Browser Engine (COMPLETE & VERIFIED) → Phase R3: Windows Desktop, App & Local Service Engine (COMPLETE & VERIFIED) → Phase R4: n8n Automation Engine (ACTIVE)`  
-**Last Passing Test Suite**: All 17 test files across L0–L9 + Foundation Gate + R1 + R2 + R3:
-`tests/test_l0_baselines.py`, `tests/test_l1_repairs.py`, `tests/test_l2_contracts.py`, `tests/test_l2_1_reconciliation.py`, `tests/test_l3_capabilities.py`, `tests/test_l4_providers.py`, `tests/test_l5_decision_fabric.py`, `tests/test_l6a_routing.py`, `tests/test_l7_skills.py`, `tests/test_l6b_skill_routing.py`, `tests/test_l7_5_calibration.py`, `tests/test_l8_arguments.py`, `tests/test_l9_policy.py`, `tests/test_foundation_broker.py`, `tests/test_r1_research.py`, `tests/test_r2_browser.py`, `tests/test_r3_desktop.py` (**314/314 passed in 211.05s, 47 subtests passed = 361 total (100% pass rate)**)  
+**Active Milestone Goal**: `Real Capability Engines: Foundation Gate (COMPLETE) → Phase R1: Deep Research Engine (COMPLETE & VERIFIED) → Phase R2: Real Browser Engine (COMPLETE & VERIFIED) → Phase R3: Windows Desktop, App & Local Service Engine (COMPLETE & VERIFIED) → Phase R4: n8n Automation Engine (COMPLETE & VERIFIED) → Phase R5: Developer Agent / Antigravity Engine (ACTIVE)`  
+**Last Passing Test Suite**: All 18 test files across L0–L9 + Foundation Gate + R1 + R2 + R3 + R4:
+`tests/test_l0_baselines.py`, `tests/test_l1_repairs.py`, `tests/test_l2_contracts.py`, `tests/test_l2_1_reconciliation.py`, `tests/test_l3_capabilities.py`, `tests/test_l4_providers.py`, `tests/test_l5_decision_fabric.py`, `tests/test_l6a_routing.py`, `tests/test_l7_skills.py`, `tests/test_l6b_skill_routing.py`, `tests/test_l7_5_calibration.py`, `tests/test_l8_arguments.py`, `tests/test_l9_policy.py`, `tests/test_foundation_broker.py`, `tests/test_r1_research.py`, `tests/test_r2_browser.py`, `tests/test_r3_desktop.py`, `tests/test_r4_n8n.py` (**339/339 passed in 214.99s, 47 subtests passed = 386 total (100% pass rate)**)  
 **Mission Role**: Complete Standalone Autonomous Operating Agent.
 
 ---
@@ -129,6 +129,18 @@ The repository contains a standalone prototype CLI (`laya_agent.py` / `omni_engi
     - **Capability Substrate Integration**: Registered `desktop.launch_app`, `desktop.list_windows`, `desktop.focus_window`, `desktop.close_window`, `desktop.service_health`, `desktop.send_keys`, and dotless aliases in `build_real_capability_registry()`. Mapped in `ArgumentResolver` and `PolicyEngine`.
     - **Adversarial Diff Review**: **PASS (APPROVED FOR CHECKPOINT R3)** (Subagent `286fba8a-36f5-4ab6-b993-ab0eb8ad56f3`).
     - **Comprehensive Test Suite**: Created `tests/test_r3_desktop.py` (21 unit and integration tests, 100% pass rate in 0.953s). Full repository suite: **314/314 passed in 211.05s (+ 47 subtests = 361 total)**.
+19. **Checkpoint R4 Milestone Reached (Programmatic n8n Automation Engine)**:
+    - **ADR & Technology Audit**: Formally adopted n8n v1 REST API, draft-test-validate workflow lifecycle, zero plaintext secrets invariant, 3-level nested connection schema resolution, and RCE defenses in `docs/research/ADR_R4_N8N_AUTOMATION_ENGINE.md`. Status: **ACCEPTED**.
+    - **Typed n8n Contracts**: Created `omni_engine/contracts/n8n.py` with `N8nTriggerType`, `N8nCredentialReference` (`extra="forbid"`), `N8nNode`, `N8nWorkflowSummary`, `N8nWorkflowDetail` (deterministic `compute_hash()`), `N8nWorkflowValidationResult`, `N8nExecutionReceipt`, and `N8nActionResult`.
+    - **Multi-Pattern Secret Scrubber**: Implemented `SecretScrubber` in `omni_engine/automation/scrubber.py` with compiled regexes for OpenAI (`sk-`), GitHub (`ghp_`), Bearer/Basic, AWS keys, n8n API keys, private keys, generic K-Vs, and header sanitization while preserving `$json.*` syntax.
+    - **DAG Validator & Cycle Detector**: Implemented `N8nWorkflowValidator` in `omni_engine/automation/validator.py` parsing 3-level nested connections (`connections[src]["main"][idx] = [...]`), resolving name/ID bidirectionally, 3-color topological DFS cycle detector, in-degree constraints (`trigger in-degree == 0`, triggers >= 1), reachability analysis, and pre-flight parameter secret scan.
+    - **Decoupled Transport**: Implemented `N8nTransport` (ABC), `HttpN8nTransport` (production urllib + `ProxyHandler({})`), and `MockN8nTransport` (in-memory state machine for fast offline tests) in `omni_engine/automation/transport.py`.
+    - **n8n Client & Draft Mode Enforcement**: Created `N8nClient` in `omni_engine/automation/client.py` strictly enforcing draft mode (`active=False`) on creation, endpoints for activate/deactivate, execution trigger, and execution polling.
+    - **Lifecycle Engine & Gate Triad**: Created `N8nAutomationEngine` in `omni_engine/automation/engine.py` implementing the Draft-Test-Validate lifecycle, Gate Triad enforcement for `activate_workflow` (1: Valid DAG, 2: Successful test run receipt for exact hash, 3: Zero secrets), bounded exponential backoff in `trigger_and_wait` with `"waiting"` state breakout.
+    - **PolicyEngine RCE Defense**: Updated `PolicyEngine` to detect high-risk n8n nodes (`executeCommand`, `code`, `ssh`, `readWriteFile`), escalate blast radius to `LOCAL_SYSTEM` / `SECURITY_CRITICAL` and composite risk to >= 0.70. Enforced Rule-0 embedded command scanning on `executeCommand` parameters to block forbidden operations (`git reset --hard`, destructive drive formatting).
+    - **Capability Substrate Integration**: Registered 7 canonical n8n specs, adapters, and dotless aliases in `build_real_capability_registry()`, preserving 23-tool canonical registry. Mapped in `ArgumentResolver` and `PolicyEngine`.
+    - **Adversarial Diff Review**: **PASS (100% compliant with all 7 blocking requirements and repository operating invariants)** (Subagent `901d60b3-003c-4854-9d3c-b76bed8c4f44`).
+    - **Comprehensive Test Suite**: Created `tests/test_r4_n8n.py` (25 unit and integration tests, 100% pass rate in 4.72s). Full repository suite: **339/339 passed in 214.99s (+ 47 subtests = 386 total)**.
 
 ---
 
@@ -164,6 +176,13 @@ The repository contains a standalone prototype CLI (`laya_agent.py` / `omni_engi
 | **dev** | `directory_tree` | `tool_directory_tree` | `READ_ONLY` | `ADVISOR` | `NEVER` | `SAFE_READ_RETRY` | `READ_ONLY` |
 | **dev** | `run_python` | `tool_run_python` | `SYSTEM_ACTION` | `LOCAL_OPERATOR` | `ALWAYS` | `NEVER` | `NON_IDEMPOTENT` |
 | **dev** | `git_status` | `tool_git_status` | `READ_ONLY` | `ADVISOR` | `NEVER` | `SAFE_READ_RETRY` | `READ_ONLY` |
+| **automation** | `n8n.list_workflows` | `N8nClient.list_workflows` | `NONE` | `ADVISOR` | `NEVER` | `SAFE_READ_RETRY` | `READ_ONLY` |
+| **automation** | `n8n.get_workflow` | `N8nClient.get_workflow` | `NONE` | `ADVISOR` | `NEVER` | `SAFE_READ_RETRY` | `READ_ONLY` |
+| **automation** | `n8n.validate_workflow` | `N8nWorkflowValidator.validate` | `NONE` | `ADVISOR` | `NEVER` | `SAFE_READ_RETRY` | `READ_ONLY` |
+| **automation** | `n8n.create_workflow` | `N8nAutomationEngine.create_workflow` | `LOCAL_SYSTEM` | `LOCAL_OPERATOR` | `POLICY_CONTROLLED` | `VERIFY_BEFORE_RETRY` | `NON_IDEMPOTENT` |
+| **automation** | `n8n.activate_workflow` | `N8nAutomationEngine.activate_workflow` | `LOCAL_SYSTEM` | `LOCAL_OPERATOR` | `POLICY_CONTROLLED` | `VERIFY_BEFORE_RETRY` | `NON_IDEMPOTENT` |
+| **automation** | `n8n.trigger_workflow` | `N8nAutomationEngine.trigger_and_wait` | `LOCAL_SYSTEM` | `LOCAL_OPERATOR` | `POLICY_CONTROLLED` | `VERIFY_BEFORE_RETRY` | `NON_IDEMPOTENT` |
+| **automation** | `n8n.get_execution_status` | `N8nAutomationEngine.get_execution_receipt` | `NONE` | `ADVISOR` | `NEVER` | `SAFE_READ_RETRY` | `READ_ONLY` |
 | **data** | `sqlite_exec` | `tool_sqlite_exec` | `LOCAL_UPDATE` | `LOCAL_OPERATOR` | `POLICY_CONTROLLED` | `VERIFY_BEFORE_RETRY` | `NON_IDEMPOTENT` |
 | **data** | `inspect_data` | `tool_inspect_data` | `READ_ONLY` | `ADVISOR` | `NEVER` | `SAFE_READ_RETRY` | `READ_ONLY` |
 | **data** | `safe_math` | `tool_safe_math` | `READ_ONLY` | `ADVISOR` | `NEVER` | `SAFE_READ_RETRY` | `READ_ONLY` |
@@ -172,7 +191,7 @@ The repository contains a standalone prototype CLI (`laya_agent.py` / `omni_engi
 
 ## 3. Test Suite & Health Metrics Breakdown
 
-- **Total Automated Tests**: 314 tests (+ 47 subtests = 361 total)
+- **Total Automated Tests**: 339 tests (+ 47 subtests = 386 total)
   - **L0 Baseline Tests**: 10 passed
   - **L1 & L1.1 Memory and Math Tests**: 12 passed
   - **L2 Contracts Tests**: 18 passed
@@ -190,26 +209,29 @@ The repository contains a standalone prototype CLI (`laya_agent.py` / `omni_engi
   - **Phase R1 Deep Research Tests**: 18 passed
   - **Phase R2 Real Browser Tests**: 15 passed
   - **Phase R3 Desktop Engine Tests**: 21 passed
-- **Pass Rate**: 100% (314 passed, 0 failed, 0 errors, 47 subtests passed).
-- **Runtime**: ~211s across full test suite.
+  - **Phase R4 n8n Automation Engine Tests**: 25 passed
+- **Pass Rate**: 100% (339 passed, 0 failed, 0 errors, 47 subtests passed).
+- **Runtime**: ~214s across full test suite.
 
 ---
 
 ## 4. Current Blockers
 
-- **None**. Phase R3 is complete, verified, and passing 100% of automated tests.
+- **None**. Phase R4 is complete, verified, and passing 100% of automated tests.
 
 ---
 
-## 5. Next Checkpoint Scope: Phase R4 (n8n Automation Engine)
+## 5. Next Checkpoint Scope: Phase R5 (Developer Agent / Antigravity Engine)
 
 Within active goal `Real Capability Engines: R1 → R5`:
-- Active Phase: **R4 — n8n Automation Engine**
-- Core Objectives for R4:
-  1. Complete technology audit and research gate in `docs/research/ADR_R4_N8N_AUTOMATION_ENGINE.md`.
-  2. Implement n8n REST API client supporting draft-test-validate workflow lifecycle (`/workflows`, `/executions`, `/credentials`).
-  3. Implement local n8n discovery & health probing via `LocalServiceProber` on port 5678.
-  4. Enforce strict secret isolation and zero leaked secrets in workflow payloads, logs, and prompt contexts.
-  5. Enforce evidence-based execution verification polling terminal execution states.
-  6. Register `n8n.list_workflows`, `n8n.get_workflow`, `n8n.create_workflow`, `n8n.trigger_workflow`, `n8n.get_execution_status` in `CapabilityRegistry`, `PolicyEngine`, and `ArgumentResolver`.
-  7. Comprehensive offline mock test suite `tests/test_r4_n8n.py`.
+- Active Phase: **R5 — Developer Agent / Antigravity Engine**
+- Core Objectives for R5:
+  1. Complete technology audit and research gate in `docs/research/ADR_R5_DEVELOPER_AGENT.md`.
+  2. Implement Antigravity CLI adapter (`agy`) and Foreman-style supervisor architecture.
+  3. Implement strongly typed developer contracts (`omni_engine/contracts/developer.py`): `DevTaskSpec`, `DevExecutionReceipt`, `CodeVerificationReceipt`.
+  4. Implement developer supervisor engine (`omni_engine/developer/engine.py`) with Plan → Inspect → Edit → Verify → Review loop.
+  5. Enforce Rule-0 process defense (no `git reset --hard`, no `git clean -fd`) and strict workspace path confinement.
+  6. Register developer capabilities in `definitions.py`, `build_real_capability_registry()`, `resolver.py`, and `policy/engine.py`.
+  7. End-to-end isolated fixture acceptance test in `tests/test_r5_developer.py` running 100% offline.
+  8. **HARD STOP AFTER R5**: Under NO circumstances proceed to Quest (L10) or Planner (L12).
+

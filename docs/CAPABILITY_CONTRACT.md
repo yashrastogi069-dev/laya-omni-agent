@@ -142,6 +142,13 @@ In addition to the 23 source tools, LAYA provides high-level autonomous capabili
 | **os** | `desktop.close_window` | Graceful window close via WM_CLOSE with Rule-0 process defense | `LOCAL_DELETE` | `LOCAL_OPERATOR` | `POLICY_CONTROLLED` | `NON_IDEMPOTENT` |
 | **os** | `desktop.service_health` | Local port/HTTP microservice prober with dual-stack cascade & SO_LINGER | `READ_ONLY` | `ADVISOR` | `NEVER` | `READ_ONLY` |
 | **os** | `desktop.send_keys` | Non-intrusive character dispatch via WM_CHAR with pre-focus verification | `SYSTEM_ACTION` | `LOCAL_OPERATOR` | `POLICY_CONTROLLED` | `NON_IDEMPOTENT` |
-| **automation** | `n8n.build_workflow` | Programmatic n8n workflow draft-test-validate automation | `LOCAL_UPDATE` | `LOCAL_OPERATOR` | `POLICY_CONTROLLED` | `NATURAL` |
+| **automation** | `n8n.list_workflows` | List workflows from local or remote n8n instance | `READ_ONLY` | `ADVISOR` | `NEVER` | `READ_ONLY` |
+| **automation** | `n8n.get_workflow` | Retrieve full workflow definition by ID | `READ_ONLY` | `ADVISOR` | `NEVER` | `READ_ONLY` |
+| **automation** | `n8n.validate_workflow` | Acyclic 3-color DFS graph validation and secret audit | `READ_ONLY` | `ADVISOR` | `NEVER` | `READ_ONLY` |
+| **automation** | `n8n.create_workflow` | Create workflow in strict draft mode (active=False) | `LOCAL_UPDATE` | `LOCAL_OPERATOR` | `POLICY_CONTROLLED` | `NON_IDEMPOTENT` |
+| **automation** | `n8n.activate_workflow` | Promote workflow to active status via Gate Triad enforcement | `LOCAL_UPDATE` | `LOCAL_OPERATOR` | `POLICY_CONTROLLED` | `NON_IDEMPOTENT` |
+| **automation** | `n8n.trigger_workflow` | Trigger workflow execution with polling and Wait node breakout | `SYSTEM_ACTION` | `LOCAL_OPERATOR` | `POLICY_CONTROLLED` | `NON_IDEMPOTENT` |
+| **automation** | `n8n.get_execution_status` | Query execution receipt and node run counts by execution ID | `READ_ONLY` | `ADVISOR` | `NEVER` | `READ_ONLY` |
 | **dev** | `developer.execute_task` | Antigravity CLI introspection adapter & supervised developer agent | `LOCAL_UPDATE` | `LOCAL_OPERATOR` | `POLICY_CONTROLLED` | `NATURAL` |
+
 

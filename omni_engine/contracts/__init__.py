@@ -95,6 +95,16 @@ from .desktop import (
     ServiceHealthStatus,
     DesktopActionResult,
 )
+from .n8n import (
+    N8nTriggerType,
+    N8nCredentialReference,
+    N8nNode,
+    N8nWorkflowSummary,
+    N8nWorkflowDetail,
+    N8nWorkflowValidationResult,
+    N8nExecutionReceipt,
+    N8nActionResult,
+)
 
 __all__ = [
     # Base
@@ -175,5 +185,14 @@ __all__ = [
     "AppLaunchResult",
     "ServiceHealthStatus",
     "DesktopActionResult",
+    # n8n
+    "N8nTriggerType",
+    "N8nCredentialReference",
+    "N8nNode",
+    "N8nWorkflowSummary",
+    "N8nWorkflowDetail",
+    "N8nWorkflowValidationResult",
+    "N8nExecutionReceipt",
+    "N8nActionResult",
 ]
 

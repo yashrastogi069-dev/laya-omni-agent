@@ -1,57 +1,57 @@
-# ACTIVE_PLAN.md — Checkpoint R4: n8n Automation Engine (ACTIVE) & R1-R3 (COMPLETED)
+# ACTIVE_PLAN.md — Checkpoint R5: Developer Agent / Antigravity Engine (ACTIVE) & R1-R4 (COMPLETED)
 
-## 1. Summary of Completed Checkpoint R3: Windows Desktop, App & Local Service Engine
+## 1. Summary of Completed Checkpoint R4: n8n Automation Engine
 - **Status**: **COMPLETED & VERIFIED**
-- **Test Suite**: **21/21 unit and integration tests passed in 0.953s; 314/314 full repository tests (+ 47 subtests = 361 total) passed (100% pass rate)**.
+- **Test Suite**: **25/25 unit and integration tests passed in 4.72s; 339/339 full repository tests (+ 47 subtests = 386 total) passed (100% pass rate)**.
 - **Key Deliverables**:
-  1. `docs/research/ADR_R3_WINDOWS_APP_ENGINE.md`: Architecture audit adopting Win32 API (`win32gui`, `win32con`, `win32process`, `win32api`, `ctypes.windll.user32`), `psutil`, `socket`, and `urllib.request`.
-  2. `omni_engine/contracts/desktop.py`: Strongly typed contracts (`WindowBounds`, `WindowState`, `AppWindowInfo`, `AppLaunchResult`, `ServiceHealthStatus`, `DesktopActionResult`).
-  3. `omni_engine/desktop/service.py`: `LocalServiceProber` implementing dual-stack cascade (`127.0.0.1` -> `::1`), `SO_LINGER` socket reset, `ProxyHandler({})` isolation opener, bounded 4KB reads, and strict timeouts.
-  4. `omni_engine/desktop/app_manager.py`: `Win32Backend`, `NativeWin32Backend`, `AppWindowManager` implementing non-blocking focus rights via `VK_MENU`, `IsHungAppWindow` rejection, `ShowWindowAsync(SW_RESTORE)`, async activation polling, and launcher trampoline resolution via baseline HWND diffing + child process tree traversal.
-  5. `omni_engine/desktop/uia_driver.py`: `WindowsInputDriver` with verified pre-focus check and `WM_CHAR` non-intrusive character dispatch.
-  6. `omni_engine/desktop/engine.py`: `ComputerUseDriver` composite engine.
-  7. `omni_engine/desktop/__init__.py`: Package exports.
-  8. `omni_engine/capabilities/definitions.py`: Registered `desktop.launch_app`, `desktop.list_windows`, `desktop.focus_window`, `desktop.close_window`, `desktop.service_health`, `desktop.send_keys`, and dotless aliases in `build_real_capability_registry()`.
-  9. `omni_engine/policy/engine.py`: Broadened Stage 0 Rule-0 process defense across desktop capabilities; mapped desktop blast radii.
-  10. `omni_engine/arguments/resolver.py`: Added desktop clarification prompts and slot extractors (disambiguating multiple quoted strings).
-  11. `tests/test_r3_desktop.py`: 21 comprehensive offline unit and integration tests passing in 0.953s.
+  1. `docs/research/ADR_R4_N8N_AUTOMATION_ENGINE.md`: Technology audit adopting n8n v1 REST API, draft-test-validate lifecycle, and 7 blocking remediations. Status: **ACCEPTED**.
+  2. `omni_engine/contracts/n8n.py`: Strongly typed contracts (`N8nTriggerType`, `N8nCredentialReference` with `extra="forbid"`, `N8nNode`, `N8nWorkflowSummary`, `N8nWorkflowDetail` with deterministic `compute_hash()`, `N8nWorkflowValidationResult`, `N8nExecutionReceipt`, `N8nActionResult`).
+  3. `omni_engine/automation/scrubber.py`: `SecretScrubber` with compiled regexes for OpenAI (`sk-`), GitHub (`ghp_`), Bearer/Basic, AWS keys, n8n API keys, private keys, generic K-Vs, and header sanitization while preserving `$json.*` syntax.
+  4. `omni_engine/automation/validator.py`: `N8nWorkflowValidator` parsing 3-level nested connections (`connections[src]["main"][idx] = [...]`), resolving name/ID bidirectionally, 3-color topological DFS cycle detector, in-degree constraints (`trigger in-degree == 0`, triggers >= 1), reachability analysis, and pre-flight parameter secret scan.
+  5. `omni_engine/automation/transport.py`: Decoupled `N8nTransport` (ABC), `HttpN8nTransport` (production urllib + `ProxyHandler({})`), and `MockN8nTransport` (in-memory state machine for fast offline tests).
+  6. `omni_engine/automation/client.py`: `N8nClient` enforcing draft mode (`active=False`) on creation, endpoints for activate/deactivate, execution trigger, and execution polling.
+  7. `omni_engine/automation/engine.py`: `N8nAutomationEngine` implementing the Draft-Test-Validate lifecycle, Gate Triad enforcement for `activate_workflow` (1: Valid DAG, 2: Successful test run receipt for exact hash, 3: Zero secrets), bounded exponential backoff in `trigger_and_wait` with `"waiting"` state breakout.
+  8. `omni_engine/automation/__init__.py`: Package exports.
+  9. `omni_engine/policy/engine.py`: Mapped n8n high-risk node detection (`executeCommand`, `code`, `ssh`, `readWriteFile`) in `assess_action` and Stage 0 Rule-0 forbidden operations command scanner.
+  10. `omni_engine/capabilities/definitions.py`: Registered 7 canonical n8n specs, adapters, and dotless aliases in `build_real_capability_registry()`, preserving 23-tool canonical registry.
+  11. `omni_engine/capabilities/__init__.py`: Exported n8n capability specs and registration.
+  12. `omni_engine/arguments/resolver.py`: Added n8n clarification prompts and slot extractors for `workflow_id`, `execution_id`, and `name`.
+  13. `tests/test_r4_n8n.py`: 25 unit and integration tests passing in 4.72s.
 - **Adversarial Reviews**:
-  - Plan Review: Conditional Approval with 6 Blocking Requirements (`0b018a3a-73bc-4039-901e-5f1161505db1`).
-  - Diff Review: **PASS (APPROVED FOR CHECKPOINT R3)** (`286fba8a-36f5-4ab6-b993-ab0eb8ad56f3`).
+  - Plan Review: Conditional Approval with 7 Blocking Requirements (`711073de-234c-46cc-8259-8bde4b647987`).
+  - Diff Review: **PASS (100% compliant with all 7 blocking requirements and repository operating invariants)** (`901d60b3-003c-4854-9d3c-b76bed8c4f44`).
 - **Non-Switching Principle**: `omni_agent.py` and `omni_engine/planner.py` remain 100% untouched (0 diffs).
 
 ---
 
-## 2. Active Phase R4: n8n Automation Engine
+## 2. Active Phase R5: Developer Agent / Antigravity Engine
 
 ### Objective
-Build an official programmatic n8n automation engine integrating n8n workflows with LAYA:
-1. **n8n REST API Client & Lifecycle Substrate**:
-   - Programmatic integration with n8n v1 REST API (`/workflows`, `/executions`, `/credentials`, `/nodes`).
-   - Support draft-test-validate workflow lifecycle:
-     - `create_workflow_draft`: Create or update workflow without activating.
-     - `validate_workflow`: Acyclicity verification, schema checking, and node connection validation.
-     - `test_workflow`: Execute with test payload and capture execution receipt.
-     - `activate_workflow`: Promote validated workflow to active status.
-     - `trigger_workflow`: Programmatically trigger workflow execution with structured parameters.
-2. **Local n8n Microservice Discovery & Health Probing**:
-   - Utilize `LocalServiceProber` to detect running local n8n instances on default port 5678 (or configurable host/port).
-   - Fallback to remote n8n instances via base URL and API key authentication.
-3. **Secret Isolation & Zero Leaked Secrets (Invariant)**:
-   - Credentials strictly referenced by ID or vault key (`credential_id`), never passed as plaintext in workflow definitions, prompt contexts, logs, or tool results.
-   - Comprehensive secret scrubber sanitizing Authorization headers and webhook tokens.
-4. **Evidence-Based Execution Receipts (Invariant 6)**:
-   - Poll execution state until terminal status (`success`, `error`, `crashed`, `waiting`).
-   - Return strongly typed `N8nExecutionReceipt` containing `execution_id`, `status`, `duration_ms`, `node_execution_counts`, and output data.
-5. **Capability Registration & Substrate Integration**:
-   - `n8n.list_workflows`, `n8n.get_workflow`, `n8n.create_workflow`, `n8n.trigger_workflow`, `n8n.get_execution_status`.
-   - Wired into `build_real_capability_registry()`, `ArgumentResolver`, and `PolicyEngine`.
-6. **100% Offline Testability**:
-   - Mock transport and local fixture responses covering all API operations, graph validation, and secret sanitization without requiring an active n8n server.
+Build an official Developer Agent & Antigravity orchestration engine enabling LAYA to supervise and coordinate software engineering tasks:
+1. **Antigravity CLI & Subagent Orchestration Adapter**:
+   - Programmatic integration with Antigravity CLI (`agy`) and Google Antigravity SDK patterns.
+   - Foreman-style supervisor architecture: LAYA acts as supervisor/orchestrator managing specialized developer subagents.
+   - Execution isolation: workspace boundaries, scratch paths, isolated test sandboxes.
+2. **Strongly Typed Developer Contracts (`omni_engine/contracts/developer.py`)**:
+   - `DevTaskSpec`: repository root, task prompt, target files, test commands, timeout, max iterations.
+   - `DevExecutionReceipt`: exit code, stdout/stderr, files modified, git diff summary, test results, duration.
+   - `CodeVerificationReceipt`: deterministic verification of syntax, lint, type checks, and test pass/fail.
+3. **Foreman / Developer Supervisor Engine (`omni_engine/developer/engine.py`)**:
+   - Lifecycle: Plan → Inspect → Edit → Verify (Tests) → Review (Diff) → Commit/Report.
+   - Deterministic process runner with bounded timeouts, output truncation guards, and zombie process cleanup.
+4. **Safety & Policy Integration**:
+   - Inviolable Rule-0 enforcement: Unconditionally deny `git reset --hard`, `git clean -fd`, `git push --force`, or destructive host commands.
+   - Restrict dev operations to approved repository roots; prevent writing outside repository boundaries.
+5. **Capability Registration**:
+   - Register `developer.run_task`, `developer.run_tests`, `developer.git_diff`, `developer.inspect_code` in `CapabilityRegistry`, `PolicyEngine`, and `ArgumentResolver`.
+   - Preserve 23-tool canonical registry invariant.
+6. **Isolated Fixture Acceptance Test**:
+   - End-to-end acceptance test in `tests/test_r5_developer.py` using a temporary isolated git fixture repository, executing code edits, running tests, capturing diffs, and verifying physical receipts 100% offline.
 
 ---
 
 ## 3. Strict Goal Boundaries
-- Current Goal: `Foundation Gate (Complete) → R1 (Complete) → R2 (Complete) → R3 (Complete) → R4 (Active) → R5`
+- Current Goal: `Foundation Gate (Complete) → R1 (Complete) → R2 (Complete) → R3 (Complete) → R4 (Complete) → R5 (Active)`
 - **HARD STOP AFTER R5**:
   Under NO circumstances implement Quest runtime (L10), Operation Ledger (L11), Planner (L12), DAG Validator (L13), or DAG Executor (L14).
+

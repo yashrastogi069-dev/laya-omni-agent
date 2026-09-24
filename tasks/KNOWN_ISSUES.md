@@ -54,7 +54,6 @@
 
 ### ISSUE-06: Discrepancy Between README Browser Capabilities and Codebase
 - **Severity**: MEDIUM
-- **Status**: OPEN (Slated for Checkpoint L18)
-- **Reproduction**:
-  README lists `browser_navigate`, `browser_click_element`, `browser_type_text`, `browser_extract_text`. `omni_engine/tools/browser_tools.py` only defines monolithic `tool_visual_browse` and `tool_browser_screenshot`.
-- **Resolution Plan**: Rebuild Playwright Edge into atomic, session-backed primitives in Checkpoint L18.
+- **Status**: **RESOLVED (Phase R2: Real Browser Engine)**
+- **Resolution**: Implemented persistent session-backed Playwright engine (`omni_engine/browser/`) exposing atomic indexed action space (`@1..@N`), semantic fingerprinting, pre-execution staleness verification, evidence-based physical receipts (`dom_mutated`, `input_value`, `url_changed`), and registered capabilities `browser.interact` and `browser.perform_task`.
+- **Regression Test**: `tests/test_r2_browser.py` (15 unit and integration tests passing offline).

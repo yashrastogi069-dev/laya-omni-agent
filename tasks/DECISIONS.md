@@ -86,6 +86,8 @@
 
 ---
 
+---
+
 ## ADR-010: Windows Desktop, App Lifecycle, and Local Service Engine Architecture
 - **Date**: 2026-09-24
 - **Status**: ACCEPTED
@@ -96,4 +98,18 @@
   3. **Local Service Health Probing**: Implement dual-stack cascade (`127.0.0.1` -> `::1`), `SO_LINGER` to prevent `TIME_WAIT` socket accumulation, dedicated `urllib.request.ProxyHandler({})` opener to bypass host proxy environment variables, bounded 4KB HTTP reads, and strict timeouts (<=500ms socket, <=1500ms HTTP).
   4. **Rule-0 Process Defense**: Enforce dual-layer protection across `PolicyEngine` Stage 0 and `AppWindowManager` pre-flight checks, unconditionally blocking termination of critical system processes (`csrss`, `lsass`, `smss`, `services`, `wininit`, `winlogon`, `system`, PID 0, PID 4), strictly ignoring human confirmation.
   5. **Decoupled Backend & Isolated Testing**: Decouple Win32 operations behind `Win32Backend` abstract base class, allowing `tests/test_r3_desktop.py` to run 100% offline, with zero GUI popups and zero focus stealing, in under 1 second via `MockWin32Backend`.
+
+---
+
+## ADR-011: Programmatic n8n Automation Engine Architecture
+- **Date**: 2026-09-24
+- **Status**: ACCEPTED
+- **Problem**: Programmatic orchestration of enterprise workflow engines (n8n) introduces critical failure modes: accidental activation of broken workflows or infinite execution loops, credential/secret leakage via plaintext node configurations, worker thread stalling during long-running Wait nodes, and remote code execution (RCE) via `executeCommand` and `code` nodes.
+- **Decision**:
+  1. **Strict Draft-Test-Validate Gate Triad**: Workflows are forced to `active=False` upon creation/update. Activation is strictly blocked unless 3 gates pass: (1) Structural DAG validation (cycle-free 3-color DFS, trigger in-degree == 0, trigger count >= 1), (2) Evidence-based physical receipt verifying successful execution (`status="success"`) for the current deterministic `workflow_hash`, (3) Zero plaintext secrets detected. Any parameter/connection modification recalculates the hash and invalidates prior receipts.
+  2. **3-Level Nested Schema & Bidirectional Resolution**: n8n connection schemas (`connections[src]["main"][idx] = [{"node": target, ...}]`) are resolved bidirectionally using both node ID and node display name to eliminate false dangling connection errors.
+  3. **Multi-Pattern Secret Scrubber**: Enforce pre-flight credential scrubbing across headers, payload dicts, and node parameters using compiled regexes for OpenAI, GitHub, AWS, Bearer/Basic, n8n API keys, private keys, and generic tokens, while strictly preserving `$json.*` and `={{ ... }}` n8n expression syntax. Enforce `extra="forbid"` on `N8nCredentialReference` to reject inline plaintext secrets at schema validation.
+  4. **Wait Node Breakout in Polling**: In `trigger_and_wait`, detect execution transition to `"waiting"` state (e.g. n8n Wait node awaiting external webhook) and break out immediately with intermediate execution receipt, preventing thread stalling. Enforce bounded timeouts with exponential backoff.
+  5. **Two-Tier RCE & Policy Defense**: Node types capable of arbitrary command execution (`executeCommand`, `code`, `ssh`) are flagged as sensitive targets in `PolicyEngine`, escalating blast radius to `LOCAL_SYSTEM` / `SECURITY_CRITICAL` and composite risk to >= 0.70. Stage 0 Rule-0 command scanning inspects embedded parameters to unconditionally block forbidden destructive operations (`git reset --hard`, destructive drive formatting).
+  6. **Decoupled Transport for Offline Isolation**: Isolate network boundaries via `N8nTransport` ABC, implementing production `HttpN8nTransport` (with loopback proxy bypass) and offline `MockN8nTransport` for deterministic, sub-second test execution.
 

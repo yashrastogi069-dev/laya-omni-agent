@@ -79,3 +79,23 @@ Financial actions (`ActionClass.FINANCIAL`, `confirm_purchase`, or interactions 
 1. **Inviolable Stage 3 Policy Gating**: In `PolicyEngine`, any action classified as `FINANCIAL` or having sensitive targets tagged `financial:*` strictly requires explicit user confirmation (`user_confirmed=True`) under all autonomy tiers below `WORKFLOW_AUTHORIZED`. Even `TRUSTED_OPERATOR` cannot bypass this confirmation gate.
 2. **Intrinsic Driver Gate**: `BrowserDriver` implements an intrinsic secondary check scanning the target element attributes (`is_financial`), current URL, action type, and inner text. If a financial action is dispatched without explicit confirmation, execution is halted immediately before any DOM event is dispatched.
 
+---
+
+## 6. Automation & n8n Safety Invariants (Phase R4)
+
+Automated workflow execution introduces risks of Remote Code Execution (RCE), secret leakage, and runaway execution loops:
+1. **The Gate Triad Invariant**:
+   - Workflows created or updated via LAYA are strictly set to draft mode (`active=False`).
+   - Promotion to `active=True` via `activate_workflow` strictly requires:
+     1. Structural DAG validation (`is_valid=True`, cycle-free, valid triggers).
+     2. Evidence-based physical receipt verifying successful execution (`status="success"`) for the exact current `workflow_hash`.
+     3. Zero plaintext secrets detected across all node parameters.
+   - Any parameter or connection mutation alters `workflow_hash` and immediately invalidates cached execution receipts, forcing re-testing.
+2. **Zero Plaintext Secrets & Scrubber Enforcement**:
+   - Inline API keys, tokens, and passwords in workflow payloads or headers are strictly prohibited. Credentials must be referenced by vault ID (`credential_id`).
+   - `SecretScrubber` sanitizes headers, payload dictionaries, and node parameters against OpenAI, GitHub, AWS, Bearer/Basic, n8n API keys, private keys, and generic tokens, while preserving legitimate n8n `$json.*` and `={{ ... }}` expressions.
+3. **RCE Defense in PolicyEngine**:
+   - Nodes capable of executing shell commands or arbitrary code (`executeCommand`, `code`, `ssh`) are flagged as sensitive targets, escalating blast radius to `LOCAL_SYSTEM` or `SECURITY_CRITICAL` and composite risk to >= 0.70.
+   - In Stage 0, Rule-0 embedded command scanning inspects `executeCommand` parameters to unconditionally deny forbidden destructive operations (`git reset --hard`, destructive drive wipes), strictly ignoring human confirmation.
+
+

@@ -56,3 +56,11 @@
 - **Observation**: Calling Win32 `SetForegroundWindow` without foreground rights causes the taskbar icon to flash orange rather than activating the window. Calling `AttachThreadInput` to force foreground rights deadlocks the caller if the target thread is unresponsive, blocked on I/O, or displaying a modal message box.
 - **Principle**: Check `IsHungAppWindow(hwnd)` before any activation attempt and abort hung targets immediately. Simulate an innocuous menu key event (`VK_MENU`) to legitimately claim foreground rights without thread attachment. Restore minimized windows via non-blocking `ShowWindowAsync(SW_RESTORE)`, and poll foreground activation asynchronously.
 
+## Lesson 15: n8n 3-Level Nested Schema & Bidirectional Resolution
+- **Observation**: n8n connection schemas are not flat source-target adjacency lists. They are nested 3 levels deep (`connections[source_node]["main"][output_idx] = [{"node": target_node, "type": "main", "index": input_idx}]`), and target nodes may be referenced either by unique node ID (`uuid`) or display label (`name`). Resolving by ID alone produces false dangling connection errors on valid workflows exported from n8n UI.
+- **Principle**: Graph validators must traverse connections through all 3 nesting levels and construct bidirectional resolution maps (`node_by_id` and `node_by_name`). Edges must resolve cleanly to a canonical node identity before cycle or reachability analysis.
+
+## Lesson 16: The Gate Triad Invariant & Hash-Based Invalidation
+- **Observation**: Autonomous agents frequently attempt to activate unverified or broken workflows, and caching a test run result across subsequent edits creates a critical window where broken or secret-leaking modifications are deployed directly to production.
+- **Principle**: Activation must be blocked unless 3 gates pass: (1) DAG structural validation, (2) Evidence-based physical receipt of successful execution, and (3) Zero plaintext secrets. Any mutation to workflow nodes, connections, credentials, or parameters must compute a new deterministic SHA-256 hash, automatically invalidating any prior execution receipts and strictly forcing re-testing before activation.
+

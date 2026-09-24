@@ -114,10 +114,11 @@ This guarantees that future multi-agent coordination or supervisor routing can b
   - Persistent browser context (`~/.laya/browser_profile`), stale lock recovery, single page invariant (`max_pages=1`), dynamic indexed action space (`@1..@N`), staleness pre-verification, physical evidence receipts (`dom_mutated`, `input_value`, `url_changed`), and hard financial action confirmation gating. 15/15 tests passing.
 - [x] **R3 — Windows / App / Local-Service Engine (COMPLETED & VERIFIED)**:
   - ComputerUseDriver (AppWindowManager, WindowsInputDriver, LocalServiceProber), Win32 safe activation and non-blocking foreground rights, process trampoline resolution via HWND baseline diffing and child-tree traversal, dual-stack loopback probing (`127.0.0.1` -> `::1`) with `SO_LINGER`, Rule-0 system process protection, and 100% offline isolated tests. 21/21 tests passing. Total suite: **314 passed**.
-- [ ] **R4 — n8n Automation Engine (ACTIVE)**:
-  - Official programmatic n8n MCP/API/Skills integration, draft-test-validate workflow lifecycle, zero leaked secrets.
-- [ ] **R5 — Developer Agent / Antigravity Engine**:
+- [x] **R4 — n8n Automation Engine (COMPLETED & VERIFIED)**:
+  - Official programmatic n8n REST client, draft-test-validate workflow lifecycle, Gate Triad enforcement, 3-level nested connection schema resolution (bidirectional node IDs & names), 3-color topological cycle detector, SecretScrubber (OpenAI, GitHub, AWS, Bearer/Basic, n8n API keys, private keys, headers), Wait node breakout, RCE & Rule-0 policy defense. 25/25 unit tests passing. Full repository suite: **339 passed (+ 47 subtests = 386 total)**.
+- [ ] **R5 — Developer Agent / Antigravity Engine (ACTIVE)**:
   - Antigravity CLI adapter (`agy`), Foreman-style supervision, isolated fixture repository acceptance test.
+  - Hard Stop Boundary: STOP AFTER R5. Do NOT proceed to L10-L14.
 
 ### Phase IV: Persistent Quest Engine & DAG Execution (L10 – L16)
 - [ ] **L10 — Persisted SQLite Quest Engine**:

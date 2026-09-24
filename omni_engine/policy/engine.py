@@ -160,6 +160,18 @@ class PolicyEngine:
             if action == "confirm_purchase" or any(t in target or t in url for t in financial_terms):
                 sensitive_targets.append("financial:browser_checkout")
 
+        # Check n8n workflow node types (REQ-BLOCK-5)
+        has_high_risk_n8n = False
+        if spec.id.startswith(("n8n.", "n8n_")):
+            nodes = arguments.get("nodes") or []
+            high_risk_n8n_types = ("executecommand", "code", "ssh", "readwritefile")
+            for node in nodes:
+                if isinstance(node, dict):
+                    node_type = str(node.get("type", "")).lower()
+                    if any(hr in node_type for hr in high_risk_n8n_types):
+                        sensitive_targets.append(f"n8n:{node.get('type')}")
+                        has_high_risk_n8n = True
+
         # 4. Determine blast radius
         blast_radius = "NONE"
         if spec.action_class == ActionClass.READ_ONLY and not sensitive_targets:
@@ -185,6 +197,12 @@ class PolicyEngine:
             "desktop_close_window",
             "desktop.send_keys",
             "desktop_send_keys",
+            "n8n.create_workflow",
+            "n8n_create_workflow",
+            "n8n.activate_workflow",
+            "n8n_activate_workflow",
+            "n8n.trigger_workflow",
+            "n8n_trigger_workflow",
         ):
             blast_radius = "LOCAL_SYSTEM"
         elif spec.id in ("web_search", "scrape_url", "http_api", "visual_browse", "browser_screenshot", "ping_test", "deep_research", "research.deep", "browser_interact", "browser.interact"):
@@ -196,6 +214,8 @@ class PolicyEngine:
 
         if sensitive_targets:
             modifier += 0.25
+        if has_high_risk_n8n:
+            modifier += 0.15
         if is_destructive:
             modifier += 0.15
         if not is_reversible:
@@ -348,6 +368,30 @@ class PolicyEngine:
                     is_hard_invariant=True,
                     extra_metadata={"inviolable_tier": 0},
                 )
+
+        # 4. n8n Node Embedded Command Scanner (REQ-BLOCK-5)
+        if spec.id.startswith(("n8n.", "n8n_")):
+            nodes = arguments.get("nodes") or []
+            for node in nodes:
+                if isinstance(node, dict):
+                    node_type = str(node.get("type", "")).lower()
+                    if "executecommand" in node_type or "ssh" in node_type:
+                        params = node.get("parameters", {})
+                        cmd = params.get("command") or params.get("executeCommand") or ""
+                        if cmd and isinstance(cmd, str):
+                            violation, reason = scan_embedded_commands(cmd)
+                            if violation:
+                                return self._make_decision(
+                                    request_id=req_id,
+                                    capability_id=spec.id,
+                                    effect=PolicyEffect.DENY,
+                                    matched_rules=["RULE_0_FORBIDDEN_OPERATIONS"],
+                                    assessment=assessment,
+                                    start_time=t0,
+                                    denial_reason=f"n8n node '{node.get('name', 'executeCommand')}' embedded command blocked: {reason}",
+                                    is_hard_invariant=True,
+                                    extra_metadata={"inviolable_tier": 0, "n8n_node": node.get("name")},
+                                )
 
         # -------------------------------------------------------------------
         # STAGE 1: USER PERSISTENT BLACKLIST RULES

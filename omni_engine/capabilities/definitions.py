@@ -1009,6 +1009,332 @@ def register_desktop_capabilities(
     )
 
 
+# -----------------------------------------------------------------------
+# Phase R4: n8n Automation Engine Specs & Adapters
+# -----------------------------------------------------------------------
+
+N8N_LIST_WORKFLOWS_SPEC = CapabilitySpec(
+    id="n8n.list_workflows",
+    version="1.0.0",
+    name="List n8n Workflows",
+    domain="automation",
+    description="List all workflows available on the n8n automation server.",
+    input_schema={
+        "type": "object",
+        "properties": {},
+    },
+    action_class=ActionClass.READ_ONLY,
+    side_effects=False,
+    minimum_autonomy_profile=AutonomyProfile.SAFE_ASSISTANT,
+    confirmation_policy=ConfirmationPolicy.NEVER,
+    retry_policy=RetryPolicy.SAFE_READ_RETRY,
+    idempotency_class=IdempotencyClass.READ_ONLY,
+    timeout_seconds=10.0,
+)
+
+N8N_GET_WORKFLOW_SPEC = CapabilitySpec(
+    id="n8n.get_workflow",
+    version="1.0.0",
+    name="Get n8n Workflow Detail",
+    domain="automation",
+    description="Fetch full workflow configuration, nodes, and connections by workflow ID.",
+    input_schema={
+        "type": "object",
+        "properties": {
+            "workflow_id": {"type": "string", "description": "Workflow identifier"},
+        },
+        "required": ["workflow_id"],
+    },
+    action_class=ActionClass.READ_ONLY,
+    side_effects=False,
+    minimum_autonomy_profile=AutonomyProfile.SAFE_ASSISTANT,
+    confirmation_policy=ConfirmationPolicy.NEVER,
+    retry_policy=RetryPolicy.SAFE_READ_RETRY,
+    idempotency_class=IdempotencyClass.READ_ONLY,
+    timeout_seconds=10.0,
+)
+
+N8N_VALIDATE_WORKFLOW_SPEC = CapabilitySpec(
+    id="n8n.validate_workflow",
+    version="1.0.0",
+    name="Validate n8n Workflow",
+    domain="automation",
+    description="Validate workflow graph for acyclicity, valid triggers, reachability, and parameter security.",
+    input_schema={
+        "type": "object",
+        "properties": {
+            "workflow_id": {"type": "string", "description": "Optional workflow ID to validate"},
+            "workflow_data": {"type": "object", "description": "Optional workflow definition JSON dict to validate"},
+        },
+    },
+    action_class=ActionClass.READ_ONLY,
+    side_effects=False,
+    minimum_autonomy_profile=AutonomyProfile.SAFE_ASSISTANT,
+    confirmation_policy=ConfirmationPolicy.NEVER,
+    retry_policy=RetryPolicy.SAFE_READ_RETRY,
+    idempotency_class=IdempotencyClass.READ_ONLY,
+    timeout_seconds=5.0,
+)
+
+N8N_CREATE_WORKFLOW_SPEC = CapabilitySpec(
+    id="n8n.create_workflow",
+    version="1.0.0",
+    name="Create n8n Workflow Draft",
+    domain="automation",
+    description="Create a new workflow strictly in inactive draft mode (active=False) with pre-flight graph validation.",
+    input_schema={
+        "type": "object",
+        "properties": {
+            "name": {"type": "string", "description": "Workflow display title"},
+            "nodes": {"type": "array", "description": "List of node definition objects"},
+            "connections": {"type": "object", "description": "3-level nested node connections mapping"},
+            "settings": {"type": "object", "description": "Optional execution settings"},
+        },
+        "required": ["name", "nodes", "connections"],
+    },
+    action_class=ActionClass.LOCAL_UPDATE,
+    side_effects=True,
+    minimum_autonomy_profile=AutonomyProfile.LOCAL_OPERATOR,
+    confirmation_policy=ConfirmationPolicy.POLICY_CONTROLLED,
+    retry_policy=RetryPolicy.VERIFY_BEFORE_RETRY,
+    idempotency_class=IdempotencyClass.NON_IDEMPOTENT,
+    timeout_seconds=15.0,
+)
+
+N8N_ACTIVATE_WORKFLOW_SPEC = CapabilitySpec(
+    id="n8n.activate_workflow",
+    version="1.0.0",
+    name="Activate n8n Workflow",
+    domain="automation",
+    description="Activate an n8n workflow under the Gate Triad (valid DAG, tested execution receipt, zero secrets).",
+    input_schema={
+        "type": "object",
+        "properties": {
+            "workflow_id": {"type": "string", "description": "Workflow ID to activate"},
+        },
+        "required": ["workflow_id"],
+    },
+    action_class=ActionClass.EXTERNAL_UPDATE,
+    side_effects=True,
+    minimum_autonomy_profile=AutonomyProfile.LOCAL_OPERATOR,
+    confirmation_policy=ConfirmationPolicy.POLICY_CONTROLLED,
+    retry_policy=RetryPolicy.VERIFY_BEFORE_RETRY,
+    idempotency_class=IdempotencyClass.NATURAL,
+    timeout_seconds=15.0,
+)
+
+N8N_TRIGGER_WORKFLOW_SPEC = CapabilitySpec(
+    id="n8n.trigger_workflow",
+    version="1.0.0",
+    name="Trigger n8n Workflow",
+    domain="automation",
+    description="Trigger execution of an active n8n workflow and poll for physical execution receipt.",
+    input_schema={
+        "type": "object",
+        "properties": {
+            "workflow_id": {"type": "string", "description": "Workflow ID to trigger"},
+            "payload": {"type": "object", "description": "Optional input data payload"},
+            "wait_for_completion": {"type": "boolean", "default": True, "description": "Whether to poll until completion"},
+            "timeout_seconds": {"type": "number", "default": 30.0, "description": "Maximum seconds to wait for execution"},
+        },
+        "required": ["workflow_id"],
+    },
+    action_class=ActionClass.SYSTEM_ACTION,
+    side_effects=True,
+    minimum_autonomy_profile=AutonomyProfile.LOCAL_OPERATOR,
+    confirmation_policy=ConfirmationPolicy.POLICY_CONTROLLED,
+    retry_policy=RetryPolicy.NEVER,
+    idempotency_class=IdempotencyClass.NON_IDEMPOTENT,
+    timeout_seconds=45.0,
+)
+
+N8N_GET_EXECUTION_STATUS_SPEC = CapabilitySpec(
+    id="n8n.get_execution_status",
+    version="1.0.0",
+    name="Get n8n Execution Status",
+    domain="automation",
+    description="Poll execution state, duration, and output data for an n8n execution ID.",
+    input_schema={
+        "type": "object",
+        "properties": {
+            "execution_id": {"type": "string", "description": "n8n execution identifier"},
+        },
+        "required": ["execution_id"],
+    },
+    action_class=ActionClass.READ_ONLY,
+    side_effects=False,
+    minimum_autonomy_profile=AutonomyProfile.SAFE_ASSISTANT,
+    confirmation_policy=ConfirmationPolicy.NEVER,
+    retry_policy=RetryPolicy.SAFE_READ_RETRY,
+    idempotency_class=IdempotencyClass.READ_ONLY,
+    timeout_seconds=10.0,
+)
+
+
+def make_n8n_list_workflows_adapter(engine_instance: Any = None):
+    def adapter(**kwargs) -> Dict[str, Any]:
+        eng = engine_instance
+        if eng is None:
+            from omni_engine.automation.engine import N8nAutomationEngine
+            from omni_engine.automation.client import N8nClient
+            from omni_engine.automation.transport import HttpN8nTransport
+            eng = N8nAutomationEngine(client=N8nClient(transport=HttpN8nTransport()))
+        res = eng.list_workflows()
+        return res.model_dump()
+    return adapter
+
+
+def make_n8n_get_workflow_adapter(engine_instance: Any = None):
+    def adapter(**kwargs) -> Dict[str, Any]:
+        eng = engine_instance
+        if eng is None:
+            from omni_engine.automation.engine import N8nAutomationEngine
+            from omni_engine.automation.client import N8nClient
+            from omni_engine.automation.transport import HttpN8nTransport
+            eng = N8nAutomationEngine(client=N8nClient(transport=HttpN8nTransport()))
+        wf_id = str(kwargs.get("workflow_id") or kwargs.get("id") or "")
+        res = eng.get_workflow(wf_id)
+        return res.model_dump()
+    return adapter
+
+
+def make_n8n_validate_workflow_adapter(engine_instance: Any = None):
+    def adapter(**kwargs) -> Dict[str, Any]:
+        eng = engine_instance
+        if eng is None:
+            from omni_engine.automation.engine import N8nAutomationEngine
+            from omni_engine.automation.client import N8nClient
+            from omni_engine.automation.transport import HttpN8nTransport
+            eng = N8nAutomationEngine(client=N8nClient(transport=HttpN8nTransport()))
+        wf_target = kwargs.get("workflow_data") or kwargs.get("workflow_id") or kwargs.get("id") or ""
+        val = eng.validate_workflow(wf_target)
+        return val.model_dump()
+    return adapter
+
+
+def make_n8n_create_workflow_adapter(engine_instance: Any = None):
+    def adapter(**kwargs) -> Dict[str, Any]:
+        eng = engine_instance
+        if eng is None:
+            from omni_engine.automation.engine import N8nAutomationEngine
+            from omni_engine.automation.client import N8nClient
+            from omni_engine.automation.transport import HttpN8nTransport
+            eng = N8nAutomationEngine(client=N8nClient(transport=HttpN8nTransport()))
+        name = str(kwargs.get("name") or "New Workflow")
+        nodes = kwargs.get("nodes") or []
+        conns = kwargs.get("connections") or {}
+        settings = kwargs.get("settings")
+        res = eng.create_workflow(name=name, nodes=nodes, connections=conns, settings=settings)
+        return res.model_dump()
+    return adapter
+
+
+def make_n8n_activate_workflow_adapter(engine_instance: Any = None):
+    def adapter(**kwargs) -> Dict[str, Any]:
+        eng = engine_instance
+        if eng is None:
+            from omni_engine.automation.engine import N8nAutomationEngine
+            from omni_engine.automation.client import N8nClient
+            from omni_engine.automation.transport import HttpN8nTransport
+            eng = N8nAutomationEngine(client=N8nClient(transport=HttpN8nTransport()))
+        wf_id = str(kwargs.get("workflow_id") or kwargs.get("id") or "")
+        res = eng.activate_workflow(wf_id)
+        return res.model_dump()
+    return adapter
+
+
+def make_n8n_trigger_workflow_adapter(engine_instance: Any = None):
+    def adapter(**kwargs) -> Dict[str, Any]:
+        eng = engine_instance
+        if eng is None:
+            from omni_engine.automation.engine import N8nAutomationEngine
+            from omni_engine.automation.client import N8nClient
+            from omni_engine.automation.transport import HttpN8nTransport
+            eng = N8nAutomationEngine(client=N8nClient(transport=HttpN8nTransport()))
+        wf_id = str(kwargs.get("workflow_id") or kwargs.get("id") or "")
+        payload = kwargs.get("payload")
+        wait = bool(kwargs.get("wait_for_completion", True))
+        timeout = float(kwargs.get("timeout_seconds", 30.0))
+        res = eng.trigger_workflow(wf_id, payload=payload, wait_for_completion=wait, timeout_seconds=timeout)
+        return res.model_dump()
+    return adapter
+
+
+def make_n8n_get_execution_status_adapter(engine_instance: Any = None):
+    def adapter(**kwargs) -> Dict[str, Any]:
+        eng = engine_instance
+        if eng is None:
+            from omni_engine.automation.engine import N8nAutomationEngine
+            from omni_engine.automation.client import N8nClient
+            from omni_engine.automation.transport import HttpN8nTransport
+            eng = N8nAutomationEngine(client=N8nClient(transport=HttpN8nTransport()))
+        exec_id = str(kwargs.get("execution_id") or kwargs.get("id") or "")
+        success, receipt, err = eng.client.get_execution(exec_id)
+        if not success or not receipt:
+            return {"success": False, "error": err or f"Execution {exec_id} not found"}
+        return receipt.model_dump()
+    return adapter
+
+
+def register_n8n_capabilities(registry: CapabilityRegistry, engine: Any = None) -> None:
+    """Registers all n8n automation capabilities and dotless aliases."""
+    # 1. list_workflows
+    list_ad = make_n8n_list_workflows_adapter(engine)
+    registry.register(spec=N8N_LIST_WORKFLOWS_SPEC, implementation=list_ad)
+    registry.register(
+        spec=N8N_LIST_WORKFLOWS_SPEC.model_copy(update={"id": "n8n_list_workflows"}),
+        implementation=list_ad,
+    )
+
+    # 2. get_workflow
+    get_ad = make_n8n_get_workflow_adapter(engine)
+    registry.register(spec=N8N_GET_WORKFLOW_SPEC, implementation=get_ad)
+    registry.register(
+        spec=N8N_GET_WORKFLOW_SPEC.model_copy(update={"id": "n8n_get_workflow"}),
+        implementation=get_ad,
+    )
+
+    # 3. validate_workflow
+    val_ad = make_n8n_validate_workflow_adapter(engine)
+    registry.register(spec=N8N_VALIDATE_WORKFLOW_SPEC, implementation=val_ad)
+    registry.register(
+        spec=N8N_VALIDATE_WORKFLOW_SPEC.model_copy(update={"id": "n8n_validate_workflow"}),
+        implementation=val_ad,
+    )
+
+    # 4. create_workflow
+    create_ad = make_n8n_create_workflow_adapter(engine)
+    registry.register(spec=N8N_CREATE_WORKFLOW_SPEC, implementation=create_ad)
+    registry.register(
+        spec=N8N_CREATE_WORKFLOW_SPEC.model_copy(update={"id": "n8n_create_workflow"}),
+        implementation=create_ad,
+    )
+
+    # 5. activate_workflow
+    act_ad = make_n8n_activate_workflow_adapter(engine)
+    registry.register(spec=N8N_ACTIVATE_WORKFLOW_SPEC, implementation=act_ad)
+    registry.register(
+        spec=N8N_ACTIVATE_WORKFLOW_SPEC.model_copy(update={"id": "n8n_activate_workflow"}),
+        implementation=act_ad,
+    )
+
+    # 6. trigger_workflow
+    trig_ad = make_n8n_trigger_workflow_adapter(engine)
+    registry.register(spec=N8N_TRIGGER_WORKFLOW_SPEC, implementation=trig_ad)
+    registry.register(
+        spec=N8N_TRIGGER_WORKFLOW_SPEC.model_copy(update={"id": "n8n_trigger_workflow"}),
+        implementation=trig_ad,
+    )
+
+    # 7. get_execution_status
+    exec_ad = make_n8n_get_execution_status_adapter(engine)
+    registry.register(spec=N8N_GET_EXECUTION_STATUS_SPEC, implementation=exec_ad)
+    registry.register(
+        spec=N8N_GET_EXECUTION_STATUS_SPEC.model_copy(update={"id": "n8n_get_execution_status"}),
+        implementation=exec_ad,
+    )
+
+
 REAL_CAPABILITY_SPECS: Dict[str, CapabilitySpec] = {
     "deep_research": DEEP_RESEARCH_SPEC,
     "browser_interact": BROWSER_INTERACT_SPEC,
@@ -1018,6 +1344,13 @@ REAL_CAPABILITY_SPECS: Dict[str, CapabilitySpec] = {
     "desktop.close_window": DESKTOP_CLOSE_WINDOW_SPEC,
     "desktop.service_health": DESKTOP_SERVICE_HEALTH_SPEC,
     "desktop.send_keys": DESKTOP_SEND_KEYS_SPEC,
+    "n8n.list_workflows": N8N_LIST_WORKFLOWS_SPEC,
+    "n8n.get_workflow": N8N_GET_WORKFLOW_SPEC,
+    "n8n.validate_workflow": N8N_VALIDATE_WORKFLOW_SPEC,
+    "n8n.create_workflow": N8N_CREATE_WORKFLOW_SPEC,
+    "n8n.activate_workflow": N8N_ACTIVATE_WORKFLOW_SPEC,
+    "n8n.trigger_workflow": N8N_TRIGGER_WORKFLOW_SPEC,
+    "n8n.get_execution_status": N8N_GET_EXECUTION_STATUS_SPEC,
 }
 
 
@@ -1026,12 +1359,14 @@ def build_real_capability_registry(
     research_engine: Any = None,
     browser_driver: Any = None,
     desktop_driver: Any = None,
+    n8n_engine: Any = None,
 ) -> CapabilityRegistry:
     """Builds a CapabilityRegistry containing the canonical 23 tools PLUS real capability engines."""
     reg = base_registry or build_canonical_registry()
     register_deep_research_capability(reg, engine=research_engine)
     register_browser_capability(reg, driver=browser_driver)
     register_desktop_capabilities(reg, driver=desktop_driver)
+    register_n8n_capabilities(reg, engine=n8n_engine)
     return reg
 
 

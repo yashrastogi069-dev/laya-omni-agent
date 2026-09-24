@@ -1446,3 +1446,88 @@ Phase R1 implements a real, evidence-first deep research engine for the standalo
   - `git diff HEAD omni_agent.py omni_engine/planner.py` returns **0 diffs**.
 
 ---
+
+## CHECKPOINT R4: Programmatic n8n Automation Engine (COMPLETED & VERIFIED)
+
+### 1. Invariants & Scope-Control Confirmation
+- **Invariants Followed**:
+  - **Invariant 1 (Deterministic Control, Probabilistic Reasoning)**: All workflow DAG checks, cycle detection, state transitions, Gate Triad evaluations, and secret scrubbers are 100% deterministic code.
+  - **Invariant 4 (Strongly Typed Capability Contracts)**: All n8n models derive from `BaseContractModel` (`extra="forbid"`), strictly rejecting inline plaintext secrets at the schema boundary.
+  - **Invariant 6 (Evidence-Based Completion)**: Workflows cannot be activated without physical execution receipts (`execution_id`, `status="success"`) for the current deterministic `workflow_hash`.
+  - **Secret Isolation Invariant**: Credentials strictly referenced by ID; zero plaintext tokens in headers, logs, or outputs.
+  - **Rule-0 Safety Defense**: RCE defense in `PolicyEngine` Stage 0 scans `executeCommand` parameters to block forbidden operations (`git reset --hard`, destructive drive wipes), strictly ignoring human confirmation.
+  - **Non-Switching Boundary**: Legacy `omni_agent.py` and `omni_engine/planner.py` remain **100% untouched** (0 diffs).
+
+---
+
+### 2. Technology Audit & Architecture Decision (`docs/research/ADR_R4_N8N_AUTOMATION_ENGINE.md` / ADR-011)
+- **n8n REST API Integration**: **ADOPT** n8n v1 REST API (`/workflows`, `/executions`) via decoupled `N8nTransport`.
+- **Strict Draft-Test-Validate Gate Triad**: **ADOPT** invariant where workflows are forced to `active=False` on creation/update. Activation requires: (1) Valid DAG, (2) Verified physical execution receipt for current `workflow_hash`, (3) Zero plaintext secrets. Any modification recalculates the hash and invalidates prior receipts.
+- **3-Level Nested Schema & Bidirectional Resolution**: **ADOPT** parser traversing `connections[src]["main"][idx] = [{"node": target, ...}]` with bidirectional resolution (`node_by_name` and `node_by_id`) to prevent false dangling connection errors.
+- **Multi-Pattern Secret Scrubber**: **ADOPT** compiled regexes for OpenAI (`sk-`), GitHub (`ghp_`), AWS, Bearer/Basic, n8n API keys, private keys, generic tokens, and headers while safely preserving `$json.*` and `={{ ... }}` n8n expression syntax.
+- **Wait Node Breakout in Polling**: **ADOPT** immediate breakout from polling loop when an execution transitions to `"waiting"`, preventing worker stall.
+- **RCE & Policy Defense**: **ADOPT** sensitive target tagging and blast radius escalation (`LOCAL_SYSTEM` / `SECURITY_CRITICAL`, composite risk >= 0.70) for `executeCommand`, `code`, `ssh`, and `readWriteFile` nodes, combined with Stage 0 Rule-0 command scanning.
+- **Decoupled Transport for Offline Isolation**: **ADOPT** `N8nTransport` (ABC) with `HttpN8nTransport` and `MockN8nTransport` for 100% offline, deterministic, sub-second test execution.
+
+---
+
+### 3. Implementation Deliverables
+1. `docs/research/ADR_R4_N8N_AUTOMATION_ENGINE.md`: Architectural Decision Record and technology audit.
+2. `omni_engine/contracts/n8n.py`: Strongly typed Pydantic contracts:
+   - `N8nTriggerType`: `WEBHOOK`, `SCHEDULE`, `MANUAL`, `EVENT`, `OTHER`.
+   - `N8nCredentialReference`: `id: str`, `name: Optional[str]`, strictly forbidding inline secrets via `extra="forbid"`.
+   - `N8nNode`: `id`, `name`, `type`, `parameters`, `credentials`, `disabled`.
+   - `N8nWorkflowSummary`: `id`, `name`, `active`, `created_at`, `updated_at`, `tags`.
+   - `N8nWorkflowDetail`: Full definition with deterministic SHA-256 `compute_hash()`.
+   - `N8nWorkflowValidationResult`: `is_valid`, `errors`, `warnings`, `cycles_detected`, `trigger_nodes`, `reachable_nodes`, `contains_secrets`.
+   - `N8nExecutionReceipt`: `execution_id`, `workflow_id`, `workflow_hash`, `status`, `duration_ms`, `node_execution_counts`, `output_data`, `error`, `verification_status`.
+   - `N8nActionResult`: `action`, `workflow_id`, `execution_id`, `verification_status`, `data`, `error`.
+3. `omni_engine/contracts/__init__.py`: Clean re-export of all n8n contracts.
+4. `omni_engine/automation/scrubber.py`: `SecretScrubber` with compiled patterns for OpenAI, GitHub, Bearer/Basic, AWS, n8n API keys, private keys, generic tokens, and sensitive headers while preserving `$json.*` syntax.
+5. `omni_engine/automation/validator.py`: `N8nWorkflowValidator` parsing 3-level nested connections, bidirectional node mapping, 3-color topological DFS cycle detector, in-degree constraints (`trigger in-degree == 0`, triggers >= 1), reachability analysis, and pre-flight parameter secret scan.
+6. `omni_engine/automation/transport.py`: Decoupled `N8nTransport` (ABC), `HttpN8nTransport` (urllib + `ProxyHandler({})`), and `MockN8nTransport` (in-memory state machine for fast offline tests).
+7. `omni_engine/automation/client.py`: `N8nClient` enforcing draft mode (`active=False`) on creation, endpoints for activate/deactivate, execution trigger, and execution polling.
+8. `omni_engine/automation/engine.py`: `N8nAutomationEngine` implementing Draft-Test-Validate lifecycle, Gate Triad enforcement for `activate_workflow`, bounded exponential backoff in `trigger_and_wait` with `"waiting"` state breakout.
+9. `omni_engine/automation/__init__.py`: Package exports for automation engine and components.
+10. `omni_engine/capabilities/definitions.py`:
+    - Registered 7 canonical n8n specs, adapters, and dotless aliases in `build_real_capability_registry()`: `n8n.list_workflows`, `n8n.get_workflow`, `n8n.validate_workflow`, `n8n.create_workflow`, `n8n.activate_workflow`, `n8n.trigger_workflow`, `n8n.get_execution_status`.
+    - Preserved 23-tool canonical registry invariant (`build_canonical_registry()`).
+11. `omni_engine/capabilities/__init__.py`: Clean exports of n8n capability specs.
+12. `omni_engine/policy/engine.py`:
+    - Mapped n8n high-risk node detection (`executeCommand`, `code`, `ssh`, `readWriteFile`) in `assess_action` escalating blast radius to `LOCAL_SYSTEM` / `SECURITY_CRITICAL` and composite risk to >= 0.70.
+    - Added Stage 0 Rule-0 command scanning of `executeCommand` parameters to block forbidden operations (`git reset --hard`, destructive drive formatting).
+13. `omni_engine/arguments/resolver.py`:
+    - Added n8n clarification prompts (`CLARIFICATION_PROMPTS`) for `workflow_id`, `execution_id`, `name`.
+    - Added deterministic slot extractors for n8n workflow IDs, execution IDs, and workflow names.
+14. `tests/test_r4_n8n.py`: 25 comprehensive offline unit and integration tests.
+
+---
+
+### 4. Adversarial Plan & Diff Reviews
+- **Adversarial Plan Reviewer**: Subagent `711073de-234c-46cc-8259-8bde4b647987`.
+  - Conditional Approval with 7 Blocking Requirements (REQ-BLOCK-1 through REQ-BLOCK-7). All 7 requirements were systematically addressed.
+- **Adversarial Diff Reviewer**: Subagent `901d60b3-003c-4854-9d3c-b76bed8c4f44`.
+  - Final Verdict: **PASS (100% compliant with all 7 blocking requirements and repository operating invariants)**.
+  - Verified:
+    1. REQ-BLOCK-1 (Gate Triad Invariant & Activation Guard): Workflows forced to `active=False` on creation; `activate_workflow` verifies valid DAG, verified physical receipt for current hash, and zero secrets; hash changes invalidate prior receipts.
+    2. REQ-BLOCK-2 (n8n Connection Schema Representation & DAG Validation): 3-level nested schema traversal; bidirectional resolution (`node_by_name` and `node_by_id`); 3-color DFS cycle detection; trigger in-degree == 0; trigger count >= 1; forward reachability.
+    3. REQ-BLOCK-3 (Zero Plaintext Secrets & Scrubber Completeness): Full token/header scrubbing preserving `$json.*` syntax; `N8nCredentialReference` with `extra="forbid"` and id-only reference.
+    4. REQ-BLOCK-4 (Wait Node Breakout in Polling): Immediate breakout on `"waiting"` state; bounded timeouts; exponential backoff.
+    5. REQ-BLOCK-5 (RCE Defense in PolicyEngine): Blast radius and risk score escalation for high-risk nodes; Stage 0 Rule-0 scanner blocking destructive operations in `executeCommand`.
+    6. REQ-BLOCK-6 (Substrate Integration & Non-Switching Boundary): 7 n8n capabilities registered across registry, resolver, and policy engine; canonical 23-tool registry invariant strictly preserved; `omni_agent.py` and `omni_engine/planner.py` 100% untouched (0 diffs).
+    7. REQ-BLOCK-7 (Offline Testability & Isolation): Clean transport decoupling; `MockN8nTransport` enabling 100% offline tests in <5s; all 25 unit tests and 339 full repository tests passing.
+
+---
+
+### 5. Verification & Test Evidence
+- **R4 Unit & Integration Test Suite (`tests/test_r4_n8n.py`)**:
+  - `Ran 25 tests in 4.72s`: **25 passed, 0 failed (100% pass rate)**.
+- **Full Repository Test Suite Across All Checkpoints (L0–L9 + Foundation Gate + R1 + R2 + R3 + R4)**:
+  - `Ran 339 tests in 214.99s`: **339 passed (+ 47 subtests = 386 total checks), 0 failures, 0 errors (100% pass rate)**.
+- **Non-Switching Boundary**:
+  - `git diff HEAD omni_agent.py omni_engine/planner.py` returns **0 diffs**.
+- **Canonical Registry Invariant**:
+  - `build_canonical_registry()` returns exactly 23 source capabilities.
+
+
+---

@@ -68,6 +68,16 @@ CLARIFICATION_PROMPTS: Dict[str, str] = {
     "desktop_service_health": "Which service name (e.g. 'n8n', 'ollama', 'dev_server') or port would you like to check?",
     "desktop.send_keys": "Which window target and text would you like to send?",
     "desktop_send_keys": "Which window target and text would you like to send?",
+    "n8n.get_workflow": "Which n8n workflow ID would you like to retrieve?",
+    "n8n_get_workflow": "Which n8n workflow ID would you like to retrieve?",
+    "n8n.create_workflow": "What is the name and node configuration for the new n8n workflow?",
+    "n8n_create_workflow": "What is the name and node configuration for the new n8n workflow?",
+    "n8n.activate_workflow": "Which n8n workflow ID would you like to activate?",
+    "n8n_activate_workflow": "Which n8n workflow ID would you like to activate?",
+    "n8n.trigger_workflow": "Which n8n workflow ID would you like to trigger?",
+    "n8n_trigger_workflow": "Which n8n workflow ID would you like to trigger?",
+    "n8n.get_execution_status": "Which n8n execution ID would you like to check?",
+    "n8n_get_execution_status": "Which n8n execution ID would you like to check?",
 }
 
 PARAM_ALIASES: Dict[str, List[str]] = {
@@ -309,6 +319,44 @@ class ArgumentResolver:
                 m = re.search(r"""(?:type|send|write|keys)\s+['"]?([^'"]+)['"]?""", prompt, re.IGNORECASE)
                 if m:
                     slots["text"] = _slot("text", m.group(1).strip(), ArgumentExtractionSource.DETERMINISTIC_REGEX)
+
+        # n8n Automation domain capabilities (REQ-BLOCK-6)
+        elif capability_id in (
+            "n8n.get_workflow",
+            "n8n_get_workflow",
+            "n8n.activate_workflow",
+            "n8n_activate_workflow",
+            "n8n.trigger_workflow",
+            "n8n_trigger_workflow",
+        ):
+            wf_match = re.search(r"\b(?:workflow[-_ ]?(?:id)?\s*[:=]?\s*|wf_)([a-zA-Z0-9_\-]+)\b", prompt, re.IGNORECASE)
+            quoted = re.findall(r"['\"]([^'\"]+)['\"]", prompt)
+            if wf_match:
+                val = wf_match.group(1)
+                if "wf_" in prompt.lower() and not val.startswith("wf_"):
+                    val = f"wf_{val}"
+                slots["workflow_id"] = _slot("workflow_id", val, ArgumentExtractionSource.DETERMINISTIC_REGEX)
+            elif quoted:
+                slots["workflow_id"] = _slot("workflow_id", quoted[0], ArgumentExtractionSource.DETERMINISTIC_REGEX)
+
+        elif capability_id in ("n8n.get_execution_status", "n8n_get_execution_status"):
+            exec_match = re.search(r"\b(?:execution[-_ ]?(?:id)?\s*[:=]?\s*|exec_)([a-zA-Z0-9_\-]+)\b", prompt, re.IGNORECASE)
+            quoted = re.findall(r"['\"]([^'\"]+)['\"]", prompt)
+            if exec_match:
+                val = exec_match.group(1)
+                if "exec_" in prompt.lower() and not val.startswith("exec_"):
+                    val = f"exec_{val}"
+                slots["execution_id"] = _slot("execution_id", val, ArgumentExtractionSource.DETERMINISTIC_REGEX)
+            elif quoted:
+                slots["execution_id"] = _slot("execution_id", quoted[0], ArgumentExtractionSource.DETERMINISTIC_REGEX)
+
+        elif capability_id in ("n8n.create_workflow", "n8n_create_workflow"):
+            quoted = re.findall(r"['\"]([^'\"]+)['\"]", prompt)
+            name_match = re.search(r"\bworkflow\s+(?:named|called)\s+['\"]?([^'\".,;]+)['\"]?", prompt, re.IGNORECASE)
+            if name_match:
+                slots["name"] = _slot("name", name_match.group(1).strip(), ArgumentExtractionSource.DETERMINISTIC_REGEX)
+            elif quoted:
+                slots["name"] = _slot("name", quoted[0], ArgumentExtractionSource.DETERMINISTIC_REGEX)
 
         elif capability_id == "list_processes":
             proc = extract_process_name(prompt)

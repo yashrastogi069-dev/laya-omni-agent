@@ -151,6 +151,15 @@ class PolicyEngine:
                         if dom in val_lower:
                             sensitive_targets.append(f"domain:{val}")
 
+        # Check financial browser interactions (REQ-B4)
+        if spec.id in ("browser_interact", "browser.interact"):
+            action = str(arguments.get("action") or "").lower()
+            target = str(arguments.get("target") or "").lower()
+            url = str(arguments.get("url") or "").lower()
+            financial_terms = ["pay", "checkout", "buy", "order", "purchase", "card", "cvv", "billing", "subscribe"]
+            if action == "confirm_purchase" or any(t in target or t in url for t in financial_terms):
+                sensitive_targets.append("financial:browser_checkout")
+
         # 4. Determine blast radius
         blast_radius = "NONE"
         if spec.action_class == ActionClass.READ_ONLY and not sensitive_targets:
@@ -163,7 +172,7 @@ class PolicyEngine:
             blast_radius = "LOCAL_WORKSPACE"
         elif spec.id in ("kill_process", "launch_app", "powershell", "run_python", "clipboard", "desktop_screenshot"):
             blast_radius = "LOCAL_SYSTEM"
-        elif spec.id in ("web_search", "scrape_url", "http_api", "visual_browse", "browser_screenshot", "ping_test", "deep_research", "research.deep"):
+        elif spec.id in ("web_search", "scrape_url", "http_api", "visual_browse", "browser_screenshot", "ping_test", "deep_research", "research.deep", "browser_interact", "browser.interact"):
             blast_radius = "EXTERNAL_NETWORK"
 
         # 5. Calculate composite risk score in [0.0, 1.0]
@@ -434,6 +443,14 @@ class PolicyEngine:
 
         elif spec.confirmation_policy == ConfirmationPolicy.POLICY_CONTROLLED:
             # Policy-controlled triggers confirmation if high-risk or destructive under lower autonomy
+            # Financial and security-sensitive actions MUST require confirmation under all tiers below WORKFLOW_AUTHORIZED
+            is_critical_sensitive = (
+                spec.action_class in (
+                    ActionClass.SECURITY_SENSITIVE,
+                    ActionClass.FINANCIAL,
+                )
+                or any(t.startswith("financial:") for t in assessment.sensitive_targets)
+            )
             is_high_risk = (
                 assessment.is_destructive
                 or assessment.risk_score >= 0.70
@@ -441,11 +458,15 @@ class PolicyEngine:
                     ActionClass.LOCAL_DELETE,
                     ActionClass.EXTERNAL_DELETE,
                     ActionClass.EXTERNAL_SEND,
-                    ActionClass.SECURITY_SENSITIVE,
-                    ActionClass.FINANCIAL,
                 )
             )
-            if is_high_risk and not user_confirmed and current_rank < AUTONOMY_RANK[AutonomyProfile.TRUSTED_OPERATOR]:
+            requires_gate = False
+            if is_critical_sensitive and not user_confirmed and current_rank < AUTONOMY_RANK[AutonomyProfile.WORKFLOW_AUTHORIZED]:
+                requires_gate = True
+            elif is_high_risk and not user_confirmed and current_rank < AUTONOMY_RANK[AutonomyProfile.TRUSTED_OPERATOR]:
+                requires_gate = True
+
+            if requires_gate:
                 prompt = (
                     f"Action '{spec.name}' has potential high-risk side effects ({assessment.blast_radius}, risk={assessment.risk_score}). "
                     f"Confirm execution?"

@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>LAYA Test Browser Page</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; }
+        .interactive-section { margin-bottom: 20px; }
+        button, input, select { padding: 8px 12px; margin: 5px; }
+        .pay-btn { background: #e11d48; color: white; border: none; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h1>LAYA Autonomous Browser Test Harness</h1>
+    
+    <div class="interactive-section">
+        <label for="username-input">Username:</label>
+        <input id="username-input" type="text" placeholder="Enter username" />
+        <button id="login-btn" onclick="document.getElementById('status-msg').innerText = 'User logged in: ' + document.getElementById('username-input').value;">Log In</button>
+    </div>
+
+    <div class="interactive-section">
+        <label for="option-select">Category:</label>
+        <select id="option-select">
+            <option value="opt_all">All Categories</option>
+            <option value="opt_dev">Developer Tools</option>
+            <option value="opt_ai">AI Agents</option>
+        </select>
+    </div>
+
+    <div class="interactive-section">
+        <button id="checkout-btn" class="pay-btn">Complete Purchase ($29.99)</button>
+    </div>
+
+    <div id="status-msg">Ready for interactions</div>
+</body>
+</html>

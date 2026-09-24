@@ -1242,3 +1242,88 @@ Phase R1 implements a real, evidence-first deep research engine for the standalo
 
 ---
 
+## Phase R2: Real Persistent Browser Engine (COMPLETED & VERIFIED)
+
+### 1. Architectural Scope & Invariant Alignment
+- **Mission**: Build a persistent, verified browser engine using Playwright supporting:
+  1. Persistent user browser session / profile context (retaining logins, cookies, state).
+  2. Dynamic indexed interactive action space (elements labeled `@1..@N` with bounding boxes, tag, role, text).
+  3. Strongly typed browser interaction primitives: `navigate`, `click`, `type`, `select_option`, `scroll`, `snapshot`, `screenshot`.
+  4. Evidence-based post-action verification (DOM mutation confirmation via in-page `MutationObserver`, URL navigation confirmation, physical form control inspection).
+  5. Purchase and high-risk action confirmation gating (strict `POLICY_CONTROLLED` / `ALWAYS` confirmation before checkout, payments, or financial actions).
+- **Core Invariant Enforcement**:
+  - **Invariant 1 (Deterministic Control)**: Pre-action staleness verification and post-action evidence receipts own execution state, never assumed model success.
+  - **Invariant 4 (Strongly Typed Contracts)**: All browser operations emit strongly typed Pydantic models (`BrowserElement`, `BrowserSnapshot`, `BrowserActionRequest`, `BrowserActionResult`) with `extra="forbid"`.
+  - **Invariant 6 (Evidence-Based Completion)**: Physical outcome receipts required for every action: `dom_mutated` count, physical `input_value`, `url_changed`, `scroll_y` delta.
+  - **REQ-B4 (Financial Safety Gate)**: Strict policy engine gating requiring user confirmation for financial actions across all tiers below `WORKFLOW_AUTHORIZED`.
+  - **Non-Switching Boundary**: Legacy `omni_agent.py` and `omni_engine/planner.py` remain **100% untouched** (0 diffs).
+
+---
+
+### 2. Technology Audit & Architecture Decision (`docs/research/ADR_R2_BROWSER_ENGINE.md`)
+- **Playwright (1.54.4 Chromium/Edge)**: **ADOPT** with persistent context directory (`~/.laya/browser_profile`), stale singleton lock recovery, single page invariant (`max_pages=1`) with popup routing, `atexit` cleanup, and 9 low-memory launch flags.
+- **Selenium / undetected-chromedriver**: **REJECT** due to heavyweight footprint and lack of native async event streams.
+- **DOM Action Space Indexing**: **ADOPT** in-page DOM stamping (`data-laya-idx="N"`) generating compact dual-key indices (`@1..@N`) with semantic fingerprints (tag, role, accessible text, href, bounding box).
+- **Evidence-Based Post-Action Verification**: **ADOPT** multi-signal physical state verification matrix (`MutationObserver` DOM mutation tracking, `input_value` validation, URL navigation tracking, `scrollY` delta).
+- **Financial & Checkout Gating**: **ADOPT** deterministic Stage 3 `PolicyEngine` enforcement requiring explicit user confirmation (`user_confirmed=True`) for `ActionClass.FINANCIAL` and `financial:*` sensitive targets under all autonomy tiers below `WORKFLOW_AUTHORIZED` (including `TRUSTED_OPERATOR`), reinforced by an intrinsic regex safety gate in `BrowserDriver`.
+
+---
+
+### 3. Implementation Deliverables
+1. `docs/research/ADR_R2_BROWSER_ENGINE.md`: Comprehensive Architectural Decision Record and technology audit.
+2. `omni_engine/contracts/browser.py`: Strongly typed Pydantic contracts:
+   - `BrowserActionType`: `NAVIGATE`, `CLICK`, `TYPE`, `PRESS_KEY`, `SELECT_OPTION`, `SCROLL`, `WAIT`, `EXTRACT_DOM`, `SNAPSHOT`, `SCREENSHOT`, `CONFIRM_PURCHASE`.
+   - `BrowserElement`: `element_id` (`@1..@N`), `tag_name`, `role`, `text`, `href`, `is_visible`, `is_interactive`, `is_financial`, `bounding_box`, `selector`.
+   - `BrowserSnapshot`: `url`, `title`, `elements: List[BrowserElement]`, `interactive_count`, `screenshot_path`, `timestamp`.
+   - `BrowserActionRequest`: `action_type`, `target_element_id`, `text_value`, `key_value`, `scroll_delta`, `expected_outcome`, `user_confirmed`.
+   - `BrowserActionResult`: `success`, `action_type`, `target_element_id`, `previous_url`, `current_url`, `dom_mutated`, `input_value_verified`, `verification_status`, `error`, `evidence`.
+3. `omni_engine/contracts/__init__.py`: Clean re-export of all browser contracts.
+4. `omni_engine/browser/session.py`: Persistent isolated profile context (`~/.laya/browser_profile`), stale singleton lock recovery (`SingletonLock`, `SingletonCookie`, `SingletonSocket`), single page invariant (`max_pages=1`) with popup routing, `atexit` cleanup, and 9 low-memory launch flags (`--disable-dev-shm-usage`, `--no-sandbox`, `--disable-gpu`, `--disable-background-networking`, etc.).
+5. `omni_engine/browser/indexer.py`: In-page DOM stamping (`data-laya-idx="N"`), compact dual-key index `@1..@N`, semantic fingerprint extraction, financial element detection, and pre-action staleness verification (`verify_staleness`).
+6. `omni_engine/browser/driver.py`: Primitive action execution (`NAVIGATE`, `CLICK`, `TYPE`, `PRESS_KEY`, `SELECT_OPTION`, `SCROLL`, `SNAPSHOT`, `SCREENSHOT`), pre-execution financial safety gate, and evidence-based post-action verification (`dom_mutated` via `MutationObserver`, `url_changed`, physical `input_value`, `scrollY`).
+7. `omni_engine/browser/__init__.py`: Clean package exports for `BrowserSession`, `DOMActionIndexer`, `BrowserDriver`.
+8. `omni_engine/capabilities/definitions.py`:
+   - `BROWSER_INTERACT_SPEC`: Canonical capability spec for real browser interaction (`action_class=ActionClass.EXTERNAL_UPDATE`, `minimum_autonomy_profile=LOCAL_OPERATOR`).
+   - `make_browser_interact_adapter()`: Typed adapter returning structured dictionary envelopes.
+   - `register_browser_capability()`: Primary `browser_interact` and alias `browser.interact`.
+   - `build_real_capability_registry()`: Non-breaking extension preserving 23-tool canonical registry.
+9. `omni_engine/capabilities/__init__.py`: Clean export of browser capability specs and builders.
+10. `omni_engine/policy/engine.py`:
+    - Stage 3 critical sensitive gate updated: `ActionClass.FINANCIAL` and `financial:*` sensitive targets mandate explicit user confirmation under all tiers below `AutonomyProfile.WORKFLOW_AUTHORIZED` (including `TRUSTED_OPERATOR`).
+    - Added financial browser target detection (`financial:browser_checkout`) in `assess_action()`.
+11. `omni_engine/arguments/resolver.py`:
+    - Deterministic extraction for browser actions, targets (`@N`), URLs, and quoted text.
+    - Repaired function-scope local `import re` trap in `_extract_deterministic_slots` that triggered `UnboundLocalError`.
+12. `tests/fixtures/browser_test_page.html`: Standalone local HTML test fixture with interactive elements and checkout button.
+13. `tests/test_r2_browser.py`: 15 comprehensive unit and integration tests.
+14. `tests/test_l9_policy.py`: Added `test_financial_action_requires_confirmation_even_under_trusted_operator` (26 tests total).
+
+---
+
+### 4. Adversarial Plan & Diff Reviews
+- **Adversarial Plan Reviewer**: Subagent `4fa42e31-d1d1-4e17-866f-a37a1402e7d5`.
+  - Conditional Approval with 5 Blocking Requirements (REQ-B1 through REQ-B5). All 5 requirements were systematically implemented.
+- **Adversarial Diff Reviewer**: Subagent `6812beb1-7cd5-4555-8417-90c4aa6fc27b`.
+  - Final Verdict: **PASS (APPROVED FOR CHECKPOINT R2)**.
+  - Verified:
+    1. REQ-B1 (Session & Resource Lifecycle): Isolated profile `~/.laya/browser_profile`, stale lock recovery, `max_pages=1` popup routing, `atexit` cleanup, low-memory flags.
+    2. REQ-B2 (Indexed Action Space & Staleness): Dual-key `@1..@N` + semantic fingerprints + `data-laya-idx` DOM stamping + pre-execution staleness verification.
+    3. REQ-B3 (Evidence-Based Post-Action Verification): `dom_mutated` via `MutationObserver`, `url_changed`, physical `input_value`, `scrollY`.
+    4. REQ-B4 (Financial Safety & Hard Gating): PolicyEngine Stage 3 gating below `WORKFLOW_AUTHORIZED` + BrowserDriver intrinsic safety regex.
+    5. REQ-B5 (Offline Testability & Non-Switching Boundary): 100% offline local fixture test in <3s, 0 diffs in `omni_agent.py` and `omni_engine/planner.py`, 23-tool canonical registry invariant preserved.
+
+---
+
+### 5. Verification & Test Evidence
+- **R2 Unit & Integration Test Suite (`tests/test_r2_browser.py`)**:
+  - `Ran 15 tests in 2.699s`: **15 passed, 0 failed (100% pass rate)**.
+- **L9 Policy Test Suite (`tests/test_l9_policy.py`)**:
+  - `Ran 26 tests in 0.079s`: **26 passed, 0 failed (100% pass rate)**.
+- **Full Repository Test Suite Across All Checkpoints (L0–L9 + Foundation Gate + R1 + R2)**:
+  - `Ran 293 tests in 167.372s`: **293 passed (+ 47 subtests = 340 total tests), 0 failures, 0 errors (100% pass rate)**.
+- **Non-Switching Boundary**:
+  - `git diff HEAD omni_agent.py omni_engine/planner.py` returns **0 diffs**.
+
+
+---
+

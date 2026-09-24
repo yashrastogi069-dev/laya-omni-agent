@@ -71,3 +71,11 @@ All external inputs are classified strictly as **UNTRUSTED DATA**:
 3. System instructions explicitly forbid the model from executing commands contained within `<untrusted_external_data>` blocks.
 4. The deterministic runtime, not the model, enforces whether a capability call is valid and permitted.
 
+---
+
+## 5. Financial Safety & Browser Gating (REQ-B4)
+
+Financial actions (`ActionClass.FINANCIAL`, `confirm_purchase`, or interactions with targets matching financial keywords / URLs like `pay`, `checkout`, `buy`, `card`, `cvv`, `billing`) represent an absolute safety boundary:
+1. **Inviolable Stage 3 Policy Gating**: In `PolicyEngine`, any action classified as `FINANCIAL` or having sensitive targets tagged `financial:*` strictly requires explicit user confirmation (`user_confirmed=True`) under all autonomy tiers below `WORKFLOW_AUTHORIZED`. Even `TRUSTED_OPERATOR` cannot bypass this confirmation gate.
+2. **Intrinsic Driver Gate**: `BrowserDriver` implements an intrinsic secondary check scanning the target element attributes (`is_financial`), current URL, action type, and inner text. If a financial action is dispatched without explicit confirmation, execution is halted immediately before any DOM event is dispatched.
+

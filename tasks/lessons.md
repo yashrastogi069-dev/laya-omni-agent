@@ -40,3 +40,11 @@
 - **Observation**: When candidate URLs are placed in a flat list queue (`urls_to_crawl: List[str]`), shallow link expansion (depth <= 1) can accidentally traverse into depth 2 if child links are popped after seed URLs are exhausted.
 - **Principle**: Crawl queues must track explicit `(url: str, depth: int)` tuples. Link extraction must strictly check `depth < max_crawl_depth` before appending child URLs with `depth + 1`.
 
+## Lesson 11: Python Function Scope Local `import` Creates Shadow `UnboundLocalError`
+- **Observation**: Placing `import re` inside a single conditional branch of a function (e.g. `if capability_id == "file_write": import re`) causes Python bytecode compilation to treat `re` as a local variable for the ENTIRE function scope. When any other branch executes `re.search()`, Python throws `UnboundLocalError` even though `re` is imported at the module level.
+- **Principle**: Never place conditional or nested `import` statements inside functions when the module is already imported at module level. Standard library modules must strictly be imported at top level.
+
+## Lesson 12: Dual-Key Addressing & Pre-Action Staleness Verification Defeats SPA Churn
+- **Observation**: In modern Single Page Applications (React/Vue/Angular), DOM nodes are frequently destroyed and replaced during client-side state changes. Relying solely on a transient numeric index (`@1`) risks clicking the wrong target if an element moves or shifts between snapshot capture and action dispatch.
+- **Principle**: Pair transient DOM indices (`@1..@N` stamped with `data-laya-idx`) with semantic fingerprints (tag, role, accessible text). Before executing physical input, verify node attachment and attribute consistency. If a mismatch is detected, halt execution immediately with a structured staleness error rather than firing blind clicks.
+

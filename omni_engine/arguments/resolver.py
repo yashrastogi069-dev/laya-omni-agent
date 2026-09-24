@@ -11,6 +11,7 @@ Adheres to Prime Directive & Repository Invariants:
 """
 
 import json
+import re
 import time
 import uuid
 from typing import Any, Dict, List, Optional
@@ -55,6 +56,8 @@ CLARIFICATION_PROMPTS: Dict[str, str] = {
     "inspect_data": "Which CSV or data file path would you like to inspect?",
     "deep_research": "What research topic or question would you like to investigate?",
     "research.deep": "What research topic or question would you like to investigate?",
+    "browser_interact": "Which browser action (navigate, click, type, snapshot, screenshot) and target would you like to perform?",
+    "browser.interact": "Which browser action (navigate, click, type, snapshot, screenshot) and target would you like to perform?",
 }
 
 PARAM_ALIASES: Dict[str, List[str]] = {
@@ -109,7 +112,6 @@ class ArgumentResolver:
                 slots["content"] = _slot("content", code, ArgumentExtractionSource.SYNTACTIC_AST)
             else:
                 # Look for content: '...' or following content keyword
-                import re
                 c_match = re.search(r"""(?:content|text|with)\s*[:=]?\s*['"](.*?)['"]""", prompt, re.DOTALL | re.IGNORECASE)
                 if c_match:
                     slots["content"] = _slot("content", c_match.group(1), ArgumentExtractionSource.DETERMINISTIC_REGEX)
@@ -182,6 +184,38 @@ class ArgumentResolver:
             url = extract_url(prompt)
             if url:
                 slots["url"] = _slot("url", url, ArgumentExtractionSource.DETERMINISTIC_REGEX)
+
+        elif capability_id in ("browser_interact", "browser.interact"):
+            p_lower = prompt.lower()
+            action = "snapshot"
+            url = extract_url(prompt)
+            target_match = re.search(r"@\d+", prompt)
+            target = target_match.group(0) if target_match else None
+
+            if "navigate" in p_lower or "visit" in p_lower or "go to" in p_lower or (url and not target):
+                action = "navigate"
+            elif "click" in p_lower or "press button" in p_lower:
+                action = "click"
+            elif "type" in p_lower or "fill" in p_lower or "enter" in p_lower:
+                action = "type"
+            elif "screenshot" in p_lower or "capture screen" in p_lower:
+                action = "screenshot"
+            elif "scroll" in p_lower:
+                action = "scroll"
+            elif "select" in p_lower:
+                action = "select_option"
+            elif "snapshot" in p_lower or "inspect" in p_lower:
+                action = "snapshot"
+
+            slots["action"] = _slot("action", action, ArgumentExtractionSource.DETERMINISTIC_REGEX)
+            if url:
+                slots["url"] = _slot("url", url, ArgumentExtractionSource.DETERMINISTIC_REGEX)
+            if target:
+                slots["target"] = _slot("target", target, ArgumentExtractionSource.DETERMINISTIC_REGEX)
+
+            quoted = re.findall(r"['\"]([^'\"]+)['\"]", prompt)
+            if quoted and action == "type":
+                slots["text"] = _slot("text", quoted[0], ArgumentExtractionSource.DETERMINISTIC_REGEX)
 
         # 4. OS domain tools
         elif capability_id == "kill_process":

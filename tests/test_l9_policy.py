@@ -368,6 +368,36 @@ class TestPolicyEngineAutonomyAndConfirmation(unittest.TestCase):
         self.assertTrue(decision_confirmed.allowed)
         self.assertEqual(decision_confirmed.effect, PolicyEffect.ALLOW)
 
+    def test_financial_action_requires_confirmation_even_under_trusted_operator(self):
+        """Proves ActionClass.FINANCIAL cannot bypass confirmation even under TRUSTED_OPERATOR."""
+        from omni_engine.contracts.capability import CapabilitySpec
+        financial_spec = CapabilitySpec(
+            id="test_payment",
+            version="1.0.0",
+            name="Test Payment Tool",
+            domain="web",
+            description="Process credit card checkout",
+            input_schema={"type": "object"},
+            action_class=ActionClass.FINANCIAL,
+            confirmation_policy=ConfirmationPolicy.POLICY_CONTROLLED,
+            minimum_autonomy_profile=AutonomyProfile.LOCAL_OPERATOR,
+        )
+
+        # Unconfirmed under TRUSTED_OPERATOR must still REQUIRE_CONFIRMATION
+        decision = self.engine.evaluate(
+            financial_spec, {}, autonomy_profile=AutonomyProfile.TRUSTED_OPERATOR, user_confirmed=False
+        )
+        self.assertFalse(decision.allowed)
+        self.assertEqual(decision.effect, PolicyEffect.REQUIRE_CONFIRMATION)
+        self.assertIn("POLICY_CONTROLLED_HIGH_RISK_GATE", decision.matched_rules)
+
+        # Confirmed under TRUSTED_OPERATOR -> ALLOW
+        decision_confirmed = self.engine.evaluate(
+            financial_spec, {}, autonomy_profile=AutonomyProfile.TRUSTED_OPERATOR, user_confirmed=True
+        )
+        self.assertTrue(decision_confirmed.allowed)
+        self.assertEqual(decision_confirmed.effect, PolicyEffect.ALLOW)
+
 
 class TestPolicyStoreAndCustomConstraints(unittest.TestCase):
     """Verifies crash-resilient PolicyStore and custom user rules."""

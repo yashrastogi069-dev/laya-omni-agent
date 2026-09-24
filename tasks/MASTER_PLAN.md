@@ -110,9 +110,9 @@ This guarantees that future multi-agent coordination or supervisor routing can b
   - Unit test suite `tests/test_foundation_broker.py` (27 tests, 100% pass rate). Total repository suite: **259 passed (+ 47 subtests = 306 total)**.
 - [x] **R1 — Deep Research Engine (COMPLETED & VERIFIED)**:
   - Multi-source discovery, crawl, extraction, dynamic-page fallback (Scrapling -> BS4), evidence normalization, relevance ranking, gap detection, evidence saturation stop, generative synthesis, and cryptographic citation verification.
-- [ ] **R2 — Real Browser Engine (ACTIVE)**:
-  - Persistent browser context, dynamic indexed action space, verified state transitions, and confirmation-gated purchase boundaries.
-- [ ] **R3 — Windows / App / Local-Service Engine**:
+- [x] **R2 — Real Browser Engine (COMPLETED & VERIFIED)**:
+  - Persistent browser context (`~/.laya/browser_profile`), stale lock recovery, single page invariant (`max_pages=1`), dynamic indexed action space (`@1..@N`), staleness pre-verification, physical evidence receipts (`dom_mutated`, `input_value`, `url_changed`), and hard financial action confirmation gating. 15/15 tests passing.
+- [ ] **R3 — Windows / App / Local-Service Engine (ACTIVE)**:
   - ComputerUseDriver (WindowsUIADriver, LocalServiceDriver, ShellDriver), structured app/service resolver with port/process checking before execution.
 - [ ] **R4 — n8n Automation Engine**:
   - Official programmatic n8n MCP/API/Skills integration, draft-test-validate workflow lifecycle, zero leaked secrets.

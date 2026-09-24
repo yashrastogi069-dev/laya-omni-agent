@@ -80,6 +80,13 @@ from .research import (
     ResearchTelemetry,
     ResearchDossier,
 )
+from .browser import (
+    BrowserActionType,
+    BrowserElement,
+    BrowserSnapshot,
+    BrowserActionRequest,
+    BrowserActionResult,
+)
 
 __all__ = [
     # Base
@@ -147,4 +154,11 @@ __all__ = [
     "ResearchBudget",
     "ResearchTelemetry",
     "ResearchDossier",
+    # Browser
+    "BrowserActionType",
+    "BrowserElement",
+    "BrowserSnapshot",
+    "BrowserActionRequest",
+    "BrowserActionResult",
 ]
+

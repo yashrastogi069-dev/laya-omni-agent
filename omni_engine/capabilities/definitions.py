@@ -599,8 +599,44 @@ DEEP_RESEARCH_SPEC = CapabilitySpec(
     timeout_seconds=60.0,
 )
 
+BROWSER_INTERACT_SPEC = CapabilitySpec(
+    id="browser_interact",
+    version="1.0.0",
+    name="Interactive Persistent Browser Automation",
+    domain="browser",
+    description="Perform verified interactive browser actions (navigate, click, type, press key, select option, scroll, snapshot, screenshot) with dynamic indexed action space and financial safety gating.",
+    input_schema={
+        "type": "object",
+        "properties": {
+            "action": {
+                "type": "string",
+                "enum": ["navigate", "click", "type", "press_key", "select_option", "scroll", "snapshot", "screenshot", "confirm_purchase"],
+                "description": "Primitive browser action to execute",
+            },
+            "url": {"type": "string", "description": "Target web page URL to navigate to"},
+            "target": {"type": "string", "description": "Target element index (@1..@N) or selector to interact with"},
+            "text": {"type": "string", "description": "Text value to fill into targeted input element"},
+            "key": {"type": "string", "description": "Keyboard key to press (Enter, Tab, Escape)"},
+            "value": {"type": "string", "description": "Dropdown option value to select"},
+            "scroll_direction": {"type": "string", "enum": ["up", "down", "top", "bottom"], "default": "down"},
+            "scroll_amount": {"type": "integer", "default": 400},
+            "output_path": {"type": "string", "description": "Destination file path for captured screenshot"},
+            "user_confirmed": {"type": "boolean", "default": False, "description": "Human confirmation for financial/payment actions"},
+        },
+        "required": ["action"],
+    },
+    action_class=ActionClass.EXTERNAL_UPDATE,
+    side_effects=True,
+    minimum_autonomy_profile=AutonomyProfile.LOCAL_OPERATOR,
+    confirmation_policy=ConfirmationPolicy.POLICY_CONTROLLED,
+    retry_policy=RetryPolicy.NEVER,
+    idempotency_class=IdempotencyClass.NON_IDEMPOTENT,
+    timeout_seconds=30.0,
+)
+
 REAL_CAPABILITY_SPECS: Dict[str, CapabilitySpec] = {
     "deep_research": DEEP_RESEARCH_SPEC,
+    "browser_interact": BROWSER_INTERACT_SPEC,
 }
 
 
@@ -635,6 +671,36 @@ def make_deep_research_adapter(engine: Any = None):
     return adapter
 
 
+def make_browser_interact_adapter(driver: Any = None):
+    """Creates a typed adapter wrapping BrowserDriver."""
+    def adapter(**kwargs) -> Dict[str, Any]:
+        from omni_engine.contracts.browser import BrowserActionRequest, BrowserActionType
+        from omni_engine.browser.driver import BrowserDriver
+        nonlocal driver
+        if driver is None:
+            driver = BrowserDriver()
+
+        action_str = kwargs.get("action", "snapshot")
+        action_type = BrowserActionType(action_str)
+
+        req = BrowserActionRequest(
+            action_type=action_type,
+            url=kwargs.get("url"),
+            target=kwargs.get("target"),
+            text=kwargs.get("text"),
+            key=kwargs.get("key"),
+            value=kwargs.get("value"),
+            scroll_direction=kwargs.get("scroll_direction", "down"),
+            scroll_amount=int(kwargs.get("scroll_amount", 400)),
+            user_confirmed=bool(kwargs.get("user_confirmed", False)),
+            output_path=kwargs.get("output_path"),
+        )
+        result = driver.execute(req)
+        return result.model_dump()
+
+    return adapter
+
+
 def register_deep_research_capability(
     registry: CapabilityRegistry,
     engine: Any = None,
@@ -650,12 +716,30 @@ def register_deep_research_capability(
     registry.register(spec=alias_spec, implementation=adapter)
 
 
+def register_browser_capability(
+    registry: CapabilityRegistry,
+    driver: Any = None,
+) -> None:
+    """Registers browser_interact and alias browser.interact on a CapabilityRegistry."""
+    adapter = make_browser_interact_adapter(driver)
+
+    # Register primary ID
+    registry.register(spec=BROWSER_INTERACT_SPEC, implementation=adapter)
+
+    # Register dotted alias
+    alias_spec = BROWSER_INTERACT_SPEC.model_copy(update={"id": "browser.interact"})
+    registry.register(spec=alias_spec, implementation=adapter)
+
+
 def build_real_capability_registry(
     base_registry: Optional[CapabilityRegistry] = None,
     research_engine: Any = None,
+    browser_driver: Any = None,
 ) -> CapabilityRegistry:
     """Builds a CapabilityRegistry containing the canonical 23 tools PLUS real capability engines."""
     reg = base_registry or build_canonical_registry()
     register_deep_research_capability(reg, engine=research_engine)
+    register_browser_capability(reg, driver=browser_driver)
     return reg
+
 

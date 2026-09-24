@@ -135,7 +135,7 @@ In addition to the 23 source tools, LAYA provides high-level autonomous capabili
 | Domain | Capability ID | Specification | Action Class | Autonomy Profile | Confirmation | Idempotency |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | **web** | `deep_research` (alias `research.deep`) | Multi-source discovery, crawl, evidence ledger, saturation stop, citation verification | `READ_ONLY` | `SAFE_ASSISTANT` | `NEVER` | `READ_ONLY` |
-| **browser** | `browser.perform_task` | Real persistent browser automation with indexed action space and verified transitions | `SYSTEM_ACTION` | `LOCAL_OPERATOR` | `POLICY_CONTROLLED` | `NON_IDEMPOTENT` |
+| **browser** | `browser_interact` (alias `browser.interact`) | Real persistent browser automation with DOM indexing (@1..@N), pre-action staleness checks, and verified transitions | `EXTERNAL_UPDATE` | `LOCAL_OPERATOR` | `POLICY_CONTROLLED` | `NON_IDEMPOTENT` |
 | **os** | `computer.open_target` | Windows / App / Local-Service resolver and UI automation driver | `SYSTEM_ACTION` | `LOCAL_OPERATOR` | `POLICY_CONTROLLED` | `NON_IDEMPOTENT` |
 | **automation** | `n8n.build_workflow` | Programmatic n8n workflow draft-test-validate automation | `LOCAL_UPDATE` | `LOCAL_OPERATOR` | `POLICY_CONTROLLED` | `NATURAL` |
 | **dev** | `developer.execute_task` | Antigravity CLI introspection adapter & supervised developer agent | `LOCAL_UPDATE` | `LOCAL_OPERATOR` | `POLICY_CONTROLLED` | `NATURAL` |

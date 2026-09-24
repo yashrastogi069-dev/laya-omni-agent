@@ -11,11 +11,14 @@ from .registry import CapabilityRegistry
 from .definitions import (
     CANONICAL_SPECS,
     DEEP_RESEARCH_SPEC,
+    BROWSER_INTERACT_SPEC,
     REAL_CAPABILITY_SPECS,
     build_canonical_registry,
     build_real_capability_registry,
     make_deep_research_adapter,
+    make_browser_interact_adapter,
     register_deep_research_capability,
+    register_browser_capability,
 )
 from .adapters import (
     intercept_legacy_error_string,
@@ -31,17 +34,21 @@ __all__ = [
     "CapabilityRegistry",
     "CANONICAL_SPECS",
     "DEEP_RESEARCH_SPEC",
+    "BROWSER_INTERACT_SPEC",
     "REAL_CAPABILITY_SPECS",
     "build_canonical_registry",
     "build_real_capability_registry",
     "intercept_legacy_error_string",
     "make_adapter",
     "make_deep_research_adapter",
+    "make_browser_interact_adapter",
     "register_deep_research_capability",
+    "register_browser_capability",
     "make_file_write_adapter",
     "make_http_api_adapter",
     "make_download_file_adapter",
     "make_clipboard_adapter",
     "make_inspect_data_adapter",
 ]
+
 

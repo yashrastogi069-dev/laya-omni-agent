@@ -71,3 +71,16 @@
   4. Enforce **prompt-injection defenses**: NFKC normalize, strip zero-width characters and control codes, escape literal HTML tags, and encapsulate external text in sandboxed `<untrusted_external_data origin="..." hash="...">` boundaries.
   5. Enforce **strict non-generative System 1 boundary (REQ-B1)**: System 1 is used strictly for passage relevance scoring and stance classification; text generation for query decomposition operates via deterministic facet templates or dedicated generative providers.
 
+---
+
+## ADR-009: Real Persistent Browser Engine Architecture
+- **Date**: 2026-09-24
+- **Status**: ACCEPTED
+- **Problem**: Autonomous browser automation often suffers from lost sessions/cookies on restart, fragile DOM selectors that break upon minor CSS changes, element staleness during dynamic SPA re-renders, dangling processes causing OOM on 8GB host, and catastrophic unconfirmed financial actions (accidental checkouts/purchases).
+- **Decision**:
+  1. **Adopt Playwright (1.54.4 Chromium/Edge)** with persistent context directory (`~/.laya/browser_profile`), automated stale singleton lock recovery (`SingletonLock`, `SingletonCookie`, `SingletonSocket`), single page invariant (`max_pages=1`) with popup routing, `atexit` cleanup, and 9 low-memory launch flags.
+  2. **Dynamic Indexed Action Space**: Inject in-page DOM stamping (`data-laya-idx="N"`) generating compact dual-key indices (`@1..@N`) with semantic fingerprints (tag, role, accessible text, href, bounding box).
+  3. **Pre-Execution Staleness Verification**: Before clicking or typing, verify node attachment, tag equality, and accessible text match; immediately halt on DOM mutation conflict with structured diagnostic error.
+  4. **Evidence-Based Post-Action Verification**: Physical state receipts required for every action: in-page `MutationObserver` on `document.body` for clicks (`dom_mutated`), physical `locator.input_value()` inspection for typing, URL transition tracking for navigation, and `window.scrollY` sampling for scrolling.
+  5. **Hard Financial Confirmation Gate**: Deterministic Stage 3 `PolicyEngine` enforcement requiring explicit user confirmation (`user_confirmed=True`) for `ActionClass.FINANCIAL` and `financial:*` sensitive targets under all autonomy tiers below `WORKFLOW_AUTHORIZED` (including `TRUSTED_OPERATOR`), reinforced by an intrinsic regex safety gate in `BrowserDriver`.
+

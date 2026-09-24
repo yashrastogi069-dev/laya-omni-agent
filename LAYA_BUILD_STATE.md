@@ -1,10 +1,10 @@
 # LAYA_BUILD_STATE.md — Current Ground Truth State
 
-**Last Updated**: 2026-09-24T18:35:00+05:30  
+**Last Updated**: 2026-09-24T21:15:00+05:30  
 **Current Branch**: `laya-autonomous-v2`  
-**Active Milestone Goal**: `Real Capability Engines: Foundation Gate (COMPLETE) → Phase R1: Deep Research Engine (COMPLETE & VERIFIED) → Phase R2: Real Browser Engine (ACTIVE)`  
-**Last Passing Test Suite**: All 15 test files across L0–L9 + Foundation Gate + R1:
-`tests/test_l0_baselines.py`, `tests/test_l1_repairs.py`, `tests/test_l2_contracts.py`, `tests/test_l2_1_reconciliation.py`, `tests/test_l3_capabilities.py`, `tests/test_l4_providers.py`, `tests/test_l5_decision_fabric.py`, `tests/test_l6a_routing.py`, `tests/test_l7_skills.py`, `tests/test_l6b_skill_routing.py`, `tests/test_l7_5_calibration.py`, `tests/test_l8_arguments.py`, `tests/test_l9_policy.py`, `tests/test_foundation_broker.py`, `tests/test_r1_research.py` (**277/277 passed in 161.40s, 47 subtests passed = 324 total (100% pass rate)**)  
+**Active Milestone Goal**: `Real Capability Engines: Foundation Gate (COMPLETE) → Phase R1: Deep Research Engine (COMPLETE & VERIFIED) → Phase R2: Real Browser Engine (COMPLETE & VERIFIED) → Phase R3: Windows / App / Local-Service Engine (ACTIVE)`  
+**Last Passing Test Suite**: All 16 test files across L0–L9 + Foundation Gate + R1 + R2:
+`tests/test_l0_baselines.py`, `tests/test_l1_repairs.py`, `tests/test_l2_contracts.py`, `tests/test_l2_1_reconciliation.py`, `tests/test_l3_capabilities.py`, `tests/test_l4_providers.py`, `tests/test_l5_decision_fabric.py`, `tests/test_l6a_routing.py`, `tests/test_l7_skills.py`, `tests/test_l6b_skill_routing.py`, `tests/test_l7_5_calibration.py`, `tests/test_l8_arguments.py`, `tests/test_l9_policy.py`, `tests/test_foundation_broker.py`, `tests/test_r1_research.py`, `tests/test_r2_browser.py` (**293/293 passed in 167.37s, 47 subtests passed = 340 total (100% pass rate)**)  
 **Mission Role**: Complete Standalone Autonomous Operating Agent.
 
 ---
@@ -108,6 +108,16 @@ The repository contains a standalone prototype CLI (`laya_agent.py` / `omni_engi
     - **Capability Substrate Integration**: Registered `DEEP_RESEARCH_SPEC` and `build_real_capability_registry()` in `omni_engine/capabilities/` preserving the 23-tool canonical registry invariant. Gated under `PolicyEngine` and `ArgumentResolver`.
     - **Adversarial Diff Review**: **PASS (APPROVED FOR CHECKPOINT R1)** (Subagent `e5f6870e-ea3f-4969-83b9-1e169887f9d4`).
     - **Comprehensive Test Suite**: Created `tests/test_r1_research.py` (18 unit tests, 100% pass rate in 0.012s).
+17. **Checkpoint R2 Milestone Reached (Real Persistent Browser Engine)**:
+    - **ADR & Technology Audit**: Formally adopted Playwright (1.54.4 Chromium/Edge), persistent profile context (`~/.laya/browser_profile`), indexed action space (`@1..@N`), evidence-based verification, and financial action confirmation gating in `docs/research/ADR_R2_BROWSER_ENGINE.md`.
+    - **Typed Browser Contracts**: Created `omni_engine/contracts/browser.py` with `BrowserActionType`, `BrowserElement`, `BrowserSnapshot`, `BrowserActionRequest`, `BrowserActionResult`.
+    - **Session & Resource Lifecycle**: Created `omni_engine/browser/session.py` with persistent isolated profile directory, stale singleton lock recovery (`SingletonLock`, `SingletonCookie`, `SingletonSocket`), single page invariant (`max_pages=1`) with popup routing, `atexit` cleanup, and 9 low-memory launch flags.
+    - **DOM Action Indexer**: Created `omni_engine/browser/indexer.py` with in-page DOM stamping (`data-laya-idx="N"`), compact dual-key index `@1..@N`, semantic fingerprint extraction, financial element detection, and pre-action staleness verification.
+    - **Driver & Evidence Verification**: Created `omni_engine/browser/driver.py` with action dispatch (`NAVIGATE`, `CLICK`, `TYPE`, `PRESS_KEY`, `SELECT_OPTION`, `SCROLL`, `SNAPSHOT`, `SCREENSHOT`), pre-execution financial safety gate, and evidence-based verification (`dom_mutated` via `MutationObserver`, `url_changed`, physical `input_value`, `scrollY`).
+    - **PolicyEngine Financial Safety Repaired**: Updated `omni_engine/policy/engine.py` Stage 3 to enforce confirmation for `ActionClass.FINANCIAL` and `financial:*` sensitive targets under all autonomy tiers below `WORKFLOW_AUTHORIZED` (including `TRUSTED_OPERATOR`).
+    - **Capability Substrate Integration**: Registered `BROWSER_INTERACT_SPEC` (`action_class=ActionClass.EXTERNAL_UPDATE`, `minimum_autonomy_profile=LOCAL_OPERATOR`) and alias `browser.interact` in `build_real_capability_registry()`. Mapped in `ArgumentResolver`.
+    - **Adversarial Diff Review**: **PASS (APPROVED FOR CHECKPOINT R2)** (Subagent `6812beb1-7cd5-4555-8417-90c4aa6fc27b`).
+    - **Comprehensive Test Suite**: Created `tests/test_r2_browser.py` (15 unit and integration tests, 100% pass rate in 2.70s). Full repository suite: **293/293 passed in 167.37s (+ 47 subtests = 340 total)**.
 
 ---
 
@@ -122,6 +132,7 @@ The repository contains a standalone prototype CLI (`laya_agent.py` / `omni_engi
 | **web** | `deep_research` (alias `research.deep`) | `DeepResearchEngine` | `READ_ONLY` / `NONE` | `SAFE_ASSISTANT` | `NEVER` | `SAFE_READ_RETRY` | `READ_ONLY` |
 | **browser** | `visual_browse` | `tool_visual_browse` | `SYSTEM_ACTION` | `LOCAL_OPERATOR` | `POLICY_CONTROLLED` | `NEVER` | `NON_IDEMPOTENT` |
 | **browser** | `browser_screenshot` | `tool_browser_screenshot` | `LOCAL_CREATE` | `SAFE_ASSISTANT` | `NEVER` | `VERIFY_BEFORE_RETRY` | `NATURAL` |
+| **browser** | `browser_interact` (alias `browser.interact`) | `BrowserDriver` | `EXTERNAL_NETWORK` | `LOCAL_OPERATOR` | `POLICY_CONTROLLED` | `VERIFY_BEFORE_RETRY` | `NON_IDEMPOTENT` |
 | **os** | `system_diagnostics` | `tool_system_diagnostics` | `READ_ONLY` | `ADVISOR` | `NEVER` | `SAFE_READ_RETRY` | `READ_ONLY` |
 | **os** | `list_processes` | `tool_list_processes` | `READ_ONLY` | `ADVISOR` | `NEVER` | `SAFE_READ_RETRY` | `READ_ONLY` |
 | **os** | `kill_process` | `tool_kill_process` | `SYSTEM_ACTION` | `LOCAL_OPERATOR` | `ALWAYS` | `NEVER` | `NON_IDEMPOTENT` |
@@ -144,7 +155,7 @@ The repository contains a standalone prototype CLI (`laya_agent.py` / `omni_engi
 
 ## 3. Test Suite & Health Metrics Breakdown
 
-- **Total Automated Tests**: 277 tests (+ 47 subtests = 324 total)
+- **Total Automated Tests**: 293 tests (+ 47 subtests = 340 total)
   - **L0 Baseline Tests**: 10 passed
   - **L1 & L1.1 Memory and Math Tests**: 12 passed
   - **L2 Contracts Tests**: 18 passed
@@ -157,29 +168,29 @@ The repository contains a standalone prototype CLI (`laya_agent.py` / `omni_engi
   - **L6B Skill-Aware Routing Tests**: 16 passed
   - **L7.5 Truth, Calibration & Upstream Alignment Tests**: 16 passed
   - **L8 Typed Argument Resolution Tests**: 26 passed
-  - **L9 Deterministic Policy Engine Tests**: 25 passed
+  - **L9 Deterministic Policy Engine Tests**: 26 passed
   - **Foundation Gate Broker Tests**: 27 passed
   - **Phase R1 Deep Research Tests**: 18 passed
-- **Pass Rate**: 100% (277 passed, 0 failed, 0 errors, 47 subtests passed).
-- **Runtime**: ~161s across full test suite.
+  - **Phase R2 Real Browser Tests**: 15 passed
+- **Pass Rate**: 100% (293 passed, 0 failed, 0 errors, 47 subtests passed).
+- **Runtime**: ~167s across full test suite.
 
 ---
 
 ## 4. Current Blockers
 
-- **None**. Phase R1 is complete, verified, and passing 100% of automated tests.
+- **None**. Phase R2 is complete, verified, and passing 100% of automated tests.
 
 ---
 
-## 5. Next Checkpoint Scope: Phase R2 (Real Browser Engine)
+## 5. Next Checkpoint Scope: Phase R3 (Windows / App / Local-Service Engine)
 
 Within active goal `Real Capability Engines: R1 → R5`:
-- Active Phase: **R2 — Real Browser Engine**
-- Core Objectives for R2:
-  1. Complete technology audit and research gate in `docs/research/ADR_R2_BROWSER_ENGINE.md`.
-  2. Implement Playwright browser session lifecycle with persistent context (cookies/storage).
-  3. Implement DOM action space indexer (`@1..@N` interactive element overlay).
-  4. Implement browser interaction driver (click, type, navigate, scroll, extract, screenshot).
-  5. Implement evidence-based action verification (DOM mutation confirmation, URL change verification).
-  6. Enforce purchase and financial action confirmation gates.
-  7. Comprehensive test suite `tests/test_r2_browser.py`.
+- Active Phase: **R3 — Windows / App / Local-Service Engine**
+- Core Objectives for R3:
+  1. Complete technology audit and research gate in `docs/research/ADR_R3_WINDOWS_APP_ENGINE.md`.
+  2. Implement application lifecycle manager (launch, focus, enumerate windows via Win32 ctypes / psutil).
+  3. Implement local service and health probing (socket check with timeout, HTTP health check on port 5678/11434).
+  4. Implement UI Automation (UIA) driver for window control inspection and safe keystroke/action dispatch.
+  5. Enforce safety policy (prevent terminating OS critical processes, confirmation on destructive process kills).
+  6. Comprehensive test suite `tests/test_r3_desktop.py`.

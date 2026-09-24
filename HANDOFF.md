@@ -1,20 +1,20 @@
-# HANDOFF.md — Operational Continuation Guide (Checkpoint L8 Complete, Proceeding to L9)
+# HANDOFF.md — Operational Continuation Guide (Goal L7.5 → L8 → L9 COMPLETED & VERIFIED)
 
-## What We Are Building
-A **complete standalone autonomous operating agent** powered by:
-- **System 1 Decision Fabric**: High-frequency structured decisions via local ModernBERT-large (`laya.Router()`) with calibrated probability bounds and two-stage adaptive triage.
-- **Deterministic Control**: The runtime strictly owns state transitions, permissions, operation identity, idempotency, and DAG execution.
-- **Hierarchical Capability Routing**: Dynamic multi-tier tool catalog reduction (`Request → DecisionFrame → Domain Routing → Skill Routing → Small Candidate Set → Capability`) eliminating flat catalog slicing and token bloat.
-- **Skills Layer**: Reusable workflow manifests mapping objectives to constrained capability sets with safety policy floors.
-- **Typed Argument Resolution**: Deterministic parameter extraction in 0.118 ms with schema validation, alias bridging, and zero-hallucination clarification gating.
-- **Strongly Typed Capability Contracts**: Clean interface boundaries (`CapabilityInvocation`, `CapabilitySpec`, `ToolResult`, `RouteDecision`, `SkillManifest`, `DecisionFrame`, `CalibrationConfig`, `ArgumentResolutionEnvelope`, `AgentRequest`, `AgentResponse`, `TraceContext`).
+## What We Have Built (Milestone Complete)
+A **trustworthy pre-execution control plane and autonomous agent routing substrate** powered by:
+- **System 1 Decision Fabric (L7.5)**: High-frequency structured decisions via local ModernBERT-large (`laya.Router()`) with calibrated probability bounds, thread-safe memory guards, and two-stage adaptive triage.
+- **Hierarchical Capability Routing (L6A/L6B)**: Dynamic multi-tier tool catalog reduction (`Request → DecisionFrame → Domain Routing → Skill Routing → Small Candidate Set → Capability`) eliminating flat catalog slicing and token bloat.
+- **Skills Layer (L7)**: Reusable workflow manifests mapping objectives to constrained capability sets with safety policy floors and cycle detection.
+- **Typed Argument Resolution Engine (L8)**: Deterministic parameter extraction in 0.118 ms across 23 canonical tools with schema validation, alias bridging, and zero-hallucination clarification gating.
+- **Deterministic Policy Engine & Constraints (L9)**: Sub-millisecond (~0.15ms warm) deterministic policy gate enforcing Inviolable Rule-0 Invariants (`user_confirmed` strictly ignored on forbidden operations), boundary-aware user blacklists, autonomy profiles (ADVISOR read-only floor), confirmation policies (ALWAYS/POLICY_CONTROLLED), and non-disruptive shadow mode simulation.
+- **Strongly Typed Capability Contracts**: Clean interface boundaries (`CapabilityInvocation`, `CapabilitySpec`, `ToolResult`, `RouteDecision`, `SkillManifest`, `DecisionFrame`, `CalibrationConfig`, `ArgumentResolutionEnvelope`, `PolicyDecision`, `PolicyRule`, `ActionAssessment`, `AgentRequest`, `AgentResponse`, `TraceContext`).
 
 ---
 
 ## Current Architecture & State
 - Repository: Public GitHub `https://github.com/yashrastogi069-dev/laya-omni-agent` on branch `laya-autonomous-v2`.
-- Active Checkpoint: **L8 COMPLETED & VERIFIED**; **PROCEEDING TO L9 (Deterministic Policy Engine & Persistent User Constraints)**.
-- Test Suite: **207/207 tests passing** (+ 47 subtests passed) across:
+- Active Milestone Goal: **L7.5 → L8 → L9 COMPLETED & VERIFIED (HARD STOPPED BEFORE L10)**.
+- Full Test Suite: **232/232 tests passing (+ 47 subtests = 279 total, 100% pass rate)** in 320s across:
   - `tests/test_l0_baselines.py` (10 tests)
   - `tests/test_l1_repairs.py` (12 tests)
   - `tests/test_l2_contracts.py` (18 tests)
@@ -27,52 +27,39 @@ A **complete standalone autonomous operating agent** powered by:
   - `tests/test_l6b_skill_routing.py` (16 tests)
   - `tests/test_l7_5_calibration.py` (16 tests)
   - `tests/test_l8_arguments.py` (26 tests)
+  - `tests/test_l9_policy.py` (25 tests)
 - Governance: All canonical documents synchronized with verified implementation truth.
 
 ---
 
-## Last Changes (Checkpoint L8 Executed)
-1. **Typed Argument Contracts (`omni_engine/contracts/arguments.py`)**:
-   - `ArgumentExtractionSource` (Enum: `DETERMINISTIC_REGEX`, `SYNTACTIC_AST`, `GENERATIVE_SYNTHESIS`, `SCHEMA_DEFAULT`, `CONTEXT_INHERITED`).
-   - `ArgumentSlot`: Property name, typed value, resolution status, source, confidence, and error.
-   - `ArgumentResolutionEnvelope`: Complete resolution payload with arguments dict, resolved slots, validity, missing slots, clarification prompt, latency telemetry, and metadata.
-2. **High-Precision Deterministic Extractors (`omni_engine/arguments/extractors.py`)**:
-   - `extract_file_path`: Quoted paths, Windows drive paths, relative paths, local filenames, and keyword targets with non-path filters (`tree`, `structure`, `info`).
-   - `extract_url`: HTTP/HTTPS URLs and localhost endpoints (`http://localhost:5678`).
-   - `extract_pid`: Numeric process IDs (`pid: 1234`, `kill process 4567`).
-   - `extract_process_name`: Executable names (`.exe`) and known processes (`node`, `python`, `n8n`, `calc`).
-   - `extract_app_name`: Desktop applications and services (`launch calc`, `start n8n`).
-   - `extract_sql_query`: Quoted and unquoted SQL statements (`SELECT`, `INSERT`, `UPDATE`).
-   - `extract_math_expression`: Arithmetic and mathematical expressions (`calculate 1024 * 768`).
-   - `extract_powershell_script`: PowerShell commands and one-liners (`powershell 'Get-Date'`).
-   - `extract_python_code`: Markdown fenced blocks (````python ... ````) and inline code.
-   - `extract_search_query`: Quoted and natural search queries.
-   - `extract_ping_host`: IPv4 addresses and domain hosts.
-   - `extract_clipboard_data`: Read vs write actions with text payloads.
-3. **Master Argument Resolver & Validator (`omni_engine/arguments/resolver.py`)**:
-   - `ArgumentResolver.resolve()`: Resolves and validates arguments against `CapabilitySpec.input_schema`.
-   - Sub-1ms deterministic SLA: Benchmarked at **0.118 ms** per resolution.
-   - Schema defaults ingestion for optional parameters (`max_results = 6`, `path = "."`, `max_depth = 3`).
-   - Context parameter inheritance with `PARAM_ALIASES` handling client synonyms (`filepath` vs `file_path`, `target` vs `pid`).
-   - Evidence-based clarification gating: Missing required slots trigger structured user prompts (`CLARIFICATION_PROMPTS`), with zero hallucinated dummy values.
-   - Generative fallback synthesis via `GenerativeProvider.generate_text()` with markdown fence stripping when enabled.
-4. **Comprehensive Test Suite & Diff Review**:
-   - 26 new tests in `tests/test_l8_arguments.py`.
-   - Full suite: **207/207 passing (100%)** in 229s.
-   - Independent adversarial diff review: **PASS ✅** (Subagent `00527d05-183d-4711-be67-eeb080163dcc`).
+## Deliverables Summary for Checkpoint L9
+1. **Contracts (`omni_engine/contracts/policy.py`)**:
+   - `PolicyEffect` (ALLOW, REQUIRE_CONFIRMATION, DENY, QUARANTINE).
+   - `ActionAssessment`: Comprehensive deterministic risk profile (`action_class`, `autonomy_required`, `blast_radius`, `is_destructive`, `is_reversible`, `sensitive_targets`, `risk_score`).
+   - `PolicyRule`: Declarative rule schema (`rule_id`, `name`, `description`, `effect`, `action_classes`, `forbidden_patterns`, `target_paths`, `target_domains`, `priority`, `is_active`).
+   - `PolicyDecision`: Output envelope with Pydantic `@model_validator` enforcing logical consistency between `allowed`, `effect`, `denial_reason`, and `confirmation_prompt`.
+2. **Hard Invariants & Resource Boundaries (`omni_engine/policy/rules.py`)**:
+   - `canonicalize_path`: Strips `\\?\`, `\\?\UNC\`, `\\.\` prefixes early, resolves `\\localhost\admin$` (to `%SystemRoot%` `C:\Windows`) and `\\localhost\<drive>$` (to `<drive>:\`), and normalizes network UNC paths statically to prevent SMB RPC hangs.
+   - `is_protected_path`: Blocks root drives, Windows system directories (`C:\Windows`, `System32`), Program Files, `.ssh`, `.env`, and private key extensions.
+   - `is_protected_process`: Static O(1) set lookup blocking PIDs 0/4 and critical services (`csrss`, `lsass`, `smss`, `services`, `winlogon`).
+   - `scan_embedded_commands`: Regex scanner blocking all forbidden git operations (`git reset <ref> --hard`, all `git clean` flag permutations like `-fd`, `-df`, `-xdf`, `-f -d`, `git push -f`, `git push origin +main`) and PowerShell root wipes (`Remove-Item -Recurse -Force C:\`).
+3. **Crash-Resilient Policy Store (`omni_engine/policy/store.py`)**:
+   - Thread-safe `RLock` guarding custom rules.
+   - Atomic disk persistence via temporary file swap (`.tmp.{pid}` -> `os.replace`).
+   - Automatic `.corrupt.<timestamp>` file quarantine and graceful in-memory recovery.
+4. **Deterministic Policy Engine (`omni_engine/policy/engine.py`)**:
+   - Multi-stage deterministic evaluation pipeline executing in ~0.15ms warm:
+     - Stage 0: Rule-0 Hard Invariants (`user_confirmed` strictly ignored).
+     - Stage 1: Persistent User Blacklists (boundary-aware matching preventing false-positive prefix collisions).
+     - Stage 2: Autonomy Profile Gating (ADVISOR read-only floor, elevation gating).
+     - Stage 3: Confirmation Policy Gating (ALWAYS, POLICY_CONTROLLED high-risk).
+     - Stage 4: Baseline Permitted / Non-disruptive Shadow Mode simulation.
+5. **Independent Adversarial Review**: **PASS ✅** (`0f038fb7-f33b-47c1-864c-1fcd56e1a540`).
 
 ---
 
-## Next Steps for Checkpoint L9 (Deterministic Policy Engine & Persistent User Constraints)
-1. **Contracts (`omni_engine/contracts/policy.py`)**:
-   - Implement `PolicyEffect`, `ActionAssessment`, `PolicyRule`, and `PolicyDecision`.
-2. **Persistent User Constraints & Rule Store (`omni_engine/policy/rules.py` & `store.py`)**:
-   - System rules: Forbidden operations (`git reset --hard`, `git clean -fd`, `rmdir /s /q C:\`), protected system paths (`C:\Windows`, `System32`, `Program Files`, `.ssh`, `.env`), and critical system processes.
-   - Custom user constraints persistence (JSON-backed rule store).
-3. **Deterministic Policy Engine (`omni_engine/policy/engine.py`)**:
-   - `PolicyEngine.evaluate()` evaluating action classes, blast radius, autonomy ceilings, and confirmation enforcement in <1ms.
-   - Support shadow runner telemetry (`LAYA_V2_MODE=off|shadow|active`).
-4. **Test Suite (`tests/test_l9_policy.py`)**:
-   - 25+ unit tests covering all action classes, autonomy tiers, confirmation policies, protected paths, forbidden operations, and custom constraints.
-5. **Adversarial Diff Review for L9**.
-6. **Final Goal Report & Hard Stop** (STOP AFTER L9).
+## Operational Boundary & Next Phase
+- **Goal Status**: **COMPLETED**.
+- **Hard Stop**: Clean halt at L9 boundary (`<!-- GOAL_COMPLETE -->`).
+- **Next Milestone (Future Goal)**: Checkpoint L10 (SQLite Quest Persistence & State Machine) and L11 (Deterministic Operation Ledger & Idempotency Store).
+

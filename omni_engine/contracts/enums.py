@@ -13,6 +13,7 @@ Standardized enumerations defining:
 """
 
 from enum import Enum
+from typing import Dict
 
 
 class ActionClass(str, Enum):
@@ -37,6 +38,15 @@ class AutonomyProfile(str, Enum):
     LOCAL_OPERATOR = "LOCAL_OPERATOR"          # Full local automation, confirms external deletes/sends
     TRUSTED_OPERATOR = "TRUSTED_OPERATOR"      # Unattended local and external execution
     WORKFLOW_AUTHORIZED = "WORKFLOW_AUTHORIZED"# Pre-authorized deterministic DAG execution
+
+
+AUTONOMY_RANK: Dict[AutonomyProfile, int] = {
+    AutonomyProfile.ADVISOR: 1,
+    AutonomyProfile.SAFE_ASSISTANT: 2,
+    AutonomyProfile.LOCAL_OPERATOR: 3,
+    AutonomyProfile.TRUSTED_OPERATOR: 4,
+    AutonomyProfile.WORKFLOW_AUTHORIZED: 5,
+}
 
 
 class ConfirmationPolicy(str, Enum):

@@ -852,8 +852,93 @@ Key architectural capabilities implemented:
 - **Adversarial Diff Review**:
   Independent subagent `00527d05-183d-4711-be67-eeb080163dcc` verified all 8 evaluation criteria, confirmed non-switching boundary, and issued verdict: **PASS ✅**.
 
+---
 
+## [2026-09-24] Checkpoint L9 — Deterministic Policy Engine & Persistent User Constraints
 
+### 1. Adversarial Plan Review
+- **Subagent**: `ab6f7033-a362-43b6-94bf-a0e0417c3aa0` (Read-Only Adversarial Architect).
+- **Verdict**: **Conditional GO** with 5 mandatory architectural requirements:
+  1. Rec-1: Path Canonicalization Robustness (UNC, `\\?\`, forward/back slashes, case-insensitivity, 8.3 short names, `%ENV%`).
+  2. Rec-2: Inviolability of Hard Invariants (Rule-0: `DENY` is absorbing; `user_confirmed=True` strictly cannot override hard system rules).
+  3. Rec-3: Sub-1ms Latency SLA (static set lookup for protected processes to avoid slow psutil process enumeration).
+  4. Rec-4: PolicyStore crash resilience & atomic swap (`RLock`, atomic write via `.tmp` and `os.replace`, `.corrupt` quarantine).
+  5. Rec-5: Shadow Mode explicit representation (records `shadow_mode=True`, `shadow_original_effect` in metadata).
 
+### 2. Implementation Deliverables
+- **Contracts (`omni_engine/contracts/policy.py`)**:
+  - `PolicyEffect` (Enum: `ALLOW`, `REQUIRE_CONFIRMATION`, `DENY`, `QUARANTINE`).
+  - `ActionAssessment`: Detailed risk analysis of proposed invocation (`action_class`, `autonomy_required`, `blast_radius`, `is_destructive`, `is_reversible`, `sensitive_targets`, `risk_score`).
+  - `PolicyRule`: Declarative persistent rule contract (`rule_id`, `name`, `description`, `effect`, `match_criteria`, `priority`, `is_active`).
+  - `PolicyDecision`: Output envelope with Pydantic `@model_validator` enforcing logical consistency between `allowed`, `effect`, `denial_reason`, and `confirmation_prompt`.
+- **Enum Centralization (`omni_engine/contracts/enums.py`)**:
+  - Added `AUTONOMY_RANK`: `ADVISOR` (1), `SAFE_ASSISTANT` (2), `LOCAL_OPERATOR` (3), `TRUSTED_OPERATOR` (4), `WORKFLOW_AUTHORIZED` (5).
+- **System Rules & Safety Boundaries (`omni_engine/policy/rules.py`)**:
+  - `canonicalize_path`: Strips `\\?\`, `\\?\UNC\`, `\\.\` prefixes early, resolves `\\localhost\admin$` (to `%SystemRoot%` `C:\Windows`) and `\\localhost\<drive>$` (to `<drive>:\`), and normalizes network UNC paths statically to prevent SMB RPC hangs.
+  - `is_protected_path`: Blocks root drives, Windows system directories (`C:\Windows`, `System32`), Program Files, `.ssh`, `.env`, and private key extensions.
+  - `is_protected_process`: Static O(1) set lookup blocking PIDs 0/4 and critical services (`csrss`, `lsass`, `smss`, `services`, `winlogon`).
+  - `scan_embedded_commands`: Regex scanner blocking all forbidden git operations (`git reset <ref> --hard`, all `git clean` flag permutations like `-fd`, `-df`, `-xdf`, `-f -d`, `git push -f`, `git push origin +main`) and PowerShell root wipes (`Remove-Item -Recurse -Force C:\`).
+- **Crash-Resilient Policy Store (`omni_engine/policy/store.py`)**:
+  - Thread-safe `RLock` guarding custom rules.
+  - Atomic disk persistence via temporary file swap (`.tmp.{pid}` -> `os.replace`).
+  - Automatic `.corrupt.<timestamp>` file quarantine and graceful in-memory recovery.
+- **Deterministic Policy Engine (`omni_engine/policy/engine.py`)**:
+  - Multi-stage deterministic evaluation pipeline executing in ~0.15ms warm:
+    - Stage 0: Rule-0 Hard Invariants (`user_confirmed` strictly ignored).
+    - Stage 1: Persistent User Blacklists (boundary-aware matching preventing false-positive prefix collisions).
+    - Stage 2: Autonomy Profile Gating (ADVISOR read-only floor, elevation gating).
+    - Stage 3: Confirmation Policy Gating (ALWAYS, POLICY_CONTROLLED high-risk).
+    - Stage 4: Baseline Permitted / Non-disruptive Shadow Mode simulation.
 
+### 3. Adversarial Diff Review & Root Cause Remediation
+- **Adversarial Diff Review 1**:
+  - Conducted by subagent `b8ecedc3-4acd-4392-9f25-16ca29461ee1`.
+  - Uncovered 5 critical security/bypass defects:
+    1. `git clean -df` and separated `-f -d` bypassed regex expecting `f` before `d`.
+    2. `git push -f` and `git push origin +main` bypassed regex expecting `--force`.
+    3. `git reset HEAD~1 --hard` bypassed regex expecting `--hard` immediately after `reset`.
+    4. `\\localhost\admin$\System32` bypassed System32 protection.
+    5. Extended UNC root drive `\\?\UNC\localhost\c$` bypassed root drive detection.
+    6. Directory prefix substring collision (`C:\data` blocking `C:\database\test.txt`).
+    7. Unhandled UNC network share resolution hang in `Path.resolve()`.
+    8. Missing unit tests for Shadow Mode and store corruption recovery.
+  - Initial Verdict: **FAIL ❌**.
+- **Root-Cause Remediation**:
+  - Early prefix stripping and UNC admin$/drive$ share resolution in `canonicalize_path`.
+  - Static normalization of network UNC paths, eliminating SMB network hangs.
+  - Hardened embedded command regexes in `rules.py` covering all git flag permutations and PowerShell root wipes (`Remove-Item -Recurse -Force C:\`).
+  - Boundary-aware path matching in `engine.py`.
+  - Expanded `tests/test_l9_policy.py` from 18 to 25 unit tests covering all edge cases, shadow mode, corrupt quarantine, and prefix boundaries.
+- **Adversarial Diff Review 2 (Re-evaluation)**:
+  - Conducted by subagent `0f038fb7-f33b-47c1-864c-1fcd56e1a540`.
+  - Verified all 10 remediation and contract requirements.
+  - Final Verdict: **PASS ✅**.
 
+### 4. Verification & Evidence
+- **L9 Unit Test Suite**:
+  `python -m unittest tests/test_l9_policy.py -v`
+  **25 / 25 passed in 0.269s (100% pass rate)**.
+- **Deterministic Latency Microbenchmark**:
+  Warm evaluation latency = **~0.15 ms**, well under the 1.0 ms SLA and orders of magnitude below 35ms System 1 threshold.
+- **Combined L8 & L9 Test Suite**:
+  `python -m unittest tests/test_l8_arguments.py tests/test_l9_policy.py -v`
+  **51 / 51 passed in 0.158s (100% pass rate)**.
+- **Full Repository Regression Suite**:
+  `python -m unittest discover tests`
+  **232 / 232 passed in 320.19s (+ 47 subtests = 279 total, 100% pass rate)**.
+- **Preservation of Non-Switching Boundary**:
+  `git diff HEAD omni_agent.py omni_engine/planner.py`
+  0 diffs against HEAD. Legacy execution flow is untouched and operational.
+
+---
+
+## [2026-09-24] LONG-HORIZON GOAL COMPLETION: L7.5 → L8 → L9
+
+The autonomous V2 milestone goal covering **L7.5 (System One Truth, Calibration & Upstream Alignment)**, **L8 (Typed Argument Resolution & Extraction Engine)**, and **L9 (Deterministic Policy Engine & Persistent User Constraints)** is **100% COMPLETED, VERIFIED, AND COMMITTED**.
+
+### Milestone Outcome Summary
+1. **L7.5**: Calibrated System One decision fabric, upstream Laya 0.3.5 alignment, thread-safe memory guards, 103-item ground truth decision eval corpus, hardware-aware benchmark, adaptive triage (4.2x CPU speedup), and shadow semantic skill routing.
+2. **L8**: Deterministic argument resolution in 0.118 ms, 23-tool schema extractors, schema defaults ingestion, context inheritance with `PARAM_ALIASES`, and zero-hallucination clarification gating (`CLARIFICATION_PROMPTS`).
+3. **L9**: Sub-millisecond deterministic policy engine, Rule-0 inviolable hard invariants (`user_confirmed` ignored), boundary-aware user blacklists, autonomy profile floors (ADVISOR read-only floor), confirmation policies (ALWAYS/POLICY_CONTROLLED), and non-disruptive shadow mode simulation.
+4. **Automated Test Suite**: Grown from 165 tests to **232 automated tests (+ 47 subtests = 279 total)**, achieving a **100% pass rate**.
+5. **Strict Boundary Enforced**: Clean halt at Checkpoint L9 boundary. Under no circumstances has Quest persistence (L10), Operation Ledger (L11), Planner (L12), or DAG Executor (L14) been implemented.

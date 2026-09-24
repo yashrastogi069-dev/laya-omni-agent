@@ -1,6 +1,21 @@
-# ACTIVE_PLAN.md — Checkpoint L9: Deterministic Policy Engine & Persistent User Constraints (ACTIVE)
+# ACTIVE_PLAN.md — Checkpoint L9: Deterministic Policy Engine & Persistent User Constraints (COMPLETED & VERIFIED)
 
-## 1. Summary of Completed Checkpoint L8 (Typed Argument Resolution & Extraction Engine)
+## 1. Summary of Completed Checkpoint L9 (Deterministic Policy Engine & Persistent User Constraints)
+- **Status**: **COMPLETED & VERIFIED**
+- **Test Suite**: **25/25 unit tests passed in 0.269s; 232/232 full repository tests (+ 47 subtests = 279 total) passed (100% pass rate)**.
+- **Key Deliverables**:
+  1. `omni_engine/contracts/policy.py`: Strongly typed `PolicyEffect`, `ActionAssessment`, `PolicyRule`, and `PolicyDecision` (with `@model_validator` enforcing logical consistency between `allowed`, `effect`, `denial_reason`, and `confirmation_prompt`).
+  2. `omni_engine/contracts/enums.py`: Centralized `AUTONOMY_RANK` mapping across skills and policy engines.
+  3. `omni_engine/policy/rules.py`: Path canonicalization (`canonicalize_path` stripping `\\?\`, `\\?\UNC\`, resolving `\\localhost\admin$` and `drive$`, preventing network SMB hangs), protected system boundaries (`is_protected_path`, `is_protected_process`), and embedded command regex scanners (`scan_embedded_commands`) for forbidden operations (`git reset <ref> --hard`, all `git clean` flag permutations, `git push -f`, PowerShell root wipes `Remove-Item -Recurse -Force C:\`).
+  4. `omni_engine/policy/store.py`: Crash-resilient, thread-safe (`RLock`) persistent `PolicyStore` with atomic file swap (`.tmp` to target via `os.replace`) and `.corrupt` quarantining.
+  5. `omni_engine/policy/engine.py`: Master `PolicyEngine` executing sub-millisecond evaluation (~0.15ms warm, sub-1ms SLA) across Stage 0 (Inviolable Hard Invariants: `user_confirmed` strictly ignored), Stage 1 (Boundary-aware persistent user blacklists), Stage 2 (Autonomy gating: ADVISOR read-only floor), Stage 3 (Confirmation policy gating: ALWAYS, POLICY_CONTROLLED high-risk), and Stage 4 (Permitted baseline / Shadow mode).
+  6. `omni_engine/policy/__init__.py`: Clean public interface exports.
+  7. `tests/test_l9_policy.py`: 25 comprehensive unit tests covering all action classes, autonomy tiers, confirmation policies, protected paths, forbidden commands, custom constraints, shadow mode, corrupt store recovery, and path boundary isolation.
+- **Adversarial Diff Review**: **PASS ✅** (Independent subagents `b8ecedc3-4acd-4392-9f25-16ca29461ee1` [vulnerability identification] & `0f038fb7-f33b-47c1-864c-1fcd56e1a540` [verification of remediation]).
+
+---
+
+## 2. Summary of Completed Checkpoint L8 (Typed Argument Resolution & Extraction Engine)
 - **Status**: **COMPLETED & VERIFIED**
 - **Test Suite**: **26/26 unit tests passed in 0.010s; 207/207 full repository tests passed in 229s (100% pass rate)**.
 - **Key Deliverables**:

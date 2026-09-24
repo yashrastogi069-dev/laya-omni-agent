@@ -1,9 +1,9 @@
 # LAYA_BUILD_STATE.md — Current Ground Truth State
 
-**Last Updated**: 2026-09-24T16:50:00+05:30  
+**Last Updated**: 2026-09-24T17:28:00+05:30  
 **Current Branch**: `laya-autonomous-v2`  
-**Active Checkpoint**: `L9 — Deterministic Policy Engine & Persistent User Constraints` (**ACTIVE**)  
-**Last Passing Test Suite**: `tests/test_l0_baselines.py`, `tests/test_l1_repairs.py`, `tests/test_l2_contracts.py`, `tests/test_l2_1_reconciliation.py`, `tests/test_l3_capabilities.py`, `tests/test_l4_providers.py`, `tests/test_l5_decision_fabric.py`, `tests/test_l6a_routing.py`, `tests/test_l7_skills.py`, `tests/test_l6b_skill_routing.py`, `tests/test_l7_5_calibration.py`, `tests/test_l8_arguments.py` (**207/207 passed in 229s, 47 subtests passed (100% pass rate)**)  
+**Active Milestone Goal**: `L7.5 → L8 → L9` (**100% COMPLETE & VERIFIED — HARD STOPPED BEFORE L10**)  
+**Last Passing Test Suite**: `tests/test_l0_baselines.py`, `tests/test_l1_repairs.py`, `tests/test_l2_contracts.py`, `tests/test_l2_1_reconciliation.py`, `tests/test_l3_capabilities.py`, `tests/test_l4_providers.py`, `tests/test_l5_decision_fabric.py`, `tests/test_l6a_routing.py`, `tests/test_l7_skills.py`, `tests/test_l6b_skill_routing.py`, `tests/test_l7_5_calibration.py`, `tests/test_l8_arguments.py`, `tests/test_l9_policy.py` (**232/232 passed in 320s, 47 subtests passed = 279 total (100% pass rate)**)  
 **Mission Role**: Complete Standalone Autonomous Operating Agent.
 
 ---
@@ -80,8 +80,15 @@ The repository contains a standalone prototype CLI (`laya_agent.py` / `omni_engi
     - **High-Precision Deterministic Extractors**: Implemented `omni_engine/arguments/extractors.py` handling file paths (Windows drive, POSIX, quoted, relative), URLs (HTTP/HTTPS, localhost ports like `:5678`), PIDs, process names, desktop apps/services (`n8n`, `calc`, `notepad`), SQL statements, arithmetic expressions, PowerShell commands, and search queries.
     - **Argument Resolver & Schema Validator**: Implemented `ArgumentResolver` in `omni_engine/arguments/resolver.py` validating against `CapabilitySpec.input_schema`. Executes deterministic resolution in **0.118 ms**, enforces zero-hallucination clarification gating via `CLARIFICATION_PROMPTS`, and bridges schema aliases via `PARAM_ALIASES`.
     - **Generative Fallback Synthesis**: Bounded synthesis via `GenerativeProvider.generate_text()` with markdown fence stripping when deterministic extraction leaves required slots unfulfilled.
-    - **Adversarial Diff Review**: **PASS ✅** (Subagent `00527d05-183d-4711-be67-eeb080163dcc`).
     - **Comprehensive Test Suite**: Created `tests/test_l8_arguments.py` (26 unit tests, 100% pass rate in 0.010s).
+14. **Checkpoint L9 Milestone Reached**:
+    - **Typed Policy Contracts**: Created `omni_engine/contracts/policy.py` with `PolicyEffect` (ALLOW, REQUIRE_CONFIRMATION, DENY, QUARANTINE), `ActionAssessment`, `PolicyRule`, and `PolicyDecision` (with Pydantic `@model_validator` enforcing logical consistency).
+    - **Hard System Invariants (Rule-0)**: Implemented in `omni_engine/policy/rules.py`: `canonicalize_path` (early prefix stripping, UNC admin$/drive$ share resolution, static network UNC normalization to prevent SMB network hangs), protected path boundary gating (`C:\Windows`, `System32`, `Program Files`, `.ssh`, `.env`, root drives), critical process protection (PIDs 0/4, `csrss`, `lsass`, `smss`, `services`), and embedded command regex scanner (`scan_embedded_commands`) for forbidden operations (`git reset <ref> --hard`, all `git clean` flag permutations, `git push -f`, PowerShell root wipes `Remove-Item -Recurse -Force C:\`).
+    - **Crash-Resilient Policy Store**: Implemented `PolicyStore` in `omni_engine/policy/store.py` with thread-safe `RLock`, atomic disk swaps (`.tmp` to target via `os.replace`), and automatic `.corrupt` quarantining.
+    - **Deterministic Policy Engine**: Implemented `PolicyEngine` in `omni_engine/policy/engine.py` executing sub-millisecond evaluation (~0.15ms warm, sub-1ms SLA) across Stage 0 (Inviolable Hard Invariants: `user_confirmed` strictly ignored), Stage 1 (Boundary-aware persistent user blacklists: zero substring false-positives), Stage 2 (Autonomy gating: ADVISOR read-only floor, elevation gating), Stage 3 (Confirmation policy gating: ALWAYS, POLICY_CONTROLLED high-risk), and Stage 4 (Permitted baseline / Shadow mode).
+    - **Shadow Mode Simulation**: Non-disruptive production simulation recording `shadow_mode=True`, `shadow_original_effect`, and diagnostics in decision metadata while strictly preserving Tier-0 hard invariant denials.
+    - **Adversarial Diff Review**: **PASS ✅** (Independent subagents `b8ecedc3-4acd-4392-9f25-16ca29461ee1` [vulnerability identification] & `0f038fb7-f33b-47c1-864c-1fcd56e1a540` [verification of remediation]).
+    - **Comprehensive Test Suite**: Created `tests/test_l9_policy.py` (25 unit tests, 100% pass rate in 0.269s).
 
 ---
 

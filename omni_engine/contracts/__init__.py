@@ -16,6 +16,7 @@ from .enums import (
     ToolOutcome,
     VerificationStatus,
     DecisionSignalType,
+    AUTONOMY_RANK,
 )
 from .decision import (
     DecisionSignal,
@@ -54,6 +55,12 @@ from .arguments import (
     ArgumentSlot,
     ArgumentResolutionEnvelope,
 )
+from .policy import (
+    PolicyEffect,
+    ActionAssessment,
+    PolicyRule,
+    PolicyDecision,
+)
 
 __all__ = [
     # Base
@@ -61,6 +68,7 @@ __all__ = [
     # Enums
     "ActionClass",
     "AutonomyProfile",
+    "AUTONOMY_RANK",
     "ConfirmationPolicy",
     "ErrorCode",
     "IdempotencyClass",
@@ -98,4 +106,9 @@ __all__ = [
     "ArgumentExtractionSource",
     "ArgumentSlot",
     "ArgumentResolutionEnvelope",
+    # Policy
+    "PolicyEffect",
+    "ActionAssessment",
+    "PolicyRule",
+    "PolicyDecision",
 ]

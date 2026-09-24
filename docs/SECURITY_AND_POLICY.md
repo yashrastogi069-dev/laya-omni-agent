@@ -57,10 +57,17 @@ All external inputs are classified strictly as **UNTRUSTED DATA**:
 
 ### Invariant Rules:
 1. External content MUST NEVER be concatenated directly into system instructions without sanitization and XML/markdown framing:
-   ```text
-   <untrusted_external_data origin="web_scraper">
-   ... data ...
+   ```xml
+   <untrusted_external_data origin="https://example.com/article" hash="a3f7...">
+   &lt;escaped content&gt;
    </untrusted_external_data>
    ```
-2. System instructions explicitly forbid the model from executing commands contained within `<untrusted_external_data>` blocks.
-3. The deterministic runtime, not the model, enforces whether a capability call is valid and permitted.
+2. **Deterministic Multi-Layer Sanitization Pipeline (`omni_engine/research/sanitizer.py`)**:
+   - **NFKC Unicode Normalization**: Neutralizes homoglyph evasion and compatibility spoofing.
+   - **Zero-Width Character Stripping**: Removes invisible zero-width spaces (`\u200b-\u200f`, `\ufeff`, `\u202a-\u202e`).
+   - **Control Code Stripping**: Eliminates non-printable ASCII control codes (`\x00-\x1f` except standard whitespace).
+   - **Overt Override Neutralization**: Replaces prompt injection patterns (`ignore all previous instructions`, `you are now in developer mode`) with `[FILTERED_INSTRUCTION_OVERRIDE]`.
+   - **Rigid XML Escaping**: Converts `<`, `>`, `&`, `"` to prevent synthetic tag termination attacks.
+3. System instructions explicitly forbid the model from executing commands contained within `<untrusted_external_data>` blocks.
+4. The deterministic runtime, not the model, enforces whether a capability call is valid and permitted.
+

@@ -108,9 +108,9 @@ This guarantees that future multi-agent coordination or supervisor routing can b
   - Empirical concurrency benchmark (concurrency 1 vs 2 vs 4 on CPU): proven cold start is 47.4s / 1.67 GB RAM, warm inference is ~712ms.
   - Deterministic 70/30 stratified calibration partition (72 dev / 31 test) and 10-bin ECE evaluation harness.
   - Unit test suite `tests/test_foundation_broker.py` (27 tests, 100% pass rate). Total repository suite: **259 passed (+ 47 subtests = 306 total)**.
-- [ ] **R1 — Deep Research Engine (ACTIVE)**:
-  - Multi-source discovery, crawl, extraction, dynamic-page fallback, evidence normalization, relevance ranking, gap detection, evidence saturation stop, generative synthesis, and claim-level verification.
-- [ ] **R2 — Real Browser Engine**:
+- [x] **R1 — Deep Research Engine (COMPLETED & VERIFIED)**:
+  - Multi-source discovery, crawl, extraction, dynamic-page fallback (Scrapling -> BS4), evidence normalization, relevance ranking, gap detection, evidence saturation stop, generative synthesis, and cryptographic citation verification.
+- [ ] **R2 — Real Browser Engine (ACTIVE)**:
   - Persistent browser context, dynamic indexed action space, verified state transitions, and confirmation-gated purchase boundaries.
 - [ ] **R3 — Windows / App / Local-Service Engine**:
   - ComputerUseDriver (WindowsUIADriver, LocalServiceDriver, ShellDriver), structured app/service resolver with port/process checking before execution.

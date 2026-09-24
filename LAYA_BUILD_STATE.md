@@ -1,9 +1,10 @@
 # LAYA_BUILD_STATE.md — Current Ground Truth State
 
-**Last Updated**: 2026-09-24T18:15:00+05:30  
+**Last Updated**: 2026-09-24T18:35:00+05:30  
 **Current Branch**: `laya-autonomous-v2`  
-**Active Milestone Goal**: `Real Capability Engines: Foundation Gate (COMPLETE & VERIFIED) → Phase R1 (ACTIVE)`  
-**Last Passing Test Suite**: `tests/test_l0_baselines.py`, `tests/test_l1_repairs.py`, `tests/test_l2_contracts.py`, `tests/test_l2_1_reconciliation.py`, `tests/test_l3_capabilities.py`, `tests/test_l4_providers.py`, `tests/test_l5_decision_fabric.py`, `tests/test_l6a_routing.py`, `tests/test_l7_skills.py`, `tests/test_l6b_skill_routing.py`, `tests/test_l7_5_calibration.py`, `tests/test_l8_arguments.py`, `tests/test_l9_policy.py`, `tests/test_foundation_broker.py` (**259/259 passed in 160.33s, 47 subtests passed = 306 total (100% pass rate)**)  
+**Active Milestone Goal**: `Real Capability Engines: Foundation Gate (COMPLETE) → Phase R1: Deep Research Engine (COMPLETE & VERIFIED) → Phase R2: Real Browser Engine (ACTIVE)`  
+**Last Passing Test Suite**: All 15 test files across L0–L9 + Foundation Gate + R1:
+`tests/test_l0_baselines.py`, `tests/test_l1_repairs.py`, `tests/test_l2_contracts.py`, `tests/test_l2_1_reconciliation.py`, `tests/test_l3_capabilities.py`, `tests/test_l4_providers.py`, `tests/test_l5_decision_fabric.py`, `tests/test_l6a_routing.py`, `tests/test_l7_skills.py`, `tests/test_l6b_skill_routing.py`, `tests/test_l7_5_calibration.py`, `tests/test_l8_arguments.py`, `tests/test_l9_policy.py`, `tests/test_foundation_broker.py`, `tests/test_r1_research.py` (**277/277 passed in 161.40s, 47 subtests passed = 324 total (100% pass rate)**)  
 **Mission Role**: Complete Standalone Autonomous Operating Agent.
 
 ---
@@ -98,10 +99,19 @@ The repository contains a standalone prototype CLI (`laya_agent.py` / `omni_engi
     - **Deterministic Stratified Calibration**: 70/30 stratified partition (72 dev / 31 test) and 10-bin Expected Calibration Error (ECE) metric evaluation harness in `omni_engine/decision/calibration_eval.py`.
     - **Adversarial Diff Review**: **PASS (UNCONDITIONAL)** (Subagent `5e8a88cd-a846-4ef9-b639-22afb9b791c2`).
     - **Comprehensive Test Suite**: Created `tests/test_foundation_broker.py` (27 unit tests, 100% pass rate in 0.047s).
+16. **Checkpoint R1 Milestone Reached (Deep Evidence-Grounded Research Engine)**:
+    - **ADR & Technology Audit**: Formally adopted Scrapling (0.4.9), adapted Tavily, rejected Crawl4AI (~3GB RAM footprint), and adapted Citation Verifier in `docs/research/ADR_R1_DEEP_RESEARCH.md`.
+    - **Typed Evidence Contracts**: Created `omni_engine/contracts/research.py` with `EvidenceItem` (passage-level SHA-256 hash, deterministic `ev_<hash[:10]>`), `ResearchClaim`, `ResearchBudget`, `ResearchTelemetry`, `ResearchDossier`, `EvidenceStance`, and `ClaimVerificationStatus`.
+    - **Prompt-Injection Defense**: Created `omni_engine/research/sanitizer.py` with NFKC normalization, zero-width stripping, control character removal, XML tag escaping, and `<untrusted_external_data origin="..." hash="...">` containment framing.
+    - **Page Fetcher & Canonicalizer**: Created `omni_engine/research/fetcher.py` with tracking query stripping, domain extraction, and multi-tier fallback (Scrapling -> BS4 -> Mock fixtures).
+    - **Deep Research Engine**: Created `omni_engine/research/engine.py` with deterministic facet decomposition (REQ-B1: System 1 text generation forbidden), bounded discovery and crawl loop with `(url, depth)` tuple queuing, 3-gram Jaccard deduplication ($J \ge 0.70$), sequential System 1 relevance scoring ($r \ge 0.45$) and stance classification, mathematical saturation yield stopping ($Y_k \le 0.15$ for 2 rounds), and cryptographic citation verification quarantining unverified citations.
+    - **Capability Substrate Integration**: Registered `DEEP_RESEARCH_SPEC` and `build_real_capability_registry()` in `omni_engine/capabilities/` preserving the 23-tool canonical registry invariant. Gated under `PolicyEngine` and `ArgumentResolver`.
+    - **Adversarial Diff Review**: **PASS (APPROVED FOR CHECKPOINT R1)** (Subagent `e5f6870e-ea3f-4969-83b9-1e169887f9d4`).
+    - **Comprehensive Test Suite**: Created `tests/test_r1_research.py` (18 unit tests, 100% pass rate in 0.012s).
 
 ---
 
-## 2. Canonical 23-Tool Capability Matrix
+## 2. Canonical Capability Matrix (23 Canonical Tools + Real Capability Engines)
 
 | Domain | Capability ID | Implementation Function | Blast Radius | Policy Tier | Confirmation | Retry Policy | Idempotency |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -109,6 +119,7 @@ The repository contains a standalone prototype CLI (`laya_agent.py` / `omni_engi
 | **web** | `scrape_url` | `tool_scrape_url_content` | `READ_ONLY` | `SAFE_ASSISTANT` | `NEVER` | `SAFE_READ_RETRY` | `READ_ONLY` |
 | **web** | `http_api` | `tool_http_api_request` | `EXTERNAL_CREATE` | `LOCAL_OPERATOR` | `POLICY_CONTROLLED` | `NEVER` | `NON_IDEMPOTENT` |
 | **web** | `download_file` | `tool_download_file` | `LOCAL_CREATE` | `SAFE_ASSISTANT` | `POLICY_CONTROLLED` | `VERIFY_BEFORE_RETRY` | `NATURAL` |
+| **web** | `deep_research` (alias `research.deep`) | `DeepResearchEngine` | `READ_ONLY` / `NONE` | `SAFE_ASSISTANT` | `NEVER` | `SAFE_READ_RETRY` | `READ_ONLY` |
 | **browser** | `visual_browse` | `tool_visual_browse` | `SYSTEM_ACTION` | `LOCAL_OPERATOR` | `POLICY_CONTROLLED` | `NEVER` | `NON_IDEMPOTENT` |
 | **browser** | `browser_screenshot` | `tool_browser_screenshot` | `LOCAL_CREATE` | `SAFE_ASSISTANT` | `NEVER` | `VERIFY_BEFORE_RETRY` | `NATURAL` |
 | **os** | `system_diagnostics` | `tool_system_diagnostics` | `READ_ONLY` | `ADVISOR` | `NEVER` | `SAFE_READ_RETRY` | `READ_ONLY` |
@@ -133,7 +144,7 @@ The repository contains a standalone prototype CLI (`laya_agent.py` / `omni_engi
 
 ## 3. Test Suite & Health Metrics Breakdown
 
-- **Total Automated Tests**: 207 tests (+ 47 subtests)
+- **Total Automated Tests**: 277 tests (+ 47 subtests = 324 total)
   - **L0 Baseline Tests**: 10 passed
   - **L1 & L1.1 Memory and Math Tests**: 12 passed
   - **L2 Contracts Tests**: 18 passed
@@ -146,25 +157,29 @@ The repository contains a standalone prototype CLI (`laya_agent.py` / `omni_engi
   - **L6B Skill-Aware Routing Tests**: 16 passed
   - **L7.5 Truth, Calibration & Upstream Alignment Tests**: 16 passed
   - **L8 Typed Argument Resolution Tests**: 26 passed
-- **Pass Rate**: 100% (207 passed, 0 failed, 0 errors, 47 subtests passed).
-- **Runtime**: ~229s across full test suite.
+  - **L9 Deterministic Policy Engine Tests**: 25 passed
+  - **Foundation Gate Broker Tests**: 27 passed
+  - **Phase R1 Deep Research Tests**: 18 passed
+- **Pass Rate**: 100% (277 passed, 0 failed, 0 errors, 47 subtests passed).
+- **Runtime**: ~161s across full test suite.
 
 ---
 
 ## 4. Current Blockers
 
-- **None**. Checkpoint L8 is verified, reviewed, and passing 100% of automated tests.
+- **None**. Phase R1 is complete, verified, and passing 100% of automated tests.
 
 ---
 
-## 5. Next Checkpoint Scope: L9 (Deterministic Policy Engine & Persistent User Constraints)
+## 5. Next Checkpoint Scope: Phase R2 (Real Browser Engine)
 
-Within active goal `L7.5 → L8 → L9`:
-- Active Phase: **L9 — Deterministic Policy Engine & Persistent User Constraints**
-- Core Objectives for L9:
-  1. Build policy contracts (`PolicyEffect`, `ActionAssessment`, `PolicyRule`, `PolicyDecision`).
-  2. Implement canonical system rules (forbidden operations, protected path boundaries, process protections).
-  3. Implement persistent user constraints store (JSON-backed custom policy overrides).
-  4. Implement `PolicyEngine` evaluating action classes, blast radius, autonomy ceilings, and confirmation enforcement in <1ms.
-  5. Support shadow runner telemetry (`LAYA_V2_MODE=off|shadow|active`).
-  6. Final Goal Boundary: **HARD STOP AFTER L9**.
+Within active goal `Real Capability Engines: R1 → R5`:
+- Active Phase: **R2 — Real Browser Engine**
+- Core Objectives for R2:
+  1. Complete technology audit and research gate in `docs/research/ADR_R2_BROWSER_ENGINE.md`.
+  2. Implement Playwright browser session lifecycle with persistent context (cookies/storage).
+  3. Implement DOM action space indexer (`@1..@N` interactive element overlay).
+  4. Implement browser interaction driver (click, type, navigate, scroll, extract, screenshot).
+  5. Implement evidence-based action verification (DOM mutation confirmation, URL change verification).
+  6. Enforce purchase and financial action confirmation gates.
+  7. Comprehensive test suite `tests/test_r2_browser.py`.

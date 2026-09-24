@@ -1152,3 +1152,93 @@ Establish a hardened pre-execution routing and provider control plane before imp
 - **Unit Test Suite (`tests/test_foundation_broker.py`)**: **27 passed, 0 failed in 0.047s**.
 - **Full Regression Test Suite**: **259 passed (+ 47 subtests = 306 total), 0 failed, 0 errors in 160.33s (100% pass rate)**.
 
+---
+
+## 12. Checkpoint R1: Deep Evidence-Grounded Research Engine
+
+### 1. Architectural Mission & Invariant Grounding
+Phase R1 implements a real, evidence-first deep research engine for the standalone LAYA Omni Agent under strict adherence to repository invariants:
+1. **Invariant 1: Deterministic Control**:
+   - Budget constraints (`max_crawl_depth <= 1`, `max_pages_per_domain <= 3`, `max_total_pages <= 10`, `max_wall_time_sec <= 60.0`), word 3-gram Jaccard deduplication ($\ge 0.70$), and cryptographic citation verification are deterministic rules executed without model ownership.
+2. **Invariant 2: System 1 as Fast Judge, NOT Text Generator (REQ-B1)**:
+   - System 1 (`SystemOneBroker`) evaluates passage relevance (`score(prompt=p[:400], criteria=...)`) and stance (`classify(...)` into `supports`, `contradicts`, `neutral`). System 1 is **strictly forbidden** from generating synthetic search queries or prose. Query decomposition operates via deterministic entity/facet heuristics (`overview architecture`, `comparison benchmarks`, `issues limitations`).
+3. **Evidence-Based Completion & Cryptographic Verification (REQ-B2)**:
+   - Passage-level SHA-256 hash `content_hash = sha256(NFKC(passage))` generates deterministic evidence IDs: `ev_{content_hash[:10]}`.
+   - Claims must cite valid IDs present in `evidence_ledger`. Hallucinated or unknown IDs in synthesis are deterministically quarantined and rewritten to `[UNVERIFIED_CITATION: <id>]`, and flagged as `ClaimVerificationStatus.HALLUCINATED`.
+4. **Mathematical Saturation Stopping (REQ-B3)**:
+   - Crawl loops track novel passage yield $Y_k = \frac{\text{novel\_passages}}{\max(1, \text{total\_candidates})}$. When saturation score $S_k = 1.0 - Y_k \ge \text{threshold}$ (default 0.85) for 2 consecutive rounds, the crawl terminates early to prevent spider traps and infinite loops.
+   - Airtight crawl depth is enforced via `(url, depth)` tuple queuing.
+5. **Prompt-Injection Defense & Sandboxing (REQ-B4)**:
+   - External web text is classified as UNTRUSTED DATA.
+   - `clean_web_text()` applies NFKC normalization, strips zero-width/invisible formatting characters (`\u200b-\u200f`, `\ufeff`, `\u202a-\u202e`), removes non-printable ASCII control codes, and replaces overt instruction overrides (`ignore previous instructions`, `you are now in developer mode`) with `[FILTERED_INSTRUCTION_OVERRIDE]`.
+   - `sanitize_untrusted_web_content()` escapes literal XML/HTML characters (`&`, `<`, `>`, `"`) and encapsulates content in `<untrusted_external_data origin="..." hash="...">` boundaries.
+6. **Substrate Integration & Non-Switching Boundary (REQ-B5)**:
+   - Registered canonical capability `DEEP_RESEARCH_SPEC` (`action_class=ActionClass.READ_ONLY`, `minimum_autonomy_profile=AutonomyProfile.SAFE_ASSISTANT`, `domain="web"`, `timeout=60.0s`).
+   - `build_canonical_registry()` is preserved with **exactly 23 source tools**, maintaining Checkpoint L3 parity contracts.
+   - `build_real_capability_registry()` layers `deep_research` and alias `research.deep` cleanly.
+   - `PolicyEngine` evaluates invocation with `blast_radius="NONE"` (read-only query) and approves under `SAFE_ASSISTANT`.
+   - `ArgumentResolver` deterministically extracts `query` or triggers `clarification_prompt`.
+   - Legacy paths `omni_agent.py` and `omni_engine/planner.py` remain **100% untouched** (0 diffs).
+
+---
+
+### 2. Technology Audit & Architecture Decision (`docs/research/ADR_R1_DEEP_RESEARCH.md`)
+- **Tavily Search / Extract API**: **ADAPT** for fast multi-query discovery and extract fallback.
+- **Scrapling (0.4.9)**: **ADOPT** as lightweight, fast stealth fetcher for HTML page extraction.
+- **Crawl4AI**: **REJECT** due to heavyweight RAM footprint (~3GB+ Chromium dependencies exceeding 8GB host budget).
+- **LlamaIndex / Jev Search**: **REFERENCE ONLY** for architecture patterns.
+- **Citation Verifier**: **ADAPT** for deterministic passage ledger and claim quarantine.
+
+---
+
+### 3. Implementation Deliverables
+1. `docs/research/ADR_R1_DEEP_RESEARCH.md`: Comprehensive Architectural Decision Record and technology audit.
+2. `omni_engine/contracts/research.py`: Strongly typed Pydantic contracts:
+   - `EvidenceStance`: `SUPPORTS`, `CONTRADICTS`, `NEUTRAL`.
+   - `ClaimVerificationStatus`: `VERIFIED`, `UNVERIFIED`, `CONTRADICTED`, `HALLUCINATED`.
+   - `FetchMethod`: `TAVILY_SEARCH`, `TAVILY_EXTRACT`, `SCRAPLING`, `BS4`, `PLAYWRIGHT`, `MOCK_FIXTURE`.
+   - `EvidenceItem`: Immutable passage entity with NFKC `sha256` content hash and `ev_<hash[:10]>` ID.
+   - `ResearchClaim`, `ResearchBudget`, `ResearchTelemetry`, `ResearchDossier`.
+3. `omni_engine/contracts/__init__.py`: Clean re-export of all research contracts.
+4. `omni_engine/research/sanitizer.py`: NFKC normalization, zero-width stripping, control character removal, XML escaping, instruction override neutralization, and `<untrusted_external_data>` framing.
+5. `omni_engine/research/fetcher.py`: Tracking parameter removal (`utm_*`, `fbclid`, `gclid`, etc.), URL canonicalization, domain extraction, and `PageFetcher` multi-tier fallback (Scrapling -> BS4 -> Mock fixtures).
+6. `omni_engine/research/engine.py`: Master `DeepResearchEngine`:
+   - Deterministic query decomposition.
+   - Bounded discovery and crawl loop with `(url, depth)` tracking.
+   - Word 3-gram Jaccard deduplication ($J \ge 0.70$).
+   - Sequential System 1 relevance scoring ($r \ge 0.45$) and stance classification.
+   - Mathematical saturation yield stopping ($Y_k \le 0.15$ for 2 rounds).
+   - Dossier synthesis and cryptographic citation verification quarantining unverified IDs.
+7. `omni_engine/research/__init__.py`: Package exports for `DeepResearchEngine`, `PageFetcher`, sanitizers.
+8. `omni_engine/capabilities/definitions.py`:
+   - `DEEP_RESEARCH_SPEC`: Canonical spec for deep research.
+   - `REAL_CAPABILITY_SPECS`: Registry mapping for real engines.
+   - `make_deep_research_adapter()`: Typed adapter returning structured dictionary envelopes.
+   - `register_deep_research_capability()`: Primary `deep_research` and alias `research.deep`.
+   - `build_real_capability_registry()`: Non-breaking extension preserving 23-tool canonical registry.
+9. `omni_engine/capabilities/__init__.py`: Clean export of real capability specs and builders.
+10. `omni_engine/policy/engine.py`: Registered `deep_research` and `research.deep` in `assess_action()`.
+11. `omni_engine/arguments/resolver.py`: Registered deterministic extraction for `query` and clarification prompts.
+12. `tests/test_r1_research.py`: 18 comprehensive unit tests.
+
+---
+
+### 4. Adversarial Plan & Diff Reviews
+- **Adversarial Plan Reviewer**: Subagent `e22ca329-86dd-4263-a208-d69ae9cb8471`.
+  - Conditional Approval with 5 Blocking Requirements (REQ-B1 through REQ-B5). All 5 requirements were systematically implemented.
+- **Adversarial Diff Reviewer**: Subagent `e5f6870e-ea3f-4969-83b9-1e169887f9d4`.
+  - Final Verdict: **PASS (APPROVED FOR CHECKPOINT R1)**.
+  - Non-blocking recommendation addressed: Queue refactored to store explicit `(url, depth)` tuples, guaranteeing depth <= 1 enforcement.
+
+---
+
+### 5. Verification & Test Evidence
+- **R1 Unit Test Suite (`tests/test_r1_research.py`)**:
+  - `Ran 18 tests in 0.012s`: **18 passed, 0 failed (100% pass rate)**.
+- **Full Repository Test Suite Across All Checkpoints (L0–L9 + Foundation Gate + R1)**:
+  - `Ran 277 tests in 161.403s`: **277 passed (+ 47 subtests = 324 total tests), 0 failures, 0 errors (100% pass rate)**.
+- **Non-Switching Boundary**:
+  - `git diff HEAD omni_agent.py omni_engine/planner.py` returns **0 diffs**.
+
+---
+

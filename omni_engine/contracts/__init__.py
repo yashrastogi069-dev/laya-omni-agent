@@ -70,6 +70,16 @@ from .broker import (
     BrokerDecision,
     CalibrationMetrics,
 )
+from .research import (
+    EvidenceStance,
+    ClaimVerificationStatus,
+    FetchMethod,
+    EvidenceItem,
+    ResearchClaim,
+    ResearchBudget,
+    ResearchTelemetry,
+    ResearchDossier,
+)
 
 __all__ = [
     # Base
@@ -128,4 +138,13 @@ __all__ = [
     "ProviderPolicyConfig",
     "BrokerDecision",
     "CalibrationMetrics",
+    # Research
+    "EvidenceStance",
+    "ClaimVerificationStatus",
+    "FetchMethod",
+    "EvidenceItem",
+    "ResearchClaim",
+    "ResearchBudget",
+    "ResearchTelemetry",
+    "ResearchDossier",
 ]

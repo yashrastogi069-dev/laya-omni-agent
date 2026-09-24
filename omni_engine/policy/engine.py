@@ -163,7 +163,7 @@ class PolicyEngine:
             blast_radius = "LOCAL_WORKSPACE"
         elif spec.id in ("kill_process", "launch_app", "powershell", "run_python", "clipboard", "desktop_screenshot"):
             blast_radius = "LOCAL_SYSTEM"
-        elif spec.id in ("web_search", "scrape_url", "http_api", "visual_browse", "browser_screenshot", "ping_test"):
+        elif spec.id in ("web_search", "scrape_url", "http_api", "visual_browse", "browser_screenshot", "ping_test", "deep_research", "research.deep"):
             blast_radius = "EXTERNAL_NETWORK"
 
         # 5. Calculate composite risk score in [0.0, 1.0]

@@ -31,3 +31,12 @@
 ## Lesson 8: Windows RAM Fluctuations Mandate Debounced Eviction
 - **Observation**: Windows 10 available RAM fluctuates by 200–800 MB due to OS file caching and background services. Evicting a 1.64 GB ModernBERT model on an instantaneous dip below a headroom threshold causes catastrophic eviction thrashing, where each request triggers a 47–69 second cold start.
 - **Principle**: RAM eviction must require multiple consecutive threshold breaches over time (e.g., 3 breaches over >= 5 seconds) and only execute when the system is completely idle (zero active inferences).
+
+## Lesson 9: Cryptographic Passage Hashing Defeats Citation Hallucination
+- **Observation**: Generative models and heuristics frequently cite plausible-looking but non-existent sources (e.g. `[ev_1234567890]`) when synthesizing multi-page research digests.
+- **Principle**: An immutable evidence ledger indexed by passage-level SHA-256 hashes must serve as the single source of truth. Post-synthesis citation verification must deterministically scan all citation tokens, verify ledger inclusion, and quarantine invalid references to `[UNVERIFIED_CITATION: <id>]`.
+
+## Lesson 10: Explicit Depth Tuples in Crawl Queues Prevent Spider Traps
+- **Observation**: When candidate URLs are placed in a flat list queue (`urls_to_crawl: List[str]`), shallow link expansion (depth <= 1) can accidentally traverse into depth 2 if child links are popped after seed URLs are exhausted.
+- **Principle**: Crawl queues must track explicit `(url: str, depth: int)` tuples. Link extraction must strictly check `depth < max_crawl_depth` before appending child URLs with `depth + 1`.
+

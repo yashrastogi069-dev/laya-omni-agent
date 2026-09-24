@@ -7,7 +7,7 @@ Binds the 23 source tools to canonical CapabilitySpecs and executable adapters,
 enforcing 100% parity with omni_engine.tools.OMNI_TOOL_REGISTRY.
 """
 
-from typing import Dict
+from typing import Any, Dict, Optional
 
 from omni_engine.contracts.enums import (
     ActionClass,
@@ -568,3 +568,94 @@ def build_canonical_registry() -> CapabilityRegistry:
         registry.register(spec=spec, implementation=impl)
 
     return registry
+
+
+# -----------------------------------------------------------------------
+# Real Capability Engines (R1 -> R5)
+# -----------------------------------------------------------------------
+
+DEEP_RESEARCH_SPEC = CapabilitySpec(
+    id="deep_research",
+    version="1.0.0",
+    name="Deep Evidence-Grounded Research",
+    domain="web",
+    description="Conduct multi-source deep research, crawling, evidence ledger extraction, and verified citation synthesis.",
+    input_schema={
+        "type": "object",
+        "properties": {
+            "query": {"type": "string", "description": "Research topic or question to investigate"},
+            "breadth": {"type": "integer", "default": 5, "description": "Maximum candidate search queries/URLs"},
+            "depth": {"type": "integer", "default": 1, "description": "Maximum crawl depth hops (0 or 1)"},
+            "max_pages": {"type": "integer", "default": 10, "description": "Maximum total web pages to fetch"},
+        },
+        "required": ["query"],
+    },
+    action_class=ActionClass.READ_ONLY,
+    side_effects=False,
+    minimum_autonomy_profile=AutonomyProfile.SAFE_ASSISTANT,
+    confirmation_policy=ConfirmationPolicy.NEVER,
+    retry_policy=RetryPolicy.SAFE_READ_RETRY,
+    idempotency_class=IdempotencyClass.READ_ONLY,
+    timeout_seconds=60.0,
+)
+
+REAL_CAPABILITY_SPECS: Dict[str, CapabilitySpec] = {
+    "deep_research": DEEP_RESEARCH_SPEC,
+}
+
+
+def make_deep_research_adapter(engine: Any = None):
+    """Creates a typed adapter wrapping DeepResearchEngine."""
+    def adapter(**kwargs) -> Dict[str, Any]:
+        from omni_engine.contracts.research import ResearchBudget
+        from omni_engine.research.engine import DeepResearchEngine
+        nonlocal engine
+        if engine is None:
+            engine = DeepResearchEngine()
+
+        query = kwargs.get("query", "")
+        breadth = int(kwargs.get("breadth", 5))
+        depth = int(kwargs.get("depth", 1))
+        max_pages = int(kwargs.get("max_pages", 10))
+
+        budget = ResearchBudget(
+            max_search_queries=min(breadth, 10),
+            max_crawl_depth=min(depth, 1),
+            max_total_pages=min(max_pages, 20),
+        )
+        dossier = engine.execute(query=query, budget=budget)
+        return {
+            "query": dossier.query,
+            "summary": dossier.summary,
+            "claims": [c.model_dump() for c in dossier.claims],
+            "evidence_count": len(dossier.evidence_ledger),
+            "telemetry": dossier.telemetry.model_dump(),
+        }
+
+    return adapter
+
+
+def register_deep_research_capability(
+    registry: CapabilityRegistry,
+    engine: Any = None,
+) -> None:
+    """Registers deep_research and alias research.deep on a CapabilityRegistry."""
+    adapter = make_deep_research_adapter(engine)
+
+    # Register primary ID
+    registry.register(spec=DEEP_RESEARCH_SPEC, implementation=adapter)
+
+    # Register dotted alias
+    alias_spec = DEEP_RESEARCH_SPEC.model_copy(update={"id": "research.deep"})
+    registry.register(spec=alias_spec, implementation=adapter)
+
+
+def build_real_capability_registry(
+    base_registry: Optional[CapabilityRegistry] = None,
+    research_engine: Any = None,
+) -> CapabilityRegistry:
+    """Builds a CapabilityRegistry containing the canonical 23 tools PLUS real capability engines."""
+    reg = base_registry or build_canonical_registry()
+    register_deep_research_capability(reg, engine=research_engine)
+    return reg
+

@@ -53,6 +53,8 @@ CLARIFICATION_PROMPTS: Dict[str, str] = {
     "safe_math": "Which mathematical expression would you like to calculate?",
     "search_code": "Which code search pattern or keyword are you looking for?",
     "inspect_data": "Which CSV or data file path would you like to inspect?",
+    "deep_research": "What research topic or question would you like to investigate?",
+    "research.deep": "What research topic or question would you like to investigate?",
 }
 
 PARAM_ALIASES: Dict[str, List[str]] = {
@@ -138,9 +140,10 @@ class ArgumentResolver:
                 slots["code"] = _slot("code", code, ArgumentExtractionSource.SYNTACTIC_AST)
 
         # 2. Web domain tools
-        elif capability_id == "web_search":
+        elif capability_id in ("web_search", "deep_research", "research.deep"):
             q = extract_search_query(prompt) or prompt.strip()
-            slots["query"] = _slot("query", q, ArgumentExtractionSource.DETERMINISTIC_REGEX)
+            if q:
+                slots["query"] = _slot("query", q, ArgumentExtractionSource.DETERMINISTIC_REGEX)
 
         elif capability_id == "scrape_url":
             url = extract_url(prompt)

@@ -57,3 +57,17 @@
 - **Status**: ACCEPTED
 - **Problem**: Upstream single-lock concurrency serialized both model management (load/unload/preload) and inference, threatening deadlocks or memory corruption during swaps. Furthermore, model selection lacked explicit user sovereignty (`USER_LOCKED`, `USER_PREFERRED`, `AUTO`), allowlists, or task overrides.
 - **Decision**: Implement `SystemOneBroker` implementing `SystemOneProvider` under ironclad User Model Sovereignty (`USER_LOCKED` strictly prohibits silent fallback; `USER_PREFERRED` permits fallback only for measurable reasons with mandatory telemetry). Enforce two-level hierarchical locking: Level 1 (`_MODEL_LIFECYCLE_LOCK`, RLock) outer, Level 2 (`_INFERENCE_SEMAPHORE`, Semaphore) inner, with exclusive permit draining on swaps/evictions. Ban multilingual models (English-only scope). Implement debounced Windows RAM protection (3 consecutive breaches over >=5s before idle eviction).
+
+---
+
+## ADR-008: Deep Evidence-Grounded Research Engine Architecture
+- **Date**: 2026-09-24
+- **Status**: ACCEPTED
+- **Problem**: Autonomous web research easily falls prey to hallucinated citations, infinite spider-trap crawling, prompt-injection attacks from adversarial web pages, and heavy RAM exhaustion from headless browsers.
+- **Decision**:
+  1. **Adopt Scrapling (0.4.9)** as the primary lightweight stealth HTML extractor; **adapt Tavily Search API** for multi-query discovery; **reject Crawl4AI** due to excessive ~3GB RAM footprint.
+  2. Enforce **cryptographic passage ledger**: Every piece of evidence has a deterministic SHA-256 passage hash ID (`ev_<hash[:10]>`). Citations in synthesis must match ledger keys; hallucinated IDs are deterministically quarantined to `[UNVERIFIED_CITATION: <id>]`.
+  3. Enforce **mathematical saturation stopping**: Terminate crawl when novel passage yield $Y_k \le 0.15$ for 2 consecutive rounds.
+  4. Enforce **prompt-injection defenses**: NFKC normalize, strip zero-width characters and control codes, escape literal HTML tags, and encapsulate external text in sandboxed `<untrusted_external_data origin="..." hash="...">` boundaries.
+  5. Enforce **strict non-generative System 1 boundary (REQ-B1)**: System 1 is used strictly for passage relevance scoring and stance classification; text generation for query decomposition operates via deterministic facet templates or dedicated generative providers.
+

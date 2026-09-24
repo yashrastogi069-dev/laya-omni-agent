@@ -180,7 +180,7 @@ class PolicyEngine:
             blast_radius = "SECURITY_CRITICAL"
         elif spec.id in ("file_read", "file_write", "download_file"):
             blast_radius = "LOCAL_FILE"
-        elif spec.id in ("directory_tree", "search_code", "git_status"):
+        elif spec.id in ("directory_tree", "search_code", "git_status", "developer.run_task", "developer_run_task", "developer.run_tests", "developer_run_tests"):
             blast_radius = "LOCAL_WORKSPACE"
         elif spec.id in (
             "kill_process",
@@ -316,7 +316,7 @@ class PolicyEngine:
         # STAGE 0: SYSTEM HARD INVARIANTS (INVIOLABLE, user_confirmed IGNORED)
         # -------------------------------------------------------------------
         # 1. Embedded Command Scanner (git reset --hard, disk format, etc.)
-        for arg_key in ("command", "code", "app_name", "query"):
+        for arg_key in ("command", "code", "app_name", "query", "task_prompt"):
             arg_val = arguments.get(arg_key)
             if arg_val and isinstance(arg_val, str):
                 violation, reason = scan_embedded_commands(arg_val)
@@ -333,9 +333,27 @@ class PolicyEngine:
                         extra_metadata={"inviolable_tier": 0},
                     )
 
+        test_cmds = arguments.get("test_commands") or []
+        if isinstance(test_cmds, list):
+            for t_cmd in test_cmds:
+                if isinstance(t_cmd, str):
+                    violation, reason = scan_embedded_commands(t_cmd)
+                    if violation:
+                        return self._make_decision(
+                            request_id=req_id,
+                            capability_id=spec.id,
+                            effect=PolicyEffect.DENY,
+                            matched_rules=["RULE_0_FORBIDDEN_OPERATIONS"],
+                            assessment=assessment,
+                            start_time=t0,
+                            denial_reason=reason,
+                            is_hard_invariant=True,
+                            extra_metadata={"inviolable_tier": 0},
+                        )
+
         # 2. Protected System Paths (Windows, Program Files, .ssh, .env, root drives)
-        if spec.action_class != ActionClass.READ_ONLY or spec.id == "file_write":
-            for arg_key in ("filepath", "file_path", "path", "filename", "db_path", "save_path"):
+        if spec.action_class != ActionClass.READ_ONLY or spec.id in ("file_write", "developer.run_task", "developer_run_task"):
+            for arg_key in ("filepath", "file_path", "path", "filename", "db_path", "save_path", "repo_path"):
                 arg_val = arguments.get(arg_key)
                 if arg_val and isinstance(arg_val, str):
                     is_prot, reason = is_protected_path(arg_val)

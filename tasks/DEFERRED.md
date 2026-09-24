@@ -21,3 +21,4 @@ it MUST be recorded here and postponed.
 | **DEF-006** | **Automated DPO/SFT Fine-Tuning Pipeline** | Phase VI (L25) | Fine-tuning local Laya weights requires collecting a high-quality corpus of verified successful real-world executions. |
 | **DEF-007** | **N8N / Zapier External Webhook Engine** | Phase V (L20) | Outbound/inbound automation requires reliable mutation safety and confirmation policy before connecting to live third-party webhooks. |
 | **DEF-008** | **Multilingual Models & Language Routing** | **EXPLICITLY DEFERRED / BANNED** | LAYA Omni Agent is strictly an ENGLISH-ONLY system. Multilingual checkpoints, tokenizers, and language detection are banned to preserve host RAM and focus engineering effort. |
+| **DEF-009** | **Quest Runtime, Operation Ledger & DAG Planner (L10–L14)** | Phase IV (L10–L14) | Multi-step DAG planning and execution runtime intentionally deferred until all 5 Real Capability Engines (R1–R5) are verified and hardened. |

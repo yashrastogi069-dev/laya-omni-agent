@@ -1335,6 +1335,206 @@ def register_n8n_capabilities(registry: CapabilityRegistry, engine: Any = None) 
     )
 
 
+# -----------------------------------------------------------------------
+# Developer Agent & Code Supervision Specs (Phase R5)
+# -----------------------------------------------------------------------
+
+DEVELOPER_RUN_TASK_SPEC = CapabilitySpec(
+    id="developer.run_task",
+    version="1.0.0",
+    name="Supervised Developer Task Runner",
+    domain="dev",
+    description="Supervise an autonomous coding task with bounded iterations, pre-test AST syntax gating, physical test verification, and safe rollback.",
+    input_schema={
+        "type": "object",
+        "properties": {
+            "repo_path": {"type": "string", "description": "Target git repository path"},
+            "task_prompt": {"type": "string", "description": "Instructions or bug fix description"},
+            "target_files": {"type": "array", "items": {"type": "string"}, "default": []},
+            "test_commands": {"type": "array", "items": {"type": "string"}, "default": []},
+            "allow_test_edits": {"type": "boolean", "default": False},
+            "max_iterations": {"type": "integer", "default": 3, "minimum": 1, "maximum": 5},
+            "timeout_seconds": {"type": "number", "default": 120.0},
+        },
+        "required": ["repo_path", "task_prompt"],
+    },
+    action_class=ActionClass.LOCAL_UPDATE,
+    side_effects=True,
+    minimum_autonomy_profile=AutonomyProfile.LOCAL_OPERATOR,
+    confirmation_policy=ConfirmationPolicy.POLICY_CONTROLLED,
+    retry_policy=RetryPolicy.NEVER,
+    idempotency_class=IdempotencyClass.NON_IDEMPOTENT,
+    timeout_seconds=120.0,
+)
+
+DEVELOPER_RUN_TESTS_SPEC = CapabilitySpec(
+    id="developer.run_tests",
+    version="1.0.0",
+    name="Deterministic Developer Test Runner",
+    domain="dev",
+    description="Execute repository test commands in a bounded subprocess with Rule-0 scanning and physical exit code capture.",
+    input_schema={
+        "type": "object",
+        "properties": {
+            "repo_path": {"type": "string", "description": "Target git repository path"},
+            "test_commands": {"type": "array", "items": {"type": "string"}, "description": "Test command lines to execute"},
+            "timeout_seconds": {"type": "number", "default": 30.0},
+        },
+        "required": ["repo_path", "test_commands"],
+    },
+    action_class=ActionClass.READ_ONLY,
+    side_effects=False,
+    minimum_autonomy_profile=AutonomyProfile.SAFE_ASSISTANT,
+    confirmation_policy=ConfirmationPolicy.NEVER,
+    retry_policy=RetryPolicy.SAFE_READ_RETRY,
+    idempotency_class=IdempotencyClass.READ_ONLY,
+    timeout_seconds=30.0,
+)
+
+DEVELOPER_GIT_DIFF_SPEC = CapabilitySpec(
+    id="developer.git_diff",
+    version="1.0.0",
+    name="Developer Git Diff Extraction",
+    domain="dev",
+    description="Extract working tree git diff for target repository and optional file filters.",
+    input_schema={
+        "type": "object",
+        "properties": {
+            "repo_path": {"type": "string", "description": "Target git repository path"},
+            "target_files": {"type": "array", "items": {"type": "string"}, "default": []},
+        },
+        "required": ["repo_path"],
+    },
+    action_class=ActionClass.READ_ONLY,
+    side_effects=False,
+    minimum_autonomy_profile=AutonomyProfile.ADVISOR,
+    confirmation_policy=ConfirmationPolicy.NEVER,
+    retry_policy=RetryPolicy.SAFE_READ_RETRY,
+    idempotency_class=IdempotencyClass.READ_ONLY,
+    timeout_seconds=10.0,
+)
+
+DEVELOPER_INSPECT_CODE_SPEC = CapabilitySpec(
+    id="developer.inspect_code",
+    version="1.0.0",
+    name="Developer Workspace Code Inspection",
+    domain="dev",
+    description="Inspect file content within target repository with strict sandbox containment.",
+    input_schema={
+        "type": "object",
+        "properties": {
+            "repo_path": {"type": "string", "description": "Target git repository path"},
+            "file_path": {"type": "string", "description": "Relative file path within repository"},
+        },
+        "required": ["repo_path", "file_path"],
+    },
+    action_class=ActionClass.READ_ONLY,
+    side_effects=False,
+    minimum_autonomy_profile=AutonomyProfile.ADVISOR,
+    confirmation_policy=ConfirmationPolicy.NEVER,
+    retry_policy=RetryPolicy.SAFE_READ_RETRY,
+    idempotency_class=IdempotencyClass.READ_ONLY,
+    timeout_seconds=5.0,
+)
+
+
+def make_developer_run_task_adapter(engine_instance: Any = None):
+    def adapter(**kwargs) -> Dict[str, Any]:
+        eng = engine_instance
+        if eng is None:
+            from omni_engine.developer.engine import DeveloperSupervisorEngine
+            eng = DeveloperSupervisorEngine()
+        from omni_engine.contracts.developer import DevTaskSpec
+        import uuid
+        spec = DevTaskSpec(
+            task_id=str(kwargs.get("task_id") or f"task_{uuid.uuid4().hex[:8]}"),
+            repo_path=str(kwargs.get("repo_path") or ""),
+            task_prompt=str(kwargs.get("task_prompt") or kwargs.get("prompt") or ""),
+            target_files=list(kwargs.get("target_files") or []),
+            test_commands=list(kwargs.get("test_commands") or []),
+            allow_test_edits=bool(kwargs.get("allow_test_edits", False)),
+            max_iterations=int(kwargs.get("max_iterations", 3)),
+            timeout_seconds=float(kwargs.get("timeout_seconds", 120.0)),
+        )
+        receipt = eng.execute_task(spec)
+        return receipt.model_dump()
+    return adapter
+
+
+def make_developer_run_tests_adapter(engine_instance: Any = None):
+    def adapter(**kwargs) -> Dict[str, Any]:
+        eng = engine_instance
+        if eng is None:
+            from omni_engine.developer.engine import DeveloperSupervisorEngine
+            eng = DeveloperSupervisorEngine()
+        repo_path = str(kwargs.get("repo_path") or "")
+        test_commands = list(kwargs.get("test_commands") or [])
+        timeout = float(kwargs.get("timeout_seconds", 30.0))
+        receipt = eng.run_tests(repo_path, test_commands, timeout_seconds=timeout)
+        return receipt.model_dump()
+    return adapter
+
+
+def make_developer_git_diff_adapter(engine_instance: Any = None):
+    def adapter(**kwargs) -> Dict[str, Any]:
+        eng = engine_instance
+        if eng is None:
+            from omni_engine.developer.engine import DeveloperSupervisorEngine
+            eng = DeveloperSupervisorEngine()
+        repo_path = str(kwargs.get("repo_path") or "")
+        target_files = list(kwargs.get("target_files") or []) or None
+        diff = eng.get_diff(repo_path, target_files)
+        return {"diff": diff, "repo_path": repo_path}
+    return adapter
+
+
+def make_developer_inspect_code_adapter(engine_instance: Any = None):
+    def adapter(**kwargs) -> Dict[str, Any]:
+        eng = engine_instance
+        if eng is None:
+            from omni_engine.developer.engine import DeveloperSupervisorEngine
+            eng = DeveloperSupervisorEngine()
+        repo_path = str(kwargs.get("repo_path") or "")
+        file_path = str(kwargs.get("file_path") or "")
+        return eng.inspect_file(repo_path, file_path)
+    return adapter
+
+
+def register_developer_capabilities(registry: CapabilityRegistry, engine: Any = None) -> None:
+    """Registers all developer capabilities and dotless aliases."""
+    # 1. run_task
+    task_ad = make_developer_run_task_adapter(engine)
+    registry.register(spec=DEVELOPER_RUN_TASK_SPEC, implementation=task_ad)
+    registry.register(
+        spec=DEVELOPER_RUN_TASK_SPEC.model_copy(update={"id": "developer_run_task"}),
+        implementation=task_ad,
+    )
+
+    # 2. run_tests
+    test_ad = make_developer_run_tests_adapter(engine)
+    registry.register(spec=DEVELOPER_RUN_TESTS_SPEC, implementation=test_ad)
+    registry.register(
+        spec=DEVELOPER_RUN_TESTS_SPEC.model_copy(update={"id": "developer_run_tests"}),
+        implementation=test_ad,
+    )
+
+    # 3. git_diff
+    diff_ad = make_developer_git_diff_adapter(engine)
+    registry.register(spec=DEVELOPER_GIT_DIFF_SPEC, implementation=diff_ad)
+    registry.register(
+        spec=DEVELOPER_GIT_DIFF_SPEC.model_copy(update={"id": "developer_git_diff"}),
+        implementation=diff_ad,
+    )
+
+    # 4. inspect_code
+    inspect_ad = make_developer_inspect_code_adapter(engine)
+    registry.register(spec=DEVELOPER_INSPECT_CODE_SPEC, implementation=inspect_ad)
+    registry.register(
+        spec=DEVELOPER_INSPECT_CODE_SPEC.model_copy(update={"id": "developer_inspect_code"}),
+        implementation=inspect_ad,
+    )
+
+
 REAL_CAPABILITY_SPECS: Dict[str, CapabilitySpec] = {
     "deep_research": DEEP_RESEARCH_SPEC,
     "browser_interact": BROWSER_INTERACT_SPEC,
@@ -1351,6 +1551,10 @@ REAL_CAPABILITY_SPECS: Dict[str, CapabilitySpec] = {
     "n8n.activate_workflow": N8N_ACTIVATE_WORKFLOW_SPEC,
     "n8n.trigger_workflow": N8N_TRIGGER_WORKFLOW_SPEC,
     "n8n.get_execution_status": N8N_GET_EXECUTION_STATUS_SPEC,
+    "developer.run_task": DEVELOPER_RUN_TASK_SPEC,
+    "developer.run_tests": DEVELOPER_RUN_TESTS_SPEC,
+    "developer.git_diff": DEVELOPER_GIT_DIFF_SPEC,
+    "developer.inspect_code": DEVELOPER_INSPECT_CODE_SPEC,
 }
 
 
@@ -1360,6 +1564,7 @@ def build_real_capability_registry(
     browser_driver: Any = None,
     desktop_driver: Any = None,
     n8n_engine: Any = None,
+    developer_engine: Any = None,
 ) -> CapabilityRegistry:
     """Builds a CapabilityRegistry containing the canonical 23 tools PLUS real capability engines."""
     reg = base_registry or build_canonical_registry()
@@ -1367,7 +1572,9 @@ def build_real_capability_registry(
     register_browser_capability(reg, driver=browser_driver)
     register_desktop_capabilities(reg, driver=desktop_driver)
     register_n8n_capabilities(reg, engine=n8n_engine)
+    register_developer_capabilities(reg, engine=developer_engine)
     return reg
+
 
 
 

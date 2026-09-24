@@ -98,4 +98,31 @@ Automated workflow execution introduces risks of Remote Code Execution (RCE), se
    - Nodes capable of executing shell commands or arbitrary code (`executeCommand`, `code`, `ssh`) are flagged as sensitive targets, escalating blast radius to `LOCAL_SYSTEM` or `SECURITY_CRITICAL` and composite risk to >= 0.70.
    - In Stage 0, Rule-0 embedded command scanning inspects `executeCommand` parameters to unconditionally deny forbidden destructive operations (`git reset --hard`, destructive drive wipes), strictly ignoring human confirmation.
 
+---
+
+## 7. Supervised Developer Agent & Code Safety Invariants (Phase R5)
+
+Autonomous coding and subagent orchestration introduce severe risks of infinite thrashing loops, workspace boundary escape, test suite tampering, process tree zombies, and catastrophic repository wiping:
+1. **Inviolable Safe Reversion (Rule-0 Compliance)**:
+   - Autonomous coding agents must **NEVER** execute destructive git commands (`git reset --hard`, `git clean -fd`, `git push -f`).
+   - All rollbacks in `WorkspaceConfiner.safe_revert()` operate on a granular, file-by-file basis: tracked files are restored individually via `git checkout -- <rel_path>`, and untracked files are unlinked individually via `os.remove()` only after verifying containment within repository boundaries.
+   - Uncommitted user files outside the task scope are completely preserved.
+2. **Subprocess Process-Tree Isolation & Zombie Defense**:
+   - Test execution on Windows spawns under `CREATE_NEW_PROCESS_GROUP` via `DeterministicSubprocessRunner`.
+   - Standard streams are drained via `communicate(timeout=...)` to prevent pipe deadlocks.
+   - On timeout or process error, the entire process hierarchy is terminated using `taskkill /F /T /PID <pid>`, preventing hung processes or orphaned descendants from locking repository files.
+   - Captured stdout/stderr is strictly truncated at 50,000 characters to prevent host memory exhaustion.
+3. **Git Workspace Confinement & Path Traversal Immunity**:
+   - `WorkspaceConfiner` verifies the repository root contains `.git` and blocks protected OS roots (`is_protected_path`).
+   - All target files and operations are validated using dual containment checks (`pathlib.Path.is_relative_to` and `os.path.commonpath`), completely blocking traversal escapes (`..`, symlinks, junctions, or absolute external paths).
+4. **Anti-Tampering on Test Suites**:
+   - Modification to test suites (`test_*.py`, `*_test.py`, `tests/`, `test/`) is strictly prohibited by default (`allow_test_edits=False`).
+   - Any attempt to modify test files raises an immediate permission exception and triggers automated rollback (`ConvergenceStatus.TEST_TAMPERING_DETECTED`), preventing agents from passing tasks by deleting or weakening tests.
+5. **Deterministic Pre-Test AST Syntax Gate**:
+   - All modified Python files are parsed using `ast.parse()` prior to test execution.
+   - Syntax errors short-circuit immediately with line/column diagnostic receipts without invoking subprocess test commands.
+6. **Rule-0 Embedded Command Defense**:
+   - `PolicyEngine` Stage 0 scans both `task_prompt` and `test_commands` lists using `scan_embedded_commands()`.
+   - Forbidden commands (`git reset --hard`, `git clean -fd`, `Remove-Item C:\`, drive formatting) are unconditionally denied (`is_hard_invariant=True`), completely unyielding to `user_confirmed=True`.
+
 

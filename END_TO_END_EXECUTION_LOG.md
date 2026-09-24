@@ -1531,3 +1531,103 @@ Phase R1 implements a real, evidence-first deep research engine for the standalo
 
 
 ---
+
+## CHECKPOINT R5: Supervised Developer Agent & Antigravity Engine (COMPLETED & VERIFIED)
+
+### 1. Invariants & Scope-Control Confirmation
+- **Invariants Followed**:
+  - **Invariant 1 (Deterministic Control, Probabilistic Reasoning)**: The Foreman supervision lifecycle, AST syntax gating, thrashing detection, iteration clamping, process group spawning, timeout termination, and safe file-by-file reversion are 100% deterministic code.
+  - **Invariant 4 (Strongly Typed Capability Contracts)**: All developer models (`DevTaskSpec`, `CodeVerificationReceipt`, `DevExecutionReceipt`, `DevActionResult`) derive from `BaseContractModel` (`extra="forbid"`).
+  - **Invariant 6 (Evidence-Based Completion)**: Tasks cannot be reported completed without physical test exit code 0 (`tests_passed=True`), physical AST parse verification (`syntax_valid=True`), and captured working tree diffs. Plausible generated explanations are never equated with verified code modifications.
+  - **Rule-0 Safety Defense**: Unconditional prohibition of destructive git commands (`git reset --hard`, `git clean -fd`, `git push -f`). Reversion operates file-by-file using `git checkout -- <file>` for tracked files and `os.remove()` for untracked files within repository boundaries.
+  - **Anti-Tampering Invariant**: Test files (`test_*.py`, `*_test.py`, `tests/`) cannot be modified unless explicitly authorized via `allow_test_edits=True`.
+  - **Non-Switching Boundary**: Legacy `omni_agent.py` and `omni_engine/planner.py` remain **100% untouched** (0 diffs).
+  - **Hard Stop Boundary**: Engineering strictly halted after Phase R5. Zero implementation of L10–L14.
+
+---
+
+### 2. Technology Audit & Architecture Decision (`docs/research/ADR_R5_DEVELOPER_AGENT.md` / ADR-012)
+- **Foreman 5-Stage Bounded Supervision Lifecycle**: **ADOPT** coordinated lifecycle: Setup/Baseline -> Mutation -> Pre-Test AST Syntax Gate -> Test Execution -> Convergence/Safe Reversion.
+- **Deterministic Thrashing & Cycle Detection**: **ADOPT** composite SHA-256 state fingerprinting over working tree `git diff`, sorted modified file names, and raw binary file contents. Immediate abort with `ConvergenceStatus.THRASHING_DETECTED` if any iteration revisits a prior state.
+- **Subprocess Process-Tree Isolation**: **ADOPT** Windows `CREATE_NEW_PROCESS_GROUP`, `communicate(timeout=...)` deadlock defense, `taskkill /F /T /PID` process-tree termination, quote-stripping argument parser, and 50,000 character output truncation.
+- **Git Workspace Confinement & Path Traversal Immunity**: **ADOPT** `.git` repository root validation, protected system path blocks (`is_protected_path`), and dual path containment verification (`pathlib.Path.is_relative_to` and `os.path.commonpath`).
+- **Inviolable Safe Reversion Primitive**: **ADOPT** file-by-file rollback (`git checkout -- <file>` and `os.remove`), strictly eliminating destructive reset commands.
+- **Anti-Tampering on Test Suites**: **ADOPT** test file protection (`verify_not_test_tampering`) blocking unauthorized edits to test suites when `allow_test_edits=False`.
+- **Pre-Test AST Syntax Fail-Fast Gate**: **ADOPT** `ast.parse()` on all modified Python files before test command dispatch, failing fast on syntax errors.
+- **Decoupled Antigravity Runner**: **ADOPT** `AgyRunner` (ABC), `SubprocessAgyRunner` (local `agy.exe` non-interactive invocation), and `MockAgyRunner` (fast offline test simulation).
+
+---
+
+### 3. Implementation Deliverables
+1. `docs/research/ADR_R5_DEVELOPER_AGENT.md`: Architectural Decision Record and technology audit.
+2. `omni_engine/contracts/developer.py`: Strongly typed Pydantic contracts:
+   - `ConvergenceStatus`: `CONVERGED`, `MAX_ITERATIONS_REACHED`, `THRASHING_DETECTED`, `TEST_TAMPERING_DETECTED`, `SYNTAX_ERROR`, `TIMEOUT`, `RULE_0_VIOLATION`, `UNVERIFIED`.
+   - `DevTaskSpec`: `task_id`, `repo_path`, `task_prompt`, `target_files`, `test_commands`, `allow_test_edits`, `max_iterations`, `timeout_seconds`, `metadata`.
+   - `CodeVerificationReceipt`: `syntax_valid`, `syntax_errors`, `lint_passed`, `tests_passed`, `test_exit_code`, `test_output`, `test_duration_ms`, `verification_status`.
+   - `DevExecutionReceipt`: `task_id`, `repo_path`, `exit_code`, `modified_files`, `git_diff`, `git_head_before`, `iterations_count`, `convergence_status`, `verification`, `duration_ms`, `status`, `error`.
+   - `DevActionResult`: `action`, `task_id`, `verification_status`, `receipt`, `data`, `error`.
+3. `omni_engine/contracts/__init__.py`: Clean re-export of all developer contracts.
+4. `omni_engine/developer/process_runner.py`: `DeterministicSubprocessRunner` with Windows `CREATE_NEW_PROCESS_GROUP`, `communicate(timeout=...)` deadlock defense, `taskkill /F /T /PID` process-tree cleanup, quote-stripping argument parser, and 50,000 char output truncation.
+5. `omni_engine/developer/workspace.py`: `WorkspaceConfiner` validating `.git` existence, blocking protected OS roots (`is_protected_path`), verifying path containment via `is_relative_to` and `commonpath`, blocking test file tampering when `allow_test_edits=False`, and performing safe file-by-file revert (`git checkout -- <file>`, `os.remove` for untracked files) strictly avoiding destructive `git reset --hard` or `git clean -fd`.
+6. `omni_engine/developer/runner.py`: Decoupled `AgyRunner` (ABC), `SubprocessAgyRunner` (local `agy.exe`), and `MockAgyRunner` (fast offline simulation).
+7. `omni_engine/developer/engine.py`: `DeveloperSupervisorEngine` implementing Foreman 5-stage lifecycle, AST syntax fail-fast gate, thrashing/oscillation detection via SHA-256 fingerprint, test runner, git diff, and code inspection.
+8. `omni_engine/developer/__init__.py`: Package exports for developer engine and components.
+9. `omni_engine/capabilities/definitions.py`:
+   - Registered 4 developer capability specs (`developer.run_task`, `developer.run_tests`, `developer.git_diff`, `developer.inspect_code`) and dotless aliases in `build_real_capability_registry()`.
+   - Preserved 23-tool canonical registry invariant (`build_canonical_registry()`).
+10. `omni_engine/capabilities/__init__.py`: Clean exports of developer capability specs.
+11. `omni_engine/policy/engine.py`:
+    - Mapped developer capabilities to `LOCAL_WORKSPACE` blast radius.
+    - Added Stage 0 Rule-0 command scanning of `test_commands` parameters to block forbidden operations (`git reset --hard`, destructive drive formatting).
+    - Added Stage 0 protected OS path blocking for `repo_path`.
+12. `omni_engine/arguments/resolver.py`:
+    - Added developer clarification prompts (`CLARIFICATION_PROMPTS`) for `repo_path`, `task_prompt`, `test_commands`, `file_path`.
+    - Added deterministic slot extractors supporting spaces and quotes in `repo_path`.
+13. `tests/test_r5_developer.py`: 25 comprehensive offline unit and integration tests.
+
+---
+
+### 4. Adversarial Plan & Diff Reviews
+- **Adversarial Plan Reviewer**: Subagent `c96c2b7a-ce7f-4d60-b4c2-aaeef620b7dd`.
+  - Conditional Approval with 7 Blocking Requirements (REQ-BLOCK-1 through REQ-BLOCK-7). All 7 requirements were systematically addressed.
+- **Adversarial Diff Reviewer**: Subagent `fb7ba688-2887-47fa-811d-d25dbe922f53`.
+  - Final Verdict: **PASS (100% compliant with all 7 blocking requirements and repository operating invariants)**.
+  - Verified:
+    1. REQ-BLOCK-1 (Bounded Convergence Loop & Thrashing Defense): 5-stage Foreman lifecycle; state fingerprinting hashing working tree diff, files, and contents; max_iterations clamped to [1, 5]; anti-tampering test guard; safe rollback on failure.
+    2. REQ-BLOCK-2 (Subprocess Process-Tree Isolation): Windows `CREATE_NEW_PROCESS_GROUP`; `communicate(timeout=...)` deadlock defense; `taskkill /F /T /PID` process-tree cleanup; 50k char buffer bounds.
+    3. REQ-BLOCK-3 (Workspace Confinement & Safe Revert - Invariant 1, Rule 0): `.git` root validation; protected system path blocks; dual containment checks (`is_relative_to` & `commonpath`); Rule-0 safe file-by-file reversion avoiding `git reset --hard` / `git clean -fd`.
+    4. REQ-BLOCK-4 (Deterministic Pre-Test AST Syntax Gate): `ast.parse()` on all modified Python files before test command dispatch; syntax errors fail fast.
+    5. REQ-BLOCK-5 (Substrate Integration & Canonical 23-Tool Registry Invariant): 4 developer capabilities registered across registry, resolver, and policy engine; canonical 23-tool registry invariant strictly preserved.
+    6. REQ-BLOCK-6 (Rule-0 Hard Invariant Defense): Stage 0 Rule-0 command scanning on `test_commands`; protected system path blocking on `repo_path`; inviolability under `user_confirmed=True`.
+    7. REQ-BLOCK-7 (Decoupled Mock & Non-Switching Boundary): Decoupled `AgyRunner` ABC; `MockAgyRunner` enabling 100% offline tests; all 25 unit tests and 364 full repository tests passing; `omni_agent.py` and `omni_engine/planner.py` 100% untouched (0 diffs).
+    8. Hard Stop Boundary Check: PR strictly ends at Phase R5; zero code or stubs for L10–L14.
+
+---
+
+### 5. Verification & Test Evidence
+- **R5 Unit & Integration Test Suite (`tests/test_r5_developer.py`)**:
+  - `Ran 25 tests in 17.33s`: **25 passed, 0 failed (100% pass rate)**.
+- **Full Repository Test Suite Across All Checkpoints (L0–L9 + Foundation Gate + R1 + R2 + R3 + R4 + R5)**:
+  - `Ran 364 tests in 233.91s`: **364 passed (+ 47 subtests = 411 total checks), 0 failures, 0 errors, 2 warnings (100% pass rate)**.
+- **Non-Switching Boundary**:
+  - `git diff HEAD omni_agent.py omni_engine/planner.py` returns **0 diffs**.
+- **Canonical Registry Invariant**:
+  - `build_canonical_registry()` returns exactly 23 source capabilities.
+
+---
+
+## MILESTONE COMPLETION: Real Capability Engines (Foundation Gate + R1 → R5)
+
+With the successful completion and verification of Phase R5, the entire **Real Capability Engines** milestone is officially complete:
+1. **Foundation Gate**: System One Broker, User Model Sovereignty (`USER_LOCKED`, `USER_PREFERRED`, `AUTO`), Two-Level Concurrency Locks, Windows RAM Telemetry, Empirical Calibration (72/31 split, ECE 0.1192).
+2. **Phase R1 (Deep Research Engine)**: Multi-source web extraction, Cryptographic Citation Hash Verification (`[UNVERIFIED_CITATION: <id>]`), Mathematical Saturation Stopping, Prompt-Injection Sanitization (NFKC, control char stripping, boundary tags), Offline Mocking.
+3. **Phase R2 (Real Browser Engine)**: Playwright persistent context (`~/.laya/browser_profile`), stale singleton lock recovery, `@1..@N` dynamic indexed action space with semantic fingerprints, pre-execution staleness validation, physical evidence receipts (`dom_mutated`, `input_value`, `url_changed`), hard financial confirmation gate.
+4. **Phase R3 (Windows Desktop & Local Service Engine)**: Win32 safe window management (Alt-key foreground rights claim, `IsHungAppWindow` check, non-blocking `ShowWindowAsync`), process trampoline resolution (HWND baseline diffing + child tree traversal), dual-stack local service health prober (SO_LINGER, proxy bypass), Rule-0 critical OS process termination protection (`csrss`, `lsass`, PID 0/4).
+5. **Phase R4 (n8n Automation Engine)**: Programmatic n8n v1 REST engine, strict Draft-Test-Validate Gate Triad (`active=False` default, valid DAG, test execution receipt for exact hash, zero secrets), 3-level nested schema resolution, multi-pattern SecretScrubber, Wait node breakout in polling, two-tier RCE and Stage 0 command policy defense.
+6. **Phase R5 (Developer Agent & Antigravity Engine)**: Foreman 5-stage bounded supervision lifecycle, composite SHA-256 state fingerprinting for thrashing/oscillation cycle detection, `DeterministicSubprocessRunner` with Windows `CREATE_NEW_PROCESS_GROUP`, `taskkill /F /T /PID` process-tree termination, 50k char output truncation, `WorkspaceConfiner` validating `.git` and preventing path traversal, anti-tampering on test suites (`allow_test_edits=False`), fail-fast AST syntax gate, safe reversion primitive (never `git reset --hard` / `git clean -fd`), decoupled `AgyRunner` ABC (`SubprocessAgyRunner`, `MockAgyRunner`).
+
+**Cumulative Verification Metrics**:
+- **364 automated tests passing + 47 subtests = 411 verified test checks (100% pass rate)**.
+- **0 regressions across L0–L9 and R1–R5**.
+- **0 diffs in legacy execution paths (`omni_agent.py`, `omni_engine/planner.py`)**.
+- **Hard Stop Boundary Strictly Enforced**: Zero advance code for L10–L14. Ready for Phase IV (Persistent Quest Engine & DAG Planning).

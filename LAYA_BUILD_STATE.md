@@ -1,10 +1,10 @@
 # LAYA_BUILD_STATE.md — Current Ground Truth State
 
-**Last Updated**: 2026-09-24T22:05:00+05:30  
+**Last Updated**: 2026-09-24T22:30:00+05:30  
 **Current Branch**: `laya-autonomous-v2`  
-**Active Milestone Goal**: `Real Capability Engines: Foundation Gate (COMPLETE) → Phase R1: Deep Research Engine (COMPLETE & VERIFIED) → Phase R2: Real Browser Engine (COMPLETE & VERIFIED) → Phase R3: Windows Desktop, App & Local Service Engine (COMPLETE & VERIFIED) → Phase R4: n8n Automation Engine (COMPLETE & VERIFIED) → Phase R5: Developer Agent / Antigravity Engine (ACTIVE)`  
-**Last Passing Test Suite**: All 18 test files across L0–L9 + Foundation Gate + R1 + R2 + R3 + R4:
-`tests/test_l0_baselines.py`, `tests/test_l1_repairs.py`, `tests/test_l2_contracts.py`, `tests/test_l2_1_reconciliation.py`, `tests/test_l3_capabilities.py`, `tests/test_l4_providers.py`, `tests/test_l5_decision_fabric.py`, `tests/test_l6a_routing.py`, `tests/test_l7_skills.py`, `tests/test_l6b_skill_routing.py`, `tests/test_l7_5_calibration.py`, `tests/test_l8_arguments.py`, `tests/test_l9_policy.py`, `tests/test_foundation_broker.py`, `tests/test_r1_research.py`, `tests/test_r2_browser.py`, `tests/test_r3_desktop.py`, `tests/test_r4_n8n.py` (**339/339 passed in 214.99s, 47 subtests passed = 386 total (100% pass rate)**)  
+**Active Milestone Goal**: `Real Capability Engines: Foundation Gate (COMPLETE) → Phase R1: Deep Research Engine (COMPLETE & VERIFIED) → Phase R2: Real Browser Engine (COMPLETE & VERIFIED) → Phase R3: Windows Desktop, App & Local Service Engine (COMPLETE & VERIFIED) → Phase R4: n8n Automation Engine (COMPLETE & VERIFIED) → Phase R5: Developer Agent / Antigravity Engine (COMPLETE & VERIFIED) — MILESTONE COMPLETE`  
+**Last Passing Test Suite**: All 19 test files across L0–L9 + Foundation Gate + R1 + R2 + R3 + R4 + R5:
+`tests/test_l0_baselines.py`, `tests/test_l1_repairs.py`, `tests/test_l2_contracts.py`, `tests/test_l2_1_reconciliation.py`, `tests/test_l3_capabilities.py`, `tests/test_l4_providers.py`, `tests/test_l5_decision_fabric.py`, `tests/test_l6a_routing.py`, `tests/test_l7_skills.py`, `tests/test_l6b_skill_routing.py`, `tests/test_l7_5_calibration.py`, `tests/test_l8_arguments.py`, `tests/test_l9_policy.py`, `tests/test_foundation_broker.py`, `tests/test_r1_research.py`, `tests/test_r2_browser.py`, `tests/test_r3_desktop.py`, `tests/test_r4_n8n.py`, `tests/test_r5_developer.py` (**364/364 passed in 233.91s, 47 subtests passed = 411 total (100% pass rate)**)  
 **Mission Role**: Complete Standalone Autonomous Operating Agent.
 
 ---
@@ -141,6 +141,16 @@ The repository contains a standalone prototype CLI (`laya_agent.py` / `omni_engi
     - **Capability Substrate Integration**: Registered 7 canonical n8n specs, adapters, and dotless aliases in `build_real_capability_registry()`, preserving 23-tool canonical registry. Mapped in `ArgumentResolver` and `PolicyEngine`.
     - **Adversarial Diff Review**: **PASS (100% compliant with all 7 blocking requirements and repository operating invariants)** (Subagent `901d60b3-003c-4854-9d3c-b76bed8c4f44`).
     - **Comprehensive Test Suite**: Created `tests/test_r4_n8n.py` (25 unit and integration tests, 100% pass rate in 4.72s). Full repository suite: **339/339 passed in 214.99s (+ 47 subtests = 386 total)**.
+20. **Checkpoint R5 Milestone Reached (Supervised Developer Agent & Antigravity Engine)**:
+    - **ADR & Architecture**: Created `docs/research/ADR_R5_DEVELOPER_AGENT.md` adopting Foreman 5-stage bounded supervision lifecycle, composite SHA-256 state fingerprint thrashing detection, process-tree containment, git workspace confinement, anti-tampering on test suites, fail-fast AST syntax gate, and safe file-by-file reversion primitive. Status: **ACCEPTED**.
+    - **Typed Developer Contracts**: Created `omni_engine/contracts/developer.py` with `ConvergenceStatus`, `DevTaskSpec`, `CodeVerificationReceipt`, `DevExecutionReceipt`, and `DevActionResult`.
+    - **Deterministic Subprocess Runner**: Implemented `DeterministicSubprocessRunner` in `omni_engine/developer/process_runner.py` with Windows `CREATE_NEW_PROCESS_GROUP`, `communicate(timeout=...)` deadlock defense, `taskkill /F /T /PID` process-tree termination, quote-stripping argument parser, and 50k character output truncation.
+    - **Git Workspace Confiner & Safe Reverter**: Implemented `WorkspaceConfiner` in `omni_engine/developer/workspace.py` validating `.git` existence, blocking protected OS roots (`is_protected_path`), verifying path containment via `is_relative_to` and `commonpath`, blocking test file tampering when `allow_test_edits=False`, and performing safe file-by-file revert (`git checkout -- <file>`, `os.remove` for untracked files) strictly avoiding destructive `git reset --hard` or `git clean -fd`.
+    - **Decoupled Antigravity Runner**: Implemented `AgyRunner` (ABC), `SubprocessAgyRunner` (local `agy.exe`), and `MockAgyRunner` (fast offline simulation) in `omni_engine/developer/runner.py`.
+    - **Foreman Developer Supervisor Engine**: Implemented `DeveloperSupervisorEngine` in `omni_engine/developer/engine.py` coordinating the 5-stage lifecycle: Setup/Baseline -> Mutation -> Syntax Gate -> Test -> Convergence / Reversion.
+    - **Capability Substrate Integration**: Registered 4 developer capability specs (`developer.run_task`, `developer.run_tests`, `developer.git_diff`, `developer.inspect_code`) and dotless aliases in `build_real_capability_registry()`, preserving 23-tool canonical registry. Mapped in `ArgumentResolver` and `PolicyEngine`.
+    - **Adversarial Diff Review**: **PASS (100% compliant with all 7 blocking requirements and repository operating invariants)** (Subagent `fb7ba688-2887-47fa-811d-d25dbe922f53`).
+    - **Comprehensive Test Suite**: Created `tests/test_r5_developer.py` (25 unit and integration tests, 100% pass rate in 17.33s). Full repository suite: **364/364 passed in 233.91s (+ 47 subtests = 411 total checks)**.
 
 ---
 
@@ -176,6 +186,10 @@ The repository contains a standalone prototype CLI (`laya_agent.py` / `omni_engi
 | **dev** | `directory_tree` | `tool_directory_tree` | `READ_ONLY` | `ADVISOR` | `NEVER` | `SAFE_READ_RETRY` | `READ_ONLY` |
 | **dev** | `run_python` | `tool_run_python` | `SYSTEM_ACTION` | `LOCAL_OPERATOR` | `ALWAYS` | `NEVER` | `NON_IDEMPOTENT` |
 | **dev** | `git_status` | `tool_git_status` | `READ_ONLY` | `ADVISOR` | `NEVER` | `SAFE_READ_RETRY` | `READ_ONLY` |
+| **dev** | `developer.run_task` | `DeveloperSupervisorEngine` | `LOCAL_WORKSPACE` | `TRUSTED_OPERATOR` | `POLICY_CONTROLLED` | `NEVER` | `NON_IDEMPOTENT` |
+| **dev** | `developer.run_tests` | `DeveloperSupervisorEngine` | `LOCAL_WORKSPACE` | `LOCAL_OPERATOR` | `POLICY_CONTROLLED` | `NEVER` | `NON_IDEMPOTENT` |
+| **dev** | `developer.git_diff` | `DeveloperSupervisorEngine` | `NONE` | `ADVISOR` | `NEVER` | `SAFE_READ_RETRY` | `READ_ONLY` |
+| **dev** | `developer.inspect_code` | `DeveloperSupervisorEngine` | `NONE` | `ADVISOR` | `NEVER` | `SAFE_READ_RETRY` | `READ_ONLY` |
 | **automation** | `n8n.list_workflows` | `N8nClient.list_workflows` | `NONE` | `ADVISOR` | `NEVER` | `SAFE_READ_RETRY` | `READ_ONLY` |
 | **automation** | `n8n.get_workflow` | `N8nClient.get_workflow` | `NONE` | `ADVISOR` | `NEVER` | `SAFE_READ_RETRY` | `READ_ONLY` |
 | **automation** | `n8n.validate_workflow` | `N8nWorkflowValidator.validate` | `NONE` | `ADVISOR` | `NEVER` | `SAFE_READ_RETRY` | `READ_ONLY` |
@@ -191,7 +205,7 @@ The repository contains a standalone prototype CLI (`laya_agent.py` / `omni_engi
 
 ## 3. Test Suite & Health Metrics Breakdown
 
-- **Total Automated Tests**: 339 tests (+ 47 subtests = 386 total)
+- **Total Automated Tests**: 364 tests (+ 47 subtests = 411 total checks)
   - **L0 Baseline Tests**: 10 passed
   - **L1 & L1.1 Memory and Math Tests**: 12 passed
   - **L2 Contracts Tests**: 18 passed
@@ -210,28 +224,22 @@ The repository contains a standalone prototype CLI (`laya_agent.py` / `omni_engi
   - **Phase R2 Real Browser Tests**: 15 passed
   - **Phase R3 Desktop Engine Tests**: 21 passed
   - **Phase R4 n8n Automation Engine Tests**: 25 passed
-- **Pass Rate**: 100% (339 passed, 0 failed, 0 errors, 47 subtests passed).
-- **Runtime**: ~214s across full test suite.
+  - **Phase R5 Developer Agent Tests**: 25 passed
+- **Pass Rate**: 100% (364 passed, 0 failed, 0 errors, 47 subtests passed).
+- **Runtime**: ~233s across full test suite.
 
 ---
 
 ## 4. Current Blockers
 
-- **None**. Phase R4 is complete, verified, and passing 100% of automated tests.
+- **None**. All Real Capability Engines (Foundation Gate + R1–R5) are complete, verified, and passing 100% of automated tests.
 
 ---
 
-## 5. Next Checkpoint Scope: Phase R5 (Developer Agent / Antigravity Engine)
+## 5. Completed Milestone & Next Phase Scope
 
-Within active goal `Real Capability Engines: R1 → R5`:
-- Active Phase: **R5 — Developer Agent / Antigravity Engine**
-- Core Objectives for R5:
-  1. Complete technology audit and research gate in `docs/research/ADR_R5_DEVELOPER_AGENT.md`.
-  2. Implement Antigravity CLI adapter (`agy`) and Foreman-style supervisor architecture.
-  3. Implement strongly typed developer contracts (`omni_engine/contracts/developer.py`): `DevTaskSpec`, `DevExecutionReceipt`, `CodeVerificationReceipt`.
-  4. Implement developer supervisor engine (`omni_engine/developer/engine.py`) with Plan → Inspect → Edit → Verify → Review loop.
-  5. Enforce Rule-0 process defense (no `git reset --hard`, no `git clean -fd`) and strict workspace path confinement.
-  6. Register developer capabilities in `definitions.py`, `build_real_capability_registry()`, `resolver.py`, and `policy/engine.py`.
-  7. End-to-end isolated fixture acceptance test in `tests/test_r5_developer.py` running 100% offline.
-  8. **HARD STOP AFTER R5**: Under NO circumstances proceed to Quest (L10) or Planner (L12).
+Within roadmap `Real Capability Engines: R1 → R5`:
+- **Status**: **COMPLETE & FULLY VERIFIED**
+- **Hard Stop Boundary**: **STRICTLY ENFORCED**. 0 diffs in `omni_agent.py` and `omni_engine/planner.py`. Zero advance code for L10–L14.
+- **Next Milestone**: **Phase IV — Persistent Quest Engine & Structured DAG Planning (Checkpoints L10–L16)**.
 

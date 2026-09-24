@@ -78,6 +78,14 @@ CLARIFICATION_PROMPTS: Dict[str, str] = {
     "n8n_trigger_workflow": "Which n8n workflow ID would you like to trigger?",
     "n8n.get_execution_status": "Which n8n execution ID would you like to check?",
     "n8n_get_execution_status": "Which n8n execution ID would you like to check?",
+    "developer.run_task": "Which repository path and coding instructions should the developer agent execute?",
+    "developer_run_task": "Which repository path and coding instructions should the developer agent execute?",
+    "developer.run_tests": "Which repository path and test commands should be executed?",
+    "developer_run_tests": "Which repository path and test commands should be executed?",
+    "developer.git_diff": "Which repository path would you like to inspect for git changes?",
+    "developer_git_diff": "Which repository path would you like to inspect for git changes?",
+    "developer.inspect_code": "Which repository path and file path would you like to inspect?",
+    "developer_inspect_code": "Which repository path and file path would you like to inspect?",
 }
 
 PARAM_ALIASES: Dict[str, List[str]] = {
@@ -87,6 +95,9 @@ PARAM_ALIASES: Dict[str, List[str]] = {
     "query": ["pattern", "search_term", "sql"],
     "filename": ["save_path", "filepath", "file_path"],
     "save_path": ["filename", "filepath", "path"],
+    "task_prompt": ["prompt", "instructions", "description"],
+    "test_commands": ["test_command", "commands"],
+    "target_files": ["files", "target_file"],
 }
 
 
@@ -357,6 +368,61 @@ class ArgumentResolver:
                 slots["name"] = _slot("name", name_match.group(1).strip(), ArgumentExtractionSource.DETERMINISTIC_REGEX)
             elif quoted:
                 slots["name"] = _slot("name", quoted[0], ArgumentExtractionSource.DETERMINISTIC_REGEX)
+
+        # Developer domain capabilities (Phase R5)
+        elif capability_id in (
+            "developer.run_task",
+            "developer_run_task",
+            "developer.run_tests",
+            "developer_run_tests",
+            "developer.git_diff",
+            "developer_git_diff",
+            "developer.inspect_code",
+            "developer_inspect_code",
+        ):
+            repo_match = re.search(
+                r"""\b(?:repo(?:sitory)?[-_ ]?(?:path)?\s*[:=]?\s*(?:in\s+)?)(?:['"]([^'"]+)['"]|([A-Za-z]:[\\/][^\s'"]+|/[^\s'"]+))""",
+                prompt,
+                re.IGNORECASE,
+            )
+            f_path = extract_file_path(prompt)
+            quoted = re.findall(r"['\"]([^'\"]+)['\"]", prompt)
+            repo_candidate = None
+            if repo_match:
+                repo_candidate = (repo_match.group(1) or repo_match.group(2)).strip()
+            elif quoted:
+                for q in quoted:
+                    if (":" in q or "/" in q or "\\" in q) and not q.endswith(".py") and not q.endswith(".js"):
+                        repo_candidate = q
+                        break
+            elif f_path and (":" in f_path or "/" in f_path or "\\" in f_path):
+                repo_candidate = f_path
+
+            if repo_candidate:
+                slots["repo_path"] = _slot("repo_path", repo_candidate, ArgumentExtractionSource.DETERMINISTIC_REGEX)
+
+            if capability_id in ("developer.inspect_code", "developer_inspect_code"):
+                py_match = re.search(r"([a-zA-Z0-9_\-\\/]+\.[a-zA-Z0-9]+)", prompt)
+                if py_match:
+                    slots["file_path"] = _slot("file_path", py_match.group(1).strip(), ArgumentExtractionSource.DETERMINISTIC_REGEX)
+                elif quoted:
+                    slots["file_path"] = _slot("file_path", quoted[-1], ArgumentExtractionSource.DETERMINISTIC_REGEX)
+
+            if capability_id in ("developer.run_tests", "developer_run_tests"):
+                test_match = re.search(r"(pytest[^\n\r'\"]*|python\s+-m\s+unittest[^\n\r'\"]*)", prompt)
+                if test_match:
+                    slots["test_commands"] = _slot("test_commands", [test_match.group(1).strip()], ArgumentExtractionSource.DETERMINISTIC_REGEX)
+
+            if capability_id in ("developer.run_task", "developer_run_task"):
+                instruct_match = re.search(r"(?:fix|implement|add|refactor|update|task|prompt)[:= ]\s*(.+)", prompt, re.IGNORECASE)
+                if instruct_match:
+                    raw_val = instruct_match.group(1).strip().strip("'\"")
+                    slots["task_prompt"] = _slot("task_prompt", raw_val, ArgumentExtractionSource.DETERMINISTIC_REGEX)
+                elif quoted:
+                    for q in quoted:
+                        if q != repo_candidate:
+                            slots["task_prompt"] = _slot("task_prompt", q, ArgumentExtractionSource.DETERMINISTIC_REGEX)
+                            break
 
         elif capability_id == "list_processes":
             proc = extract_process_name(prompt)

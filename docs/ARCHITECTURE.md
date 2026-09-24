@@ -105,3 +105,32 @@ flowchart TD
 3. **Hierarchical Routing**: Solves tool scalability via `Request → Domain → Skill → Candidate Set → Capability`, eliminating naive flat catalog dumps.
 4. **Evidence-Based Truth**: No action is reported completed without physical verification (file existence, process table check, DOM state).
 5. **Clean Interface Contracts**: Boundaries use clean schemas (`AgentRequest`, `AgentResponse`, `DecisionFrame`, `Quest`, `CapabilitySpec`, `ToolResult`, `ExecutionReceipt`, `VerificationResult`, `AgentEvent`) ensuring future multi-agent interoperability.
+
+---
+
+# SECTION 3: REAL CAPABILITY ENGINES SUBSTRATE (R1 – R5)
+
+The capability layer provides five verified real-world execution substrates executing underneath the typed contracts:
+
+1. **Phase R1: Deep Evidence-Grounded Research Engine (`omni_engine/research/`)**:
+   - Multi-source crawl, dynamic page extraction with Scrapling/BS4 fallback, and NFKC unicode/control char sanitization.
+   - Mathematical saturation stopping condition ($Y_k \le 0.15$ for 2 rounds) and cryptographic citation verification (`ev_<hash[:10]>`) quarantining unverified claims.
+2. **Phase R2: Real Browser Engine (`omni_engine/browser/`)**:
+   - Persistent isolated Chromium context (`~/.laya/browser_profile`), stale singleton lock recovery, and single-page invariant (`max_pages=1`).
+   - Dynamic indexed action space (`@1..@N`) with semantic fingerprinting and pre-execution staleness validation.
+   - Evidence-based post-action verification receipts (`dom_mutated`, `input_value`, `url_changed`) and hard financial confirmation gating.
+3. **Phase R3: Windows Desktop, App & Local Service Engine (`omni_engine/desktop/`)**:
+   - Safe Win32 activation (menu-key foreground claim, `IsHungAppWindow` pre-check, non-blocking `ShowWindowAsync`).
+   - Process trampoline resolution via HWND baseline diffing and `psutil` child-tree traversal.
+   - Dual-stack loopback service health prober (`SO_LINGER`, isolated proxy bypass).
+   - Inviolable Rule-0 OS process termination protection (`csrss`, `lsass`, PID 0/4).
+4. **Phase R4: Programmatic n8n Automation Engine (`omni_engine/automation/`)**:
+   - Programmatic n8n v1 REST integration enforcing draft mode (`active=False`) on creation.
+   - Strict Draft-Test-Validate Gate Triad: DAG validation (3-color topological DFS), physical test run receipt for current deterministic `workflow_hash`, and multi-pattern SecretScrubber.
+   - Wait node polling breakout preventing thread stall, two-tier RCE and Stage 0 command policy defense.
+5. **Phase R5: Supervised Developer Agent & Antigravity Substrate (`omni_engine/developer/`)**:
+   - Foreman 5-stage bounded supervision lifecycle (Setup -> Mutation -> AST Syntax Gate -> Test -> Convergence/Revert).
+   - Deterministic thrashing & oscillation cycle detection via composite SHA-256 state fingerprinting.
+   - Subprocess process-tree isolation on Windows (`CREATE_NEW_PROCESS_GROUP`, `taskkill /F /T /PID`, 50k char output truncation).
+   - Git workspace confinement validating `.git` and blocking path traversal (`is_relative_to` & `commonpath`).
+   - Inviolable safe reversion primitive (never `git reset --hard` or `git clean -fd`) and anti-tampering on test suites (`allow_test_edits=False`).

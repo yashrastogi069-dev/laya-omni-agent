@@ -64,3 +64,15 @@
 - **Observation**: Autonomous agents frequently attempt to activate unverified or broken workflows, and caching a test run result across subsequent edits creates a critical window where broken or secret-leaking modifications are deployed directly to production.
 - **Principle**: Activation must be blocked unless 3 gates pass: (1) DAG structural validation, (2) Evidence-based physical receipt of successful execution, and (3) Zero plaintext secrets. Any mutation to workflow nodes, connections, credentials, or parameters must compute a new deterministic SHA-256 hash, automatically invalidating any prior execution receipts and strictly forcing re-testing before activation.
 
+## Lesson 17: Windows Subprocess Invocation & `shlex.split` Quote Retention
+- **Observation**: When `shlex.split(cmd_str, posix=False)` splits a command on Windows, outer quotation marks around arguments are retained as literal characters within the tokens (e.g. `['"C:\\Python312\\python.exe"', '-m', ...]`). When `subprocess.Popen` receives a list starting with a literal quote, Windows `CreateProcessW` fails to locate the binary and raises `[WinError 5] Access is denied`.
+- **Principle**: Always strip outer quotation marks from tokens (`[a.strip('"\'') for a in shlex.split(cmd_str, posix=False)]`) before passing command argument lists to `subprocess.Popen`.
+
+## Lesson 18: Deterministic Thrashing Detection via Composite State Fingerprinting
+- **Observation**: Autonomous coding loops frequently fall into oscillation cycles, flipping back and forth between two contradictory edits (e.g. alternating between two variable names or reverting an earlier edit), consuming iteration and timeout budgets without making progress.
+- **Principle**: Compute a composite SHA-256 state fingerprint over the repository `git diff`, sorted modified file names, and raw binary file contents on each iteration. Compare against an iteration history list; if any state fingerprint repeats, abort immediately with `THRASHING_DETECTED` and revert the working tree to the baseline commit.
+
+## Lesson 19: Safe Reversion Must Never Use Destructive Reset Commands (Rule-0)
+- **Observation**: In real-world developer repositories, users frequently have uncommitted exploratory work, scratch files, or unrelated modified files in the working tree. Running `git reset --hard` or `git clean -fd` irrevocably wipes user files outside the task scope, violating safety invariants.
+- **Principle**: Rollbacks must operate file-by-file: inspect tracked files via `git ls-files` and restore them individually with `git checkout -- <rel_path>`, and remove untracked files individually via `os.remove()` only after verifying containment within repository boundaries.
+

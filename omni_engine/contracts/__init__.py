@@ -105,6 +105,13 @@ from .n8n import (
     N8nExecutionReceipt,
     N8nActionResult,
 )
+from .developer import (
+    ConvergenceStatus,
+    DevTaskSpec,
+    CodeVerificationReceipt,
+    DevExecutionReceipt,
+    DevActionResult,
+)
 
 __all__ = [
     # Base
@@ -194,5 +201,11 @@ __all__ = [
     "N8nWorkflowValidationResult",
     "N8nExecutionReceipt",
     "N8nActionResult",
+    # Developer
+    "ConvergenceStatus",
+    "DevTaskSpec",
+    "CodeVerificationReceipt",
+    "DevExecutionReceipt",
+    "DevActionResult",
 ]
 

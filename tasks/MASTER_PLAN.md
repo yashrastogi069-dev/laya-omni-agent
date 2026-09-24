@@ -99,7 +99,7 @@ This guarantees that future multi-agent coordination or supervisor routing can b
   - Inviolable Rule-0 hard invariants (`user_confirmed` strictly ignored), boundary-aware user blacklists, and non-disruptive shadow mode simulation.
   - Unit test suite `tests/test_l9_policy.py` (25 tests, 100% pass rate).
 
-### Phase IIIA: Real Capability Engines (R1 – R5) (ACTIVE MILESTONE)
+### Phase IIIA: Real Capability Engines (R1 – R5) (COMPLETED & VERIFIED)
 - [x] **Foundation Gate — System One Broker, Concurrency Correction & Calibration Truth**:
   - User Model Sovereignty (`USER_LOCKED`, `USER_PREFERRED`, `AUTO`), allowlist enforcement, and task-level overrides.
   - Two-level hierarchical locking (`_MODEL_LIFECYCLE_LOCK` outer, `_INFERENCE_SEMAPHORE` inner) with exclusive permit draining on swaps/evictions.
@@ -116,11 +116,11 @@ This guarantees that future multi-agent coordination or supervisor routing can b
   - ComputerUseDriver (AppWindowManager, WindowsInputDriver, LocalServiceProber), Win32 safe activation and non-blocking foreground rights, process trampoline resolution via HWND baseline diffing and child-tree traversal, dual-stack loopback probing (`127.0.0.1` -> `::1`) with `SO_LINGER`, Rule-0 system process protection, and 100% offline isolated tests. 21/21 tests passing. Total suite: **314 passed**.
 - [x] **R4 — n8n Automation Engine (COMPLETED & VERIFIED)**:
   - Official programmatic n8n REST client, draft-test-validate workflow lifecycle, Gate Triad enforcement, 3-level nested connection schema resolution (bidirectional node IDs & names), 3-color topological cycle detector, SecretScrubber (OpenAI, GitHub, AWS, Bearer/Basic, n8n API keys, private keys, headers), Wait node breakout, RCE & Rule-0 policy defense. 25/25 unit tests passing. Full repository suite: **339 passed (+ 47 subtests = 386 total)**.
-- [ ] **R5 — Developer Agent / Antigravity Engine (ACTIVE)**:
-  - Antigravity CLI adapter (`agy`), Foreman-style supervision, isolated fixture repository acceptance test.
-  - Hard Stop Boundary: STOP AFTER R5. Do NOT proceed to L10-L14.
+- [x] **R5 — Developer Agent / Antigravity Engine (COMPLETED & VERIFIED)**:
+  - Foreman 5-stage bounded supervision lifecycle, composite SHA-256 state fingerprinting for thrashing/oscillation cycle detection, `DeterministicSubprocessRunner` with Windows `CREATE_NEW_PROCESS_GROUP`, `taskkill /F /T /PID` process-tree cleanup, 50k char output truncation, `WorkspaceConfiner` validating `.git` and preventing path traversal, anti-tampering on test suites (`allow_test_edits=False`), fail-fast AST syntax gate, safe reversion primitive (never `git reset --hard` / `git clean -fd`), decoupled `AgyRunner` ABC (`SubprocessAgyRunner`, `MockAgyRunner`). 25/25 unit tests passing in 17.33s. Full repository suite: **364 passed (+ 47 subtests = 411 total checks)**.
+  - Hard Stop Boundary: STOPPED AFTER R5. Ready for Phase IV (L10–L14) in next session.
 
-### Phase IV: Persistent Quest Engine & DAG Execution (L10 – L16)
+### Phase IV: Persistent Quest Engine & DAG Execution (L10 – L16) (NEXT MILESTONE)
 - [ ] **L10 — Persisted SQLite Quest Engine**:
   - Relational SQLite schema for `Quest`, `QuestStep`, and `OperationExecution`.
   - State survival across restarts, crashes, and provider timeouts.

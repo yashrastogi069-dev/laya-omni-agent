@@ -149,6 +149,9 @@ In addition to the 23 source tools, LAYA provides high-level autonomous capabili
 | **automation** | `n8n.activate_workflow` | Promote workflow to active status via Gate Triad enforcement | `LOCAL_UPDATE` | `LOCAL_OPERATOR` | `POLICY_CONTROLLED` | `NON_IDEMPOTENT` |
 | **automation** | `n8n.trigger_workflow` | Trigger workflow execution with polling and Wait node breakout | `SYSTEM_ACTION` | `LOCAL_OPERATOR` | `POLICY_CONTROLLED` | `NON_IDEMPOTENT` |
 | **automation** | `n8n.get_execution_status` | Query execution receipt and node run counts by execution ID | `READ_ONLY` | `ADVISOR` | `NEVER` | `READ_ONLY` |
-| **dev** | `developer.execute_task` | Antigravity CLI introspection adapter & supervised developer agent | `LOCAL_UPDATE` | `LOCAL_OPERATOR` | `POLICY_CONTROLLED` | `NATURAL` |
+| **dev** | `developer.run_task` | Supervised autonomous coding loop with Foreman 5-stage lifecycle, AST gate, thrashing detection | `LOCAL_UPDATE` | `TRUSTED_OPERATOR` | `POLICY_CONTROLLED` | `NON_IDEMPOTENT` |
+| **dev** | `developer.run_tests` | Subprocess test runner with process-tree isolation and Rule-0 command scanning | `SYSTEM_ACTION` | `LOCAL_OPERATOR` | `POLICY_CONTROLLED` | `NON_IDEMPOTENT` |
+| **dev** | `developer.git_diff` | Working tree git diff inspection within validated repository boundaries | `READ_ONLY` | `ADVISOR` | `NEVER` | `READ_ONLY` |
+| **dev** | `developer.inspect_code` | Read source file within repository boundary with path traversal prevention | `READ_ONLY` | `ADVISOR` | `NEVER` | `READ_ONLY` |
 
 

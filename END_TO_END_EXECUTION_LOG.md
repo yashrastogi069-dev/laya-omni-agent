@@ -856,79 +856,214 @@ Key architectural capabilities implemented:
 
 ## [2026-09-24] Checkpoint L9 — Deterministic Policy Engine & Persistent User Constraints
 
-### 1. Adversarial Plan Review
-- **Subagent**: `ab6f7033-a362-43b6-94bf-a0e0417c3aa0` (Read-Only Adversarial Architect).
+### 1. Research & Technical Reconnaissance
+
+Before drafting or implementing the deterministic policy engine, extensive reconnaissance was conducted into repository invariants, Windows OS system boundaries, execution safety patterns, and potential attack vectors:
+
+1. **Prime Directive & Invariant 1 (Deterministic Control)**:
+   - In accordance with `AGENTS.md`, AI models may classify, rank, estimate, propose, plan, generate, or summarize, but models must **NEVER** independently own persistent state transitions, permissions, idempotency, or policy decisions.
+   - The Policy Engine must sit directly between argument resolution (L8) and tool execution (or DAG execution), enforcing deterministic gating before any external side effects occur.
+2. **Hard Invariant Inviolability (Rule-0 Principles)**:
+   - `AGENTS.md` Section 3 explicitly bans destructive Git operations (`git reset --hard`, `git clean -fd`, force-pushing remote branches) and unconfirmed high-risk mutations.
+   - Core Principle: A hard system invariant violation must be an **absorbing terminal `DENY`**. Even if the caller passes `user_confirmed=True`, destructive commands targeting system roots, repository wiping, or critical OS processes must remain unconditionally rejected.
+3. **Windows OS Path Canonicalization Realities**:
+   - `pathlib.Path.resolve()` on Windows produces extended-length device prefixes (e.g. `\\?\C:\Windows\System32`). Standard string comparisons like `path.startswith("C:\\Windows")` silently evaluate to `False` if the `\\?\` prefix is not systematically handled.
+   - Windows administrative shares (`\\localhost\admin$`) map directly to `%SystemRoot%` (`C:\Windows`), while `\\localhost\c$` maps to `C:\`. Without administrative share translation, targeting `\\localhost\admin$\System32` creates an immediate directory traversal bypass.
+   - 8.3 short name aliasing (e.g. `C:\PROGRA~1` resolving to `C:\Program Files`) requires filesystem normalization when files exist.
+   - **SMB Discovery Latency Pitfall**: Passing UNC paths starting with `\\` into `pathlib.Path.resolve()` triggers Windows network provider SMB/NetBIOS discovery. If the host is unreachable or fictional (e.g. `\\remote_host\share`), `resolve()` blocks the calling thread for 30–40 seconds waiting for network timeouts. To maintain the sub-1ms evaluation SLA, UNC paths must be normalized statically rather than through network resolution.
+4. **Shell & Command Injection Variations**:
+   - Git commands exhibit diverse syntax and flag orderings:
+     - `git reset --hard` vs `git reset HEAD~1 --hard` vs `git reset origin/main --hard`.
+     - `git clean -fd` vs `-df` vs separated `-f -d` vs `-d -f` vs combined `-xdf` / `-dxf`.
+     - `git push -f` vs `--force` vs `--force-with-lease` vs `+<refspec>` force pushes.
+   - PowerShell native destructive cmdlets:
+     - `Remove-Item -Recurse -Force C:\` and shorthand aliases `ri -r -fo C:\`, `rm -r C:\`.
+     - `Format-Volume C:` and `format c:`.
+     - `Stop-Process -Name csrss` / `Stop-Process -Id 4`.
+5. **Autonomy Profile Hierarchy & Confirmation Policies**:
+   - Centralized ranking: `ADVISOR (1) < SAFE_ASSISTANT (2) < LOCAL_OPERATOR (3) < TRUSTED_OPERATOR (4) < WORKFLOW_AUTHORIZED (5)`.
+   - `ADVISOR` is strictly read-only: mutating actions (`LOCAL_CREATE`, `LOCAL_UPDATE`, `LOCAL_DELETE`, `SYSTEM_ACTION`, etc.) cannot execute under `ADVISOR`, even with interactive confirmation.
+   - Confirmation Policies:
+     - `NEVER`: Always permitted if autonomy allows.
+     - `ALWAYS`: Unconditionally mandates interactive confirmation before execution.
+     - `POLICY_CONTROLLED`: Triggers confirmation if the action is destructive, has high risk (>= 0.70), or falls into high-risk action classes (`LOCAL_DELETE`, `EXTERNAL_DELETE`, `EXTERNAL_SEND`, `SECURITY_SENSITIVE`, `FINANCIAL`) under lower autonomy tiers.
+
+---
+
+### 2. Adversarial Plan Review
+
+- **Review Subagent**: `ab6f7033-a362-43b6-94bf-a0e0417c3aa0` (Read-Only Adversarial Architect).
+- **Plan Reviewed**: Checkpoint L9 Architecture covering `omni_engine/contracts/policy.py`, `omni_engine/policy/rules.py`, `omni_engine/policy/store.py`, `omni_engine/policy/engine.py`, and `tests/test_l9_policy.py`.
 - **Verdict**: **Conditional GO** with 5 mandatory architectural requirements:
-  1. Rec-1: Path Canonicalization Robustness (UNC, `\\?\`, forward/back slashes, case-insensitivity, 8.3 short names, `%ENV%`).
-  2. Rec-2: Inviolability of Hard Invariants (Rule-0: `DENY` is absorbing; `user_confirmed=True` strictly cannot override hard system rules).
-  3. Rec-3: Sub-1ms Latency SLA (static set lookup for protected processes to avoid slow psutil process enumeration).
-  4. Rec-4: PolicyStore crash resilience & atomic swap (`RLock`, atomic write via `.tmp` and `os.replace`, `.corrupt` quarantine).
-  5. Rec-5: Shadow Mode explicit representation (records `shadow_mode=True`, `shadow_original_effect` in metadata).
+  1. **Rec-1 (Path Canonicalization Robustness)**: Strip extended prefixes (`\\?\`, `\\?\UNC\`, `\\.\`), handle forward/back slashes, expand `%ENV%` and `~`, convert localhost UNC admin/drive shares, and strictly avoid network SMB hangs.
+  2. **Rec-2 (Inviolability of Hard Invariants)**: `DENY` must be an absorbing terminal state. Tier-0 hard system rules (`git reset --hard`, destructive drive formatting, critical OS process termination) must NEVER be overridden by `user_confirmed=True`.
+  3. **Rec-3 (Sub-1ms Latency SLA)**: Avoid process iteration (`psutil`/`wmi`) during routine policy checks. Use static O(1) set lookups for critical processes.
+  4. **Rec-4 (PolicyStore Crash Resilience)**: Thread safety via `threading.RLock()`, atomic file writes via temporary file swap (`.tmp.{pid}` -> `os.replace`), and automatic `.corrupt.<timestamp>` file quarantining on corrupt JSON.
+  5. **Rec-5 (Shadow Mode Telemetry)**: When `LAYA_V2_MODE="shadow"`, simulate `ALLOW` for non-hard-invariants while populating diagnostic telemetry (`shadow_mode=True`, `shadow_original_effect`, `shadow_matched_rules`, `shadow_denial_reason`).
 
-### 2. Implementation Deliverables
-- **Contracts (`omni_engine/contracts/policy.py`)**:
-  - `PolicyEffect` (Enum: `ALLOW`, `REQUIRE_CONFIRMATION`, `DENY`, `QUARANTINE`).
-  - `ActionAssessment`: Detailed risk analysis of proposed invocation (`action_class`, `autonomy_required`, `blast_radius`, `is_destructive`, `is_reversible`, `sensitive_targets`, `risk_score`).
-  - `PolicyRule`: Declarative persistent rule contract (`rule_id`, `name`, `description`, `effect`, `match_criteria`, `priority`, `is_active`).
-  - `PolicyDecision`: Output envelope with Pydantic `@model_validator` enforcing logical consistency between `allowed`, `effect`, `denial_reason`, and `confirmation_prompt`.
-- **Enum Centralization (`omni_engine/contracts/enums.py`)**:
-  - Added `AUTONOMY_RANK`: `ADVISOR` (1), `SAFE_ASSISTANT` (2), `LOCAL_OPERATOR` (3), `TRUSTED_OPERATOR` (4), `WORKFLOW_AUTHORIZED` (5).
-- **System Rules & Safety Boundaries (`omni_engine/policy/rules.py`)**:
-  - `canonicalize_path`: Strips `\\?\`, `\\?\UNC\`, `\\.\` prefixes early, resolves `\\localhost\admin$` (to `%SystemRoot%` `C:\Windows`) and `\\localhost\<drive>$` (to `<drive>:\`), and normalizes network UNC paths statically to prevent SMB RPC hangs.
-  - `is_protected_path`: Blocks root drives, Windows system directories (`C:\Windows`, `System32`), Program Files, `.ssh`, `.env`, and private key extensions.
-  - `is_protected_process`: Static O(1) set lookup blocking PIDs 0/4 and critical services (`csrss`, `lsass`, `smss`, `services`, `winlogon`).
-  - `scan_embedded_commands`: Regex scanner blocking all forbidden git operations (`git reset <ref> --hard`, all `git clean` flag permutations like `-fd`, `-df`, `-xdf`, `-f -d`, `git push -f`, `git push origin +main`) and PowerShell root wipes (`Remove-Item -Recurse -Force C:\`).
-- **Crash-Resilient Policy Store (`omni_engine/policy/store.py`)**:
-  - Thread-safe `RLock` guarding custom rules.
-  - Atomic disk persistence via temporary file swap (`.tmp.{pid}` -> `os.replace`).
-  - Automatic `.corrupt.<timestamp>` file quarantine and graceful in-memory recovery.
-- **Deterministic Policy Engine (`omni_engine/policy/engine.py`)**:
-  - Multi-stage deterministic evaluation pipeline executing in ~0.15ms warm:
-    - Stage 0: Rule-0 Hard Invariants (`user_confirmed` strictly ignored).
-    - Stage 1: Persistent User Blacklists (boundary-aware matching preventing false-positive prefix collisions).
-    - Stage 2: Autonomy Profile Gating (ADVISOR read-only floor, elevation gating).
-    - Stage 3: Confirmation Policy Gating (ALWAYS, POLICY_CONTROLLED high-risk).
-    - Stage 4: Baseline Permitted / Non-disruptive Shadow Mode simulation.
+---
 
-### 3. Adversarial Diff Review & Root Cause Remediation
-- **Adversarial Diff Review 1**:
-  - Conducted by subagent `b8ecedc3-4acd-4392-9f25-16ca29461ee1`.
-  - Uncovered 5 critical security/bypass defects:
-    1. `git clean -df` and separated `-f -d` bypassed regex expecting `f` before `d`.
-    2. `git push -f` and `git push origin +main` bypassed regex expecting `--force`.
-    3. `git reset HEAD~1 --hard` bypassed regex expecting `--hard` immediately after `reset`.
-    4. `\\localhost\admin$\System32` bypassed System32 protection.
-    5. Extended UNC root drive `\\?\UNC\localhost\c$` bypassed root drive detection.
-    6. Directory prefix substring collision (`C:\data` blocking `C:\database\test.txt`).
-    7. Unhandled UNC network share resolution hang in `Path.resolve()`.
-    8. Missing unit tests for Shadow Mode and store corruption recovery.
-  - Initial Verdict: **FAIL ❌**.
-- **Root-Cause Remediation**:
-  - Early prefix stripping and UNC admin$/drive$ share resolution in `canonicalize_path`.
-  - Static normalization of network UNC paths, eliminating SMB network hangs.
-  - Hardened embedded command regexes in `rules.py` covering all git flag permutations and PowerShell root wipes (`Remove-Item -Recurse -Force C:\`).
-  - Boundary-aware path matching in `engine.py`.
-  - Expanded `tests/test_l9_policy.py` from 18 to 25 unit tests covering all edge cases, shadow mode, corrupt quarantine, and prefix boundaries.
-- **Adversarial Diff Review 2 (Re-evaluation)**:
-  - Conducted by subagent `0f038fb7-f33b-47c1-864c-1fcd56e1a540`.
-  - Verified all 10 remediation and contract requirements.
-  - Final Verdict: **PASS ✅**.
+### 3. Implementation Deliverables & Code Changes
 
-### 4. Verification & Evidence
-- **L9 Unit Test Suite**:
-  `python -m unittest tests/test_l9_policy.py -v`
-  **25 / 25 passed in 0.269s (100% pass rate)**.
-- **Deterministic Latency Microbenchmark**:
-  Warm evaluation latency = **~0.15 ms**, well under the 1.0 ms SLA and orders of magnitude below 35ms System 1 threshold.
-- **Combined L8 & L9 Test Suite**:
-  `python -m unittest tests/test_l8_arguments.py tests/test_l9_policy.py -v`
-  **51 / 51 passed in 0.158s (100% pass rate)**.
-- **Full Repository Regression Suite**:
-  `python -m unittest discover tests`
-  **232 / 232 passed in 320.19s (+ 47 subtests = 279 total, 100% pass rate)**.
-- **Preservation of Non-Switching Boundary**:
-  `git diff HEAD omni_agent.py omni_engine/planner.py`
-  0 diffs against HEAD. Legacy execution flow is untouched and operational.
+#### A. Typed Policy Contracts (`omni_engine/contracts/policy.py`)
+Created strongly typed Pydantic models inheriting `BaseContractModel` (`extra="forbid"`, `validate_assignment=True`):
+- `PolicyEffect` (str, Enum):
+  - `ALLOW`: Permitted to execute.
+  - `REQUIRE_CONFIRMATION`: Requires interactive human confirmation.
+  - `DENY`: Strictly blocked from execution.
+  - `QUARANTINE`: Action quarantined due to policy violation or security concern.
+- `ActionAssessment`:
+  - `capability_id: str`, `action_class: ActionClass`, `autonomy_required: AutonomyProfile`, `is_destructive: bool`, `is_reversible: bool`, `blast_radius: str`, `sensitive_targets: List[str]`, `risk_score: float` [0.0, 1.0].
+- `PolicyRule`:
+  - `rule_id: str`, `name: str`, `description: str`, `effect: PolicyEffect`, `action_classes: List[ActionClass]`, `forbidden_patterns: List[str]`, `target_paths: List[str]`, `target_domains: List[str]`, `priority: int`, `is_active: bool`.
+- `PolicyDecision`:
+  - `schema_version: str = "1.0.0"`, `request_id: str`, `capability_id: str`, `allowed: bool`, `effect: PolicyEffect`, `matched_rules: List[str]`, `confirmation_prompt: Optional[str]`, `denial_reason: Optional[str]`, `assessment: ActionAssessment`, `latency_ms: float`, `metadata: Dict[str, Any]`.
+  - `@model_validator(mode="after")` enforcing logical consistency:
+    - `allowed=True` strictly requires `effect=ALLOW`.
+    - `effect=DENY` or `QUARANTINE` strictly requires non-empty `denial_reason`.
+    - `effect=REQUIRE_CONFIRMATION` strictly requires non-empty `confirmation_prompt`.
+
+#### B. Enum Centralization (`omni_engine/contracts/enums.py`)
+Centralized autonomy hierarchy mapping:
+```python
+AUTONOMY_RANK: Dict[AutonomyProfile, int] = {
+    AutonomyProfile.ADVISOR: 1,
+    AutonomyProfile.SAFE_ASSISTANT: 2,
+    AutonomyProfile.LOCAL_OPERATOR: 3,
+    AutonomyProfile.TRUSTED_OPERATOR: 4,
+    AutonomyProfile.WORKFLOW_AUTHORIZED: 5,
+}
+```
+
+#### C. Safety Rules & Canonicalization Engine (`omni_engine/policy/rules.py`)
+1. **6-Stage Path Canonicalization (`canonicalize_path`)**:
+   - Stage 1: Strips quotes and surrounding whitespace.
+   - Stage 2: Strips Windows extended-length device prefixes early (`\\?\UNC\`, `\\?\`, `\\.\`).
+   - Stage 3: Expands environment variables (`%WINDIR%`, `%SYSTEMROOT%`) and user home (`~`).
+   - Stage 4: Converts localhost UNC shares:
+     - `\\localhost\admin$\subpath` -> `%SystemRoot%\subpath` (`C:\Windows\subpath`).
+     - `\\localhost\<drive>$\subpath` -> `<drive>:\subpath`.
+   - Stage 5: Resolves path via `pathlib.Path.resolve()`, but bypasses network resolution on paths starting with `\\` or `//` using static `os.path.normpath` to avoid 30s SMB timeouts.
+   - Stage 6: Normalizes separators to standard Windows format and casefolds to lowercase.
+2. **Protected Resource Boundaries (`is_protected_path`)**:
+   - Blocks root filesystem direct targets (`C:\`, `C:`, `/`).
+   - Blocks Windows system directories: `\windows\system32`, `\windows\syswow64`, `\windows\system`, `\windows\regedit.exe`, `\program files`, `\program files (x86)`, `/etc`, `/usr`, `/boot`.
+   - Blocks credential and key files: `.env`, `.env.local`, `id_rsa`, `id_ed25519`, `id_ecdsa`, `known_hosts`, `authorized_keys`, `credentials.json`, `secret.key`, and extensions `.pem`, `.key`, `.pfx`, `.p12`.
+3. **Critical Process Protection (`is_protected_process`)**:
+   - Static O(1) set lookup guarding kernel PIDs (0, 4) and critical system services (`csrss`, `lsass`, `smss`, `services`, `wininit`, `winlogon`, `system`, `system idle process`).
+4. **Embedded Command Scanners (`scan_embedded_commands`)**:
+   - Forbidden Git Operations:
+     - `r"\bgit\s+reset\b[^;\n]*\s+--hard\b"` (catches `git reset <ref> --hard`).
+     - `r"\bgit\s+clean\b[^;\n]*-(?:[a-zA-Z]*f[a-zA-Z]*d|[a-zA-Z]*d[a-zA-Z]*f)\b"` and separated `-f -d` / `-d -f` patterns.
+     - `r"\bgit\s+push\b[^;\n]*(?:--(?:force|delete)\b|-(?:[a-zA-Z]*f|[a-zA-Z]*d)\b|\+[a-zA-Z0-9_/-]+)"`.
+   - Destructive System Commands:
+     - `rmdir /s /q <drive>:\` and `del /s /q <drive>:\`.
+     - `Format-Volume <drive>:` and `format <drive>:`.
+     - `rm -rf /` and `rm -fr /`.
+     - `Remove-Item -Recurse -Force <drive>:\` and aliases `ri -r -fo`, `rm -r`.
+     - `Stop-Process` targeting critical OS services.
+
+#### D. Crash-Resilient Persistent Policy Store (`omni_engine/policy/store.py`)
+- Thread-safe access guarded by `threading.RLock()`.
+- Atomic persistence: Writes JSON to temporary file `.user_policy.json.tmp.{pid}`, calls `f.flush()`, `os.fsync()`, and commits via atomic file swap `os.replace()`.
+- Fault tolerance: If existing JSON file is corrupt, renames file to `user_policy.json.corrupt.<timestamp>`, logs warning, and cleanly resets in-memory rules to empty dict without crashing.
+- Helper methods for user constraints: `block_domain()`, `unblock_domain()`, `block_path()`, `unblock_path()`, `add_rule()`, `remove_rule()`, `get_active_rules()`.
+
+#### E. Deterministic Policy Engine (`omni_engine/policy/engine.py`)
+- Evaluates proposed capability invocations in sub-millisecond latency through 5 sequential deterministic stages:
+  - **Stage 0 (System Hard Invariants — Inviolable)**:
+    - Scans embedded command strings for forbidden git and destructive operations.
+    - Inspects file write targets against protected paths and root drives.
+    - Inspects process termination targets against critical system services.
+    - If violation detected: returns instant terminal `PolicyEffect.DENY`. Caller's `user_confirmed` argument is **strictly ignored** and cannot bypass Stage 0. Hard invariants are also **never converted to ALLOW in shadow mode**.
+  - **Stage 1 (Persistent User Constraints & Blacklists)**:
+    - Evaluates active user rules from `PolicyStore`.
+    - Path matching uses boundary-aware checking (`val_norm == b_norm or val_norm.startswith(b_norm + "\\")`), completely preventing false-positive substring collisions (`C:\data` does NOT match `C:\database\test.txt`).
+    - Domain matching validates requested URLs and hosts against blocked domains.
+  - **Stage 2 (Autonomy Profile Gating)**:
+    - Enforces `ADVISOR` read-only floor: mutating action classes are immediately DENIED under `ADVISOR`.
+    - Compares caller's autonomy tier against `spec.minimum_autonomy_profile`. If autonomy deficit exists and confirmation is not yet provided, returns `REQUIRE_CONFIRMATION`.
+  - **Stage 3 (Confirmation Policy Gating)**:
+    - Evaluates `spec.confirmation_policy`:
+      - `ALWAYS`: Unconditionally requires interactive confirmation if not already confirmed.
+      - `POLICY_CONTROLLED`: Triggers interactive confirmation if action is destructive, has risk >= 0.70, or belongs to high-risk action classes under lower autonomy.
+  - **Stage 4 (Baseline Permitted / Shadow Mode Simulation)**:
+    - Normal execution: returns `PolicyEffect.ALLOW` with diagnostic metadata.
+    - Shadow mode (`LAYA_V2_MODE="shadow"`): Non-disruptively simulates `ALLOW` for non-hard-invariants, while recording `shadow_mode=True`, `shadow_original_effect`, `shadow_matched_rules`, and confirmation prompts in decision metadata.
+
+---
+
+### 4. Adversarial Diff Reviews & Root Cause Remediations
+
+#### Adversarial Diff Review 1 (Initial Implementation Audit)
+- **Reviewer**: Subagent `b8ecedc3-4acd-4392-9f25-16ca29461ee1` (Read-Only Adversarial Reviewer).
+- **Initial Verdict**: **FAIL ❌ (Remediation Required Before Merge)**.
+- **Defects Identified**:
+  1. *`git clean` Regex Flaw*: `r"\bgit\s+clean\s+-[a-zA-Z]*f[a-zA-Z]*d\b"` required `f` before `d`. Standard git flags `git clean -df`, `git clean -f -d`, `git clean -d -f`, `git clean -xdf` bypassed the check.
+  2. *`git push -f` Shorthand Flaw*: `r"\bgit\s+push\s+[^;\n]*--(?:force|delete)\b"` only checked `--force`. Shorthands `git push -f`, `git push origin main -f`, and `git push origin +main` bypassed the check.
+  3. *`git reset <ref> --hard` Ordering Flaw*: `r"\bgit\s+reset\s+--hard\b"` required `--hard` immediately after `reset`. Commands like `git reset HEAD~1 --hard` or `git reset origin/main --hard` bypassed the check.
+  4. *UNC Admin Share Bypass*: `unc_admin_match` only matched `[a-zA-Z]\$`. Administrative share `\\localhost\admin$\System32` bypassed detection and returned `(False, None)`.
+  5. *Extended UNC Root Drive Bypass*: Step order in `canonicalize_path` converted drive shares before stripping `\\?\UNC\`. Input `\\?\UNC\localhost\c$` failed drive share regex and bypassed root drive protection.
+  6. *Path Prefix Substring Collision*: Stage 1 used `val_canon.startswith(blocked)`. Blocking `C:\data` inadvertently blocked `C:\database\test.txt`.
+  7. *Network UNC SMB RPC Latency Hang*: `pathlib.Path.resolve()` on UNC paths caused network discovery hangs up to 30–40s on unreachable hosts.
+  8. *Test Coverage Gaps*: Shadow mode and corrupt store quarantine had 0% unit test coverage (18 tests implemented vs 25+ required).
+
+#### Root Cause Remediation Steps
+1. In `omni_engine/policy/rules.py`:
+   - Stripped extended prefixes (`\\?\UNC\`, `\\?\`, `\\.\`) at Stage 2 before UNC matching.
+   - Added regex support for `admin$` mapping to `%SystemRoot%` (`C:\Windows`) and generalized drive shares.
+   - Replaced network resolution on UNC paths with static `os.path.normpath` normalization.
+   - Hardened `RE_FORBIDDEN_GIT_COMMANDS` to cover all flag permutations (`git reset <ref> --hard`, `-df`, `-fd`, `-f -d`, `-d -f`, `-xdf`, `-f`, `+<ref>`).
+   - Added PowerShell destructive cmdlet patterns (`Remove-Item -Recurse -Force`, `ri -r -fo`, `rm -r`).
+2. In `omni_engine/policy/engine.py`:
+   - Updated Stage 1 path matching to enforce boundary checking: `val_norm == b_norm or val_norm.startswith(b_norm + "\\")`.
+3. In `tests/test_l9_policy.py`:
+   - Added `test_unc_admin_share_and_extended_prefix_protection` verifying `\\localhost\admin$\System32` and `\\?\UNC\localhost\c$`.
+   - Added `test_forbidden_git_command_permutations` and `test_powershell_destructive_commands`.
+   - Added `test_path_boundary_no_false_positives` proving `C:\data` does NOT block `C:\database\file.txt`.
+   - Added `test_corrupt_store_quarantine_recovery` proving `.corrupt` quarantine creation.
+   - Added `TestPolicyEngineShadowMode` class verifying shadow mode telemetry and hard invariant inviolability.
+   - Added `test_git_push_force_denied_even_if_confirmed` and `test_powershell_destructive_wipe_denied_even_if_confirmed`.
+
+#### Adversarial Diff Review 2 (Re-evaluation)
+- **Reviewer**: Independent Subagent `0f038fb7-f33b-47c1-864c-1fcd56e1a540`.
+- **Audit Findings**:
+  - Prefix stripping in `canonicalize_path`: **VERIFIED**
+  - UNC admin & localhost drive share resolution: **VERIFIED**
+  - Extended UNC root drive handling: **VERIFIED**
+  - Network UNC path non-blocking normalization: **VERIFIED**
+  - Embedded command scanner regex coverage: **VERIFIED**
+  - Boundary-aware path matching in Stage 1: **VERIFIED**
+  - Shadow Mode unit tests: **VERIFIED**
+  - Corrupt policy store quarantine & recovery: **VERIFIED**
+  - Unit test suite execution (25/25 passing in 0.173s): **VERIFIED**
+  - Untouched legacy core (0 diffs): **VERIFIED**
+- **Final Verdict**: **PASS ✅**.
+
+---
+
+### 5. Verification & Benchmark Evidence
+
+1. **L9 Policy Engine Unit Test Suite**:
+   Command: `python -m unittest tests/test_l9_policy.py -v`
+   Result: **25 passed, 0 failed, 0 errors in 0.269s (100% pass rate)**.
+2. **Warm Evaluation Latency Benchmark**:
+   - `file_read` path policy check: **0.15 ms** (well below 1.0 ms SLA).
+   - Network UNC path canonicalization: **0.05 ms** (zero SMB network hang).
+   - Command scanner regex evaluation: **0.03 ms**.
+3. **Combined L8 & L9 Verification Suite**:
+   Command: `python -m unittest tests/test_l8_arguments.py tests/test_l9_policy.py -v`
+   Result: **51 passed, 0 failed, 0 errors in 0.158s (100% pass rate)**.
+4. **Full Repository Regression Test Suite**:
+   Command: `python -m unittest discover tests`
+   Result: **232 passed (+ 47 subtests = 279 total), 0 failed, 0 errors in 320.19s (100% pass rate)**.
+5. **Non-Switching Principle Verification**:
+   Command: `git diff HEAD omni_agent.py omni_engine/planner.py`
+   Result: **0 diffs**. Production legacy dispatch is completely untouched.
+6. **Git Commit & Push**:
+   - Commit: [`25d0d5e`](https://github.com/yashrastogi069-dev/laya-omni-agent/commit/25d0d5e)
+   - Message: `feat(l9): Deterministic Policy Engine & Persistent User Constraints`
+   - Pushed cleanly to remote branch `origin/laya-autonomous-v2`.
 
 ---
 
@@ -942,3 +1077,4 @@ The autonomous V2 milestone goal covering **L7.5 (System One Truth, Calibration 
 3. **L9**: Sub-millisecond deterministic policy engine, Rule-0 inviolable hard invariants (`user_confirmed` ignored), boundary-aware user blacklists, autonomy profile floors (ADVISOR read-only floor), confirmation policies (ALWAYS/POLICY_CONTROLLED), and non-disruptive shadow mode simulation.
 4. **Automated Test Suite**: Grown from 165 tests to **232 automated tests (+ 47 subtests = 279 total)**, achieving a **100% pass rate**.
 5. **Strict Boundary Enforced**: Clean halt at Checkpoint L9 boundary. Under no circumstances has Quest persistence (L10), Operation Ledger (L11), Planner (L12), or DAG Executor (L14) been implemented.
+

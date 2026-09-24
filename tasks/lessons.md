@@ -48,3 +48,11 @@
 - **Observation**: In modern Single Page Applications (React/Vue/Angular), DOM nodes are frequently destroyed and replaced during client-side state changes. Relying solely on a transient numeric index (`@1`) risks clicking the wrong target if an element moves or shifts between snapshot capture and action dispatch.
 - **Principle**: Pair transient DOM indices (`@1..@N` stamped with `data-laya-idx`) with semantic fingerprints (tag, role, accessible text). Before executing physical input, verify node attachment and attribute consistency. If a mismatch is detected, halt execution immediately with a structured staleness error rather than firing blind clicks.
 
+## Lesson 13: Windows Launcher Trampolines Mandate HWND Baseline Diffing & Child-Tree Traversal
+- **Observation**: Modern Windows applications (e.g. `calc.exe`, `code.cmd`, UWP/WinUI app wrappers) launch a short-lived bootstrap process that delegates window ownership to another process and terminates immediately with exit code 0. Querying the initial launcher PID for visible HWNDs yields zero windows.
+- **Principle**: Capture the system-wide top-level HWND set immediately prior to process launch (`baseline_hwnds`). When resolving the active window, combine `psutil.Process(launcher_pid).children(recursive=True)` traversal with HWND set diffing (`current_hwnds - baseline_hwnds`) matching window caption substrings or process executable names.
+
+## Lesson 14: Windows Foreground Rights & Hung Windows Mandate Non-Blocking Activation
+- **Observation**: Calling Win32 `SetForegroundWindow` without foreground rights causes the taskbar icon to flash orange rather than activating the window. Calling `AttachThreadInput` to force foreground rights deadlocks the caller if the target thread is unresponsive, blocked on I/O, or displaying a modal message box.
+- **Principle**: Check `IsHungAppWindow(hwnd)` before any activation attempt and abort hung targets immediately. Simulate an innocuous menu key event (`VK_MENU`) to legitimately claim foreground rights without thread attachment. Restore minimized windows via non-blocking `ShowWindowAsync(SW_RESTORE)`, and poll foreground activation asynchronously.
+

@@ -112,9 +112,9 @@ This guarantees that future multi-agent coordination or supervisor routing can b
   - Multi-source discovery, crawl, extraction, dynamic-page fallback (Scrapling -> BS4), evidence normalization, relevance ranking, gap detection, evidence saturation stop, generative synthesis, and cryptographic citation verification.
 - [x] **R2 — Real Browser Engine (COMPLETED & VERIFIED)**:
   - Persistent browser context (`~/.laya/browser_profile`), stale lock recovery, single page invariant (`max_pages=1`), dynamic indexed action space (`@1..@N`), staleness pre-verification, physical evidence receipts (`dom_mutated`, `input_value`, `url_changed`), and hard financial action confirmation gating. 15/15 tests passing.
-- [ ] **R3 — Windows / App / Local-Service Engine (ACTIVE)**:
-  - ComputerUseDriver (WindowsUIADriver, LocalServiceDriver, ShellDriver), structured app/service resolver with port/process checking before execution.
-- [ ] **R4 — n8n Automation Engine**:
+- [x] **R3 — Windows / App / Local-Service Engine (COMPLETED & VERIFIED)**:
+  - ComputerUseDriver (AppWindowManager, WindowsInputDriver, LocalServiceProber), Win32 safe activation and non-blocking foreground rights, process trampoline resolution via HWND baseline diffing and child-tree traversal, dual-stack loopback probing (`127.0.0.1` -> `::1`) with `SO_LINGER`, Rule-0 system process protection, and 100% offline isolated tests. 21/21 tests passing. Total suite: **314 passed**.
+- [ ] **R4 — n8n Automation Engine (ACTIVE)**:
   - Official programmatic n8n MCP/API/Skills integration, draft-test-validate workflow lifecycle, zero leaked secrets.
 - [ ] **R5 — Developer Agent / Antigravity Engine**:
   - Antigravity CLI adapter (`agy`), Foreman-style supervision, isolated fixture repository acceptance test.

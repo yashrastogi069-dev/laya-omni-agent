@@ -84,3 +84,16 @@
   4. **Evidence-Based Post-Action Verification**: Physical state receipts required for every action: in-page `MutationObserver` on `document.body` for clicks (`dom_mutated`), physical `locator.input_value()` inspection for typing, URL transition tracking for navigation, and `window.scrollY` sampling for scrolling.
   5. **Hard Financial Confirmation Gate**: Deterministic Stage 3 `PolicyEngine` enforcement requiring explicit user confirmation (`user_confirmed=True`) for `ActionClass.FINANCIAL` and `financial:*` sensitive targets under all autonomy tiers below `WORKFLOW_AUTHORIZED` (including `TRUSTED_OPERATOR`), reinforced by an intrinsic regex safety gate in `BrowserDriver`.
 
+---
+
+## ADR-010: Windows Desktop, App Lifecycle, and Local Service Engine Architecture
+- **Date**: 2026-09-24
+- **Status**: ACCEPTED
+- **Problem**: Desktop application management and OS interaction on Windows often suffers from thread input attachment deadlocks (`AttachThreadInput`), launcher trampolines (e.g. `calc.exe` or `code.cmd` launching a stub process that exits while a different PID hosts the window), accidental termination of critical OS processes (`csrss`, `lsass`, PID 0/4), TCP port exhaustion during rapid local service probing, and test suites that steal user focus or require installed third-party apps.
+- **Decision**:
+  1. **Safe Window Activation & Deadlock Defense**: Eliminate risky `AttachThreadInput`; verify `ctypes.windll.user32.IsHungAppWindow` before activation; simulate an innocuous Alt menu key event (`VK_MENU`) to claim Windows foreground activation rights; restore minimized windows (`IsIconic`) via non-blocking `ShowWindowAsync(SW_RESTORE)`; and poll asynchronously for foreground activation.
+  2. **Process Trampoline Resolution**: Resolve application launching via pre-launch top-level HWND baseline diffing (`current_hwnds - baseline_hwnds`) combined with `psutil` recursive child process tree traversal. Return strongly typed physical receipts: `launcher_pid`, `active_pid`, `process_name`, `hwnd`, `bounds`, and verification status.
+  3. **Local Service Health Probing**: Implement dual-stack cascade (`127.0.0.1` -> `::1`), `SO_LINGER` to prevent `TIME_WAIT` socket accumulation, dedicated `urllib.request.ProxyHandler({})` opener to bypass host proxy environment variables, bounded 4KB HTTP reads, and strict timeouts (<=500ms socket, <=1500ms HTTP).
+  4. **Rule-0 Process Defense**: Enforce dual-layer protection across `PolicyEngine` Stage 0 and `AppWindowManager` pre-flight checks, unconditionally blocking termination of critical system processes (`csrss`, `lsass`, `smss`, `services`, `wininit`, `winlogon`, `system`, PID 0, PID 4), strictly ignoring human confirmation.
+  5. **Decoupled Backend & Isolated Testing**: Decouple Win32 operations behind `Win32Backend` abstract base class, allowing `tests/test_r3_desktop.py` to run 100% offline, with zero GUI popups and zero focus stealing, in under 1 second via `MockWin32Backend`.
+

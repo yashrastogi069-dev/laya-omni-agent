@@ -1,10 +1,10 @@
 # LAYA_BUILD_STATE.md — Current Ground Truth State
 
-**Last Updated**: 2026-09-24T21:15:00+05:30  
+**Last Updated**: 2026-09-24T21:40:00+05:30  
 **Current Branch**: `laya-autonomous-v2`  
-**Active Milestone Goal**: `Real Capability Engines: Foundation Gate (COMPLETE) → Phase R1: Deep Research Engine (COMPLETE & VERIFIED) → Phase R2: Real Browser Engine (COMPLETE & VERIFIED) → Phase R3: Windows / App / Local-Service Engine (ACTIVE)`  
-**Last Passing Test Suite**: All 16 test files across L0–L9 + Foundation Gate + R1 + R2:
-`tests/test_l0_baselines.py`, `tests/test_l1_repairs.py`, `tests/test_l2_contracts.py`, `tests/test_l2_1_reconciliation.py`, `tests/test_l3_capabilities.py`, `tests/test_l4_providers.py`, `tests/test_l5_decision_fabric.py`, `tests/test_l6a_routing.py`, `tests/test_l7_skills.py`, `tests/test_l6b_skill_routing.py`, `tests/test_l7_5_calibration.py`, `tests/test_l8_arguments.py`, `tests/test_l9_policy.py`, `tests/test_foundation_broker.py`, `tests/test_r1_research.py`, `tests/test_r2_browser.py` (**293/293 passed in 167.37s, 47 subtests passed = 340 total (100% pass rate)**)  
+**Active Milestone Goal**: `Real Capability Engines: Foundation Gate (COMPLETE) → Phase R1: Deep Research Engine (COMPLETE & VERIFIED) → Phase R2: Real Browser Engine (COMPLETE & VERIFIED) → Phase R3: Windows Desktop, App & Local Service Engine (COMPLETE & VERIFIED) → Phase R4: n8n Automation Engine (ACTIVE)`  
+**Last Passing Test Suite**: All 17 test files across L0–L9 + Foundation Gate + R1 + R2 + R3:
+`tests/test_l0_baselines.py`, `tests/test_l1_repairs.py`, `tests/test_l2_contracts.py`, `tests/test_l2_1_reconciliation.py`, `tests/test_l3_capabilities.py`, `tests/test_l4_providers.py`, `tests/test_l5_decision_fabric.py`, `tests/test_l6a_routing.py`, `tests/test_l7_skills.py`, `tests/test_l6b_skill_routing.py`, `tests/test_l7_5_calibration.py`, `tests/test_l8_arguments.py`, `tests/test_l9_policy.py`, `tests/test_foundation_broker.py`, `tests/test_r1_research.py`, `tests/test_r2_browser.py`, `tests/test_r3_desktop.py` (**314/314 passed in 211.05s, 47 subtests passed = 361 total (100% pass rate)**)  
 **Mission Role**: Complete Standalone Autonomous Operating Agent.
 
 ---
@@ -118,6 +118,17 @@ The repository contains a standalone prototype CLI (`laya_agent.py` / `omni_engi
     - **Capability Substrate Integration**: Registered `BROWSER_INTERACT_SPEC` (`action_class=ActionClass.EXTERNAL_UPDATE`, `minimum_autonomy_profile=LOCAL_OPERATOR`) and alias `browser.interact` in `build_real_capability_registry()`. Mapped in `ArgumentResolver`.
     - **Adversarial Diff Review**: **PASS (APPROVED FOR CHECKPOINT R2)** (Subagent `6812beb1-7cd5-4555-8417-90c4aa6fc27b`).
     - **Comprehensive Test Suite**: Created `tests/test_r2_browser.py` (15 unit and integration tests, 100% pass rate in 2.70s). Full repository suite: **293/293 passed in 167.37s (+ 47 subtests = 340 total)**.
+18. **Checkpoint R3 Milestone Reached (Windows Desktop, App & Local Service Engine)**:
+    - **ADR & Technology Audit**: Formally adopted Win32 API (`win32gui`, `win32con`, `win32process`, `win32api`, `ctypes.windll.user32`), `psutil`, `socket`, and `urllib.request` in `docs/research/ADR_R3_WINDOWS_APP_ENGINE.md`.
+    - **Typed Desktop Contracts**: Created `omni_engine/contracts/desktop.py` with `WindowBounds`, `WindowState`, `AppWindowInfo`, `AppLaunchResult`, `ServiceHealthStatus`, and `DesktopActionResult`.
+    - **Safe Window Activation & Deadlock Defense**: Implemented `AppWindowManager` in `omni_engine/desktop/app_manager.py` checking `ctypes.windll.user32.IsHungAppWindow`, simulating menu key event (`VK_MENU`) for foreground rights, restoring minimized windows via `ShowWindowAsync(SW_RESTORE)`, and polling activation asynchronously.
+    - **Process Trampoline Resolution**: Implemented pre-launch baseline HWND diffing (`current_hwnds - baseline_hwnds`) combined with recursive child-tree traversal (`psutil.Process.children(recursive=True)`), returning strongly typed physical receipts (`launcher_pid`, `active_pid`, `hwnd`, `bounds`).
+    - **Local Service Health Probing**: Created `LocalServiceProber` in `omni_engine/desktop/service.py` with loopback dual-stack cascade (`127.0.0.1` -> `::1`), `SO_LINGER` to prevent `TIME_WAIT` socket buildup, dedicated `ProxyHandler({})` opener to bypass host proxy environment traps, bounded 4KB HTTP reads, and strict timeouts (<=500ms socket, <=1500ms HTTP).
+    - **Rule-0 Process Safety Gating**: Expanded `PolicyEngine` Stage 0 to block all critical system processes (`csrss`, `lsass`, `smss`, `services`, `wininit`, `winlogon`, `system`, PID 0, PID 4) across all desktop terminating capabilities (`kill_process`, `desktop.close_window`, `desktop.kill_process`, `desktop.terminate_app`). Reinforced by intrinsic pre-flight inspection in `AppWindowManager`.
+    - **Isolated Input Driver**: Created `WindowsInputDriver` in `omni_engine/desktop/uia_driver.py` with pre-focus verification and non-intrusive `WM_CHAR` character dispatch.
+    - **Capability Substrate Integration**: Registered `desktop.launch_app`, `desktop.list_windows`, `desktop.focus_window`, `desktop.close_window`, `desktop.service_health`, `desktop.send_keys`, and dotless aliases in `build_real_capability_registry()`. Mapped in `ArgumentResolver` and `PolicyEngine`.
+    - **Adversarial Diff Review**: **PASS (APPROVED FOR CHECKPOINT R3)** (Subagent `286fba8a-36f5-4ab6-b993-ab0eb8ad56f3`).
+    - **Comprehensive Test Suite**: Created `tests/test_r3_desktop.py` (21 unit and integration tests, 100% pass rate in 0.953s). Full repository suite: **314/314 passed in 211.05s (+ 47 subtests = 361 total)**.
 
 ---
 
@@ -141,6 +152,12 @@ The repository contains a standalone prototype CLI (`laya_agent.py` / `omni_engi
 | **os** | `clipboard` | `tool_clipboard` | `LOCAL_UPDATE` | `SAFE_ASSISTANT` | `POLICY_CONTROLLED` | `NEVER` | `NATURAL` |
 | **os** | `powershell` | `tool_powershell` | `SYSTEM_ACTION` | `TRUSTED_OPERATOR` | `ALWAYS` | `NEVER` | `NON_IDEMPOTENT` |
 | **os** | `ping_test` | `tool_ping_test` | `READ_ONLY` | `ADVISOR` | `NEVER` | `SAFE_READ_RETRY` | `READ_ONLY` |
+| **os** | `desktop.launch_app` | `AppWindowManager` | `LOCAL_SYSTEM` | `LOCAL_OPERATOR` | `POLICY_CONTROLLED` | `VERIFY_BEFORE_RETRY` | `NON_IDEMPOTENT` |
+| **os** | `desktop.list_windows` | `AppWindowManager` | `NONE` | `ADVISOR` | `NEVER` | `SAFE_READ_RETRY` | `READ_ONLY` |
+| **os** | `desktop.focus_window` | `AppWindowManager` | `LOCAL_SYSTEM` | `LOCAL_OPERATOR` | `NEVER` | `VERIFY_BEFORE_RETRY` | `IDEMPOTENT` |
+| **os** | `desktop.close_window` | `AppWindowManager` | `LOCAL_SYSTEM` | `LOCAL_OPERATOR` | `POLICY_CONTROLLED` | `NEVER` | `NON_IDEMPOTENT` |
+| **os** | `desktop.service_health` | `LocalServiceProber` | `NONE` | `ADVISOR` | `NEVER` | `SAFE_READ_RETRY` | `READ_ONLY` |
+| **os** | `desktop.send_keys` | `WindowsInputDriver` | `LOCAL_SYSTEM` | `LOCAL_OPERATOR` | `POLICY_CONTROLLED` | `NEVER` | `NON_IDEMPOTENT` |
 | **dev** | `file_read` | `tool_file_read` | `READ_ONLY` | `ADVISOR` | `NEVER` | `SAFE_READ_RETRY` | `READ_ONLY` |
 | **dev** | `file_write` | `tool_file_write` | `LOCAL_CREATE` | `LOCAL_OPERATOR` | `POLICY_CONTROLLED` | `VERIFY_BEFORE_RETRY` | `NATURAL` |
 | **dev** | `search_code` | `tool_search_code` | `READ_ONLY` | `ADVISOR` | `NEVER` | `SAFE_READ_RETRY` | `READ_ONLY` |
@@ -155,7 +172,7 @@ The repository contains a standalone prototype CLI (`laya_agent.py` / `omni_engi
 
 ## 3. Test Suite & Health Metrics Breakdown
 
-- **Total Automated Tests**: 293 tests (+ 47 subtests = 340 total)
+- **Total Automated Tests**: 314 tests (+ 47 subtests = 361 total)
   - **L0 Baseline Tests**: 10 passed
   - **L1 & L1.1 Memory and Math Tests**: 12 passed
   - **L2 Contracts Tests**: 18 passed
@@ -172,25 +189,27 @@ The repository contains a standalone prototype CLI (`laya_agent.py` / `omni_engi
   - **Foundation Gate Broker Tests**: 27 passed
   - **Phase R1 Deep Research Tests**: 18 passed
   - **Phase R2 Real Browser Tests**: 15 passed
-- **Pass Rate**: 100% (293 passed, 0 failed, 0 errors, 47 subtests passed).
-- **Runtime**: ~167s across full test suite.
+  - **Phase R3 Desktop Engine Tests**: 21 passed
+- **Pass Rate**: 100% (314 passed, 0 failed, 0 errors, 47 subtests passed).
+- **Runtime**: ~211s across full test suite.
 
 ---
 
 ## 4. Current Blockers
 
-- **None**. Phase R2 is complete, verified, and passing 100% of automated tests.
+- **None**. Phase R3 is complete, verified, and passing 100% of automated tests.
 
 ---
 
-## 5. Next Checkpoint Scope: Phase R3 (Windows / App / Local-Service Engine)
+## 5. Next Checkpoint Scope: Phase R4 (n8n Automation Engine)
 
 Within active goal `Real Capability Engines: R1 → R5`:
-- Active Phase: **R3 — Windows / App / Local-Service Engine**
-- Core Objectives for R3:
-  1. Complete technology audit and research gate in `docs/research/ADR_R3_WINDOWS_APP_ENGINE.md`.
-  2. Implement application lifecycle manager (launch, focus, enumerate windows via Win32 ctypes / psutil).
-  3. Implement local service and health probing (socket check with timeout, HTTP health check on port 5678/11434).
-  4. Implement UI Automation (UIA) driver for window control inspection and safe keystroke/action dispatch.
-  5. Enforce safety policy (prevent terminating OS critical processes, confirmation on destructive process kills).
-  6. Comprehensive test suite `tests/test_r3_desktop.py`.
+- Active Phase: **R4 — n8n Automation Engine**
+- Core Objectives for R4:
+  1. Complete technology audit and research gate in `docs/research/ADR_R4_N8N_AUTOMATION_ENGINE.md`.
+  2. Implement n8n REST API client supporting draft-test-validate workflow lifecycle (`/workflows`, `/executions`, `/credentials`).
+  3. Implement local n8n discovery & health probing via `LocalServiceProber` on port 5678.
+  4. Enforce strict secret isolation and zero leaked secrets in workflow payloads, logs, and prompt contexts.
+  5. Enforce evidence-based execution verification polling terminal execution states.
+  6. Register `n8n.list_workflows`, `n8n.get_workflow`, `n8n.create_workflow`, `n8n.trigger_workflow`, `n8n.get_execution_status` in `CapabilityRegistry`, `PolicyEngine`, and `ArgumentResolver`.
+  7. Comprehensive offline mock test suite `tests/test_r4_n8n.py`.

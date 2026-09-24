@@ -634,10 +634,6 @@ BROWSER_INTERACT_SPEC = CapabilitySpec(
     timeout_seconds=30.0,
 )
 
-REAL_CAPABILITY_SPECS: Dict[str, CapabilitySpec] = {
-    "deep_research": DEEP_RESEARCH_SPEC,
-    "browser_interact": BROWSER_INTERACT_SPEC,
-}
 
 
 def make_deep_research_adapter(engine: Any = None):
@@ -731,15 +727,312 @@ def register_browser_capability(
     registry.register(spec=alias_spec, implementation=adapter)
 
 
+# -----------------------------------------------------------------------
+# Phase R3: Desktop & Local Service Capabilities
+# -----------------------------------------------------------------------
+
+DESKTOP_LAUNCH_APP_SPEC = CapabilitySpec(
+    id="desktop.launch_app",
+    version="1.0.0",
+    name="Desktop Application Launcher",
+    domain="os",
+    description="Launches Windows desktop applications with process trampoline resolution, PID tracking, and window verification.",
+    input_schema={
+        "type": "object",
+        "properties": {
+            "app_name": {"type": "string", "description": "Application name or executable (e.g. 'calc', 'notepad', 'code')"},
+            "args": {"type": "array", "items": {"type": "string"}, "description": "Optional command line arguments"},
+            "timeout": {"type": "number", "default": 3.0, "description": "Startup and window appearance timeout in seconds"},
+        },
+        "required": ["app_name"],
+    },
+    action_class=ActionClass.SYSTEM_ACTION,
+    side_effects=True,
+    minimum_autonomy_profile=AutonomyProfile.SAFE_ASSISTANT,
+    confirmation_policy=ConfirmationPolicy.POLICY_CONTROLLED,
+    retry_policy=RetryPolicy.NEVER,
+    idempotency_class=IdempotencyClass.NON_IDEMPOTENT,
+    timeout_seconds=10.0,
+)
+
+DESKTOP_LIST_WINDOWS_SPEC = CapabilitySpec(
+    id="desktop.list_windows",
+    version="1.0.0",
+    name="Desktop Window Inspector",
+    domain="os",
+    description="Enumerates open visible top-level desktop windows with titles, process IDs, and bounding coordinates.",
+    input_schema={
+        "type": "object",
+        "properties": {
+            "filter_title": {"type": "string", "description": "Optional substring to filter window titles"},
+            "visible_only": {"type": "boolean", "default": True, "description": "Whether to return only visible windows"},
+        },
+    },
+    action_class=ActionClass.READ_ONLY,
+    side_effects=False,
+    minimum_autonomy_profile=AutonomyProfile.ADVISOR,
+    confirmation_policy=ConfirmationPolicy.NEVER,
+    retry_policy=RetryPolicy.SAFE_READ_RETRY,
+    idempotency_class=IdempotencyClass.READ_ONLY,
+    timeout_seconds=5.0,
+)
+
+DESKTOP_FOCUS_WINDOW_SPEC = CapabilitySpec(
+    id="desktop.focus_window",
+    version="1.0.0",
+    name="Desktop Window Focus Controller",
+    domain="os",
+    description="Brings a desktop window to the foreground with hung-app detection and unminimize-only protection.",
+    input_schema={
+        "type": "object",
+        "properties": {
+            "target": {"type": ["integer", "string"], "description": "Window HWND or window title substring"},
+            "timeout": {"type": "number", "default": 0.5, "description": "Focus verification timeout in seconds"},
+        },
+        "required": ["target"],
+    },
+    action_class=ActionClass.LOCAL_UPDATE,
+    side_effects=True,
+    minimum_autonomy_profile=AutonomyProfile.SAFE_ASSISTANT,
+    confirmation_policy=ConfirmationPolicy.NEVER,
+    retry_policy=RetryPolicy.NEVER,
+    idempotency_class=IdempotencyClass.NON_IDEMPOTENT,
+    timeout_seconds=5.0,
+)
+
+DESKTOP_CLOSE_WINDOW_SPEC = CapabilitySpec(
+    id="desktop.close_window",
+    version="1.0.0",
+    name="Desktop Window Closer",
+    domain="os",
+    description="Gracefully closes a desktop window via WM_CLOSE with Rule-0 protected process defenses.",
+    input_schema={
+        "type": "object",
+        "properties": {
+            "target": {"type": ["integer", "string"], "description": "Window HWND or window title substring"},
+            "timeout": {"type": "number", "default": 1.0, "description": "Closure verification timeout in seconds"},
+        },
+        "required": ["target"],
+    },
+    action_class=ActionClass.SYSTEM_ACTION,
+    side_effects=True,
+    minimum_autonomy_profile=AutonomyProfile.LOCAL_OPERATOR,
+    confirmation_policy=ConfirmationPolicy.POLICY_CONTROLLED,
+    retry_policy=RetryPolicy.NEVER,
+    idempotency_class=IdempotencyClass.NON_IDEMPOTENT,
+    timeout_seconds=5.0,
+)
+
+DESKTOP_SERVICE_HEALTH_SPEC = CapabilitySpec(
+    id="desktop.service_health",
+    version="1.0.0",
+    name="Local Service & Port Health Prober",
+    domain="os",
+    description="Probes TCP socket listening status and HTTP endpoint health for local services (e.g. n8n on port 5678, Ollama on 11434).",
+    input_schema={
+        "type": "object",
+        "properties": {
+            "service_name": {"type": "string", "description": "Service name (e.g. 'n8n', 'ollama', 'dev_server') or port"},
+            "host": {"type": "string", "default": "127.0.0.1", "description": "Network host (defaults to loopback)"},
+            "port": {"type": "integer", "description": "Explicit port number"},
+            "http_path": {"type": "string", "description": "Optional HTTP health check path (e.g. '/healthz')"},
+        },
+        "required": ["service_name"],
+    },
+    action_class=ActionClass.READ_ONLY,
+    side_effects=False,
+    minimum_autonomy_profile=AutonomyProfile.ADVISOR,
+    confirmation_policy=ConfirmationPolicy.NEVER,
+    retry_policy=RetryPolicy.SAFE_READ_RETRY,
+    idempotency_class=IdempotencyClass.READ_ONLY,
+    timeout_seconds=5.0,
+)
+
+DESKTOP_SEND_KEYS_SPEC = CapabilitySpec(
+    id="desktop.send_keys",
+    version="1.0.0",
+    name="Desktop Keystroke Dispatcher",
+    domain="os",
+    description="Sends keystrokes to a designated window after verifying foreground focus.",
+    input_schema={
+        "type": "object",
+        "properties": {
+            "target": {"type": ["integer", "string"], "description": "Window HWND or title"},
+            "text": {"type": "string", "description": "Text or character sequence to send"},
+            "press_enter": {"type": "boolean", "default": False, "description": "Whether to send Enter key after text"},
+        },
+        "required": ["target", "text"],
+    },
+    action_class=ActionClass.SYSTEM_ACTION,
+    side_effects=True,
+    minimum_autonomy_profile=AutonomyProfile.TRUSTED_OPERATOR,
+    confirmation_policy=ConfirmationPolicy.ALWAYS,
+    retry_policy=RetryPolicy.NEVER,
+    idempotency_class=IdempotencyClass.NON_IDEMPOTENT,
+    timeout_seconds=10.0,
+)
+
+
+def make_desktop_launch_app_adapter(driver: Any = None):
+    def adapter(**kwargs: Any) -> Dict[str, Any]:
+        nonlocal driver
+        if driver is None:
+            from omni_engine.desktop.engine import ComputerUseDriver
+            driver = ComputerUseDriver()
+        app_name = str(kwargs.get("app_name") or kwargs.get("app") or "")
+        args = kwargs.get("args")
+        timeout = float(kwargs.get("timeout", 3.0))
+        result = driver.launch_app(app_name=app_name, args=args, timeout=timeout)
+        return result.model_dump()
+    return adapter
+
+
+def make_desktop_list_windows_adapter(driver: Any = None):
+    def adapter(**kwargs: Any) -> Dict[str, Any]:
+        nonlocal driver
+        if driver is None:
+            from omni_engine.desktop.engine import ComputerUseDriver
+            driver = ComputerUseDriver()
+        filter_title = kwargs.get("filter_title")
+        visible_only = bool(kwargs.get("visible_only", True))
+        windows = driver.list_windows(filter_title=filter_title, visible_only=visible_only)
+        return {"windows": [w.model_dump() for w in windows], "count": len(windows)}
+    return adapter
+
+
+def make_desktop_focus_window_adapter(driver: Any = None):
+    def adapter(**kwargs: Any) -> Dict[str, Any]:
+        nonlocal driver
+        if driver is None:
+            from omni_engine.desktop.engine import ComputerUseDriver
+            driver = ComputerUseDriver()
+        target = kwargs.get("target") or kwargs.get("hwnd") or kwargs.get("window_target") or ""
+        timeout = float(kwargs.get("timeout", 0.5))
+        result = driver.focus_window(target=target, timeout=timeout)
+        return result.model_dump()
+    return adapter
+
+
+def make_desktop_close_window_adapter(driver: Any = None):
+    def adapter(**kwargs: Any) -> Dict[str, Any]:
+        nonlocal driver
+        if driver is None:
+            from omni_engine.desktop.engine import ComputerUseDriver
+            driver = ComputerUseDriver()
+        target = kwargs.get("target") or kwargs.get("hwnd") or kwargs.get("window_target") or ""
+        timeout = float(kwargs.get("timeout", 1.0))
+        result = driver.close_window(target=target, timeout=timeout)
+        return result.model_dump()
+    return adapter
+
+
+def make_desktop_service_health_adapter(driver: Any = None):
+    def adapter(**kwargs: Any) -> Dict[str, Any]:
+        nonlocal driver
+        if driver is None:
+            from omni_engine.desktop.engine import ComputerUseDriver
+            driver = ComputerUseDriver()
+        service_name = str(kwargs.get("service_name") or kwargs.get("service") or "n8n")
+        host = kwargs.get("host")
+        port = int(kwargs["port"]) if kwargs.get("port") is not None else None
+        http_path = kwargs.get("http_path")
+        result = driver.check_service(service_name=service_name, host=host, port=port, http_path=http_path)
+        return result.model_dump()
+    return adapter
+
+
+def make_desktop_send_keys_adapter(driver: Any = None):
+    def adapter(**kwargs: Any) -> Dict[str, Any]:
+        nonlocal driver
+        if driver is None:
+            from omni_engine.desktop.engine import ComputerUseDriver
+            driver = ComputerUseDriver()
+        target = kwargs.get("target") or kwargs.get("hwnd") or kwargs.get("window_target") or ""
+        text = str(kwargs.get("text") or kwargs.get("keys") or "")
+        press_enter = bool(kwargs.get("press_enter", False))
+        result = driver.send_keys(target=target, text=text, press_enter=press_enter)
+        return result.model_dump()
+    return adapter
+
+
+def register_desktop_capabilities(
+    registry: CapabilityRegistry,
+    driver: Any = None,
+) -> None:
+    """Registers desktop and local service capabilities on a CapabilityRegistry."""
+    # 1. launch_app
+    launch_adapter = make_desktop_launch_app_adapter(driver)
+    registry.register(spec=DESKTOP_LAUNCH_APP_SPEC, implementation=launch_adapter)
+    registry.register(
+        spec=DESKTOP_LAUNCH_APP_SPEC.model_copy(update={"id": "desktop_launch_app"}),
+        implementation=launch_adapter,
+    )
+
+    # 2. list_windows
+    list_adapter = make_desktop_list_windows_adapter(driver)
+    registry.register(spec=DESKTOP_LIST_WINDOWS_SPEC, implementation=list_adapter)
+    registry.register(
+        spec=DESKTOP_LIST_WINDOWS_SPEC.model_copy(update={"id": "desktop_list_windows"}),
+        implementation=list_adapter,
+    )
+
+    # 3. focus_window
+    focus_adapter = make_desktop_focus_window_adapter(driver)
+    registry.register(spec=DESKTOP_FOCUS_WINDOW_SPEC, implementation=focus_adapter)
+    registry.register(
+        spec=DESKTOP_FOCUS_WINDOW_SPEC.model_copy(update={"id": "desktop_focus_window"}),
+        implementation=focus_adapter,
+    )
+
+    # 4. close_window
+    close_adapter = make_desktop_close_window_adapter(driver)
+    registry.register(spec=DESKTOP_CLOSE_WINDOW_SPEC, implementation=close_adapter)
+    registry.register(
+        spec=DESKTOP_CLOSE_WINDOW_SPEC.model_copy(update={"id": "desktop_close_window"}),
+        implementation=close_adapter,
+    )
+
+    # 5. service_health
+    health_adapter = make_desktop_service_health_adapter(driver)
+    registry.register(spec=DESKTOP_SERVICE_HEALTH_SPEC, implementation=health_adapter)
+    registry.register(
+        spec=DESKTOP_SERVICE_HEALTH_SPEC.model_copy(update={"id": "desktop_service_health"}),
+        implementation=health_adapter,
+    )
+
+    # 6. send_keys
+    keys_adapter = make_desktop_send_keys_adapter(driver)
+    registry.register(spec=DESKTOP_SEND_KEYS_SPEC, implementation=keys_adapter)
+    registry.register(
+        spec=DESKTOP_SEND_KEYS_SPEC.model_copy(update={"id": "desktop_send_keys"}),
+        implementation=keys_adapter,
+    )
+
+
+REAL_CAPABILITY_SPECS: Dict[str, CapabilitySpec] = {
+    "deep_research": DEEP_RESEARCH_SPEC,
+    "browser_interact": BROWSER_INTERACT_SPEC,
+    "desktop.launch_app": DESKTOP_LAUNCH_APP_SPEC,
+    "desktop.list_windows": DESKTOP_LIST_WINDOWS_SPEC,
+    "desktop.focus_window": DESKTOP_FOCUS_WINDOW_SPEC,
+    "desktop.close_window": DESKTOP_CLOSE_WINDOW_SPEC,
+    "desktop.service_health": DESKTOP_SERVICE_HEALTH_SPEC,
+    "desktop.send_keys": DESKTOP_SEND_KEYS_SPEC,
+}
+
+
 def build_real_capability_registry(
     base_registry: Optional[CapabilityRegistry] = None,
     research_engine: Any = None,
     browser_driver: Any = None,
+    desktop_driver: Any = None,
 ) -> CapabilityRegistry:
     """Builds a CapabilityRegistry containing the canonical 23 tools PLUS real capability engines."""
     reg = base_registry or build_canonical_registry()
     register_deep_research_capability(reg, engine=research_engine)
     register_browser_capability(reg, driver=browser_driver)
+    register_desktop_capabilities(reg, driver=desktop_driver)
     return reg
+
 
 

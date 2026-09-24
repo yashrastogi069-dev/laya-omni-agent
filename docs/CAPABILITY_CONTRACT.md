@@ -136,7 +136,12 @@ In addition to the 23 source tools, LAYA provides high-level autonomous capabili
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | **web** | `deep_research` (alias `research.deep`) | Multi-source discovery, crawl, evidence ledger, saturation stop, citation verification | `READ_ONLY` | `SAFE_ASSISTANT` | `NEVER` | `READ_ONLY` |
 | **browser** | `browser_interact` (alias `browser.interact`) | Real persistent browser automation with DOM indexing (@1..@N), pre-action staleness checks, and verified transitions | `EXTERNAL_UPDATE` | `LOCAL_OPERATOR` | `POLICY_CONTROLLED` | `NON_IDEMPOTENT` |
-| **os** | `computer.open_target` | Windows / App / Local-Service resolver and UI automation driver | `SYSTEM_ACTION` | `LOCAL_OPERATOR` | `POLICY_CONTROLLED` | `NON_IDEMPOTENT` |
+| **os** | `desktop.launch_app` | Windows app launch with trampoline resolution via HWND baseline diffing | `SYSTEM_ACTION` | `LOCAL_OPERATOR` | `POLICY_CONTROLLED` | `NON_IDEMPOTENT` |
+| **os** | `desktop.list_windows` | Enumerate visible top-level desktop windows with PID and bounds | `READ_ONLY` | `ADVISOR` | `NEVER` | `READ_ONLY` |
+| **os** | `desktop.focus_window` | Safe window activation via menu-key rights without AttachThreadInput | `SYSTEM_ACTION` | `LOCAL_OPERATOR` | `NEVER` | `IDEMPOTENT` |
+| **os** | `desktop.close_window` | Graceful window close via WM_CLOSE with Rule-0 process defense | `LOCAL_DELETE` | `LOCAL_OPERATOR` | `POLICY_CONTROLLED` | `NON_IDEMPOTENT` |
+| **os** | `desktop.service_health` | Local port/HTTP microservice prober with dual-stack cascade & SO_LINGER | `READ_ONLY` | `ADVISOR` | `NEVER` | `READ_ONLY` |
+| **os** | `desktop.send_keys` | Non-intrusive character dispatch via WM_CHAR with pre-focus verification | `SYSTEM_ACTION` | `LOCAL_OPERATOR` | `POLICY_CONTROLLED` | `NON_IDEMPOTENT` |
 | **automation** | `n8n.build_workflow` | Programmatic n8n workflow draft-test-validate automation | `LOCAL_UPDATE` | `LOCAL_OPERATOR` | `POLICY_CONTROLLED` | `NATURAL` |
 | **dev** | `developer.execute_task` | Antigravity CLI introspection adapter & supervised developer agent | `LOCAL_UPDATE` | `LOCAL_OPERATOR` | `POLICY_CONTROLLED` | `NATURAL` |
 

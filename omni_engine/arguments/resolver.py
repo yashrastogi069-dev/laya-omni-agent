@@ -58,6 +58,16 @@ CLARIFICATION_PROMPTS: Dict[str, str] = {
     "research.deep": "What research topic or question would you like to investigate?",
     "browser_interact": "Which browser action (navigate, click, type, snapshot, screenshot) and target would you like to perform?",
     "browser.interact": "Which browser action (navigate, click, type, snapshot, screenshot) and target would you like to perform?",
+    "desktop.launch_app": "Which application or executable (e.g. 'calc', 'notepad', 'code') would you like to launch?",
+    "desktop_launch_app": "Which application or executable (e.g. 'calc', 'notepad', 'code') would you like to launch?",
+    "desktop.focus_window": "Which window title substring or HWND would you like to focus?",
+    "desktop_focus_window": "Which window title substring or HWND would you like to focus?",
+    "desktop.close_window": "Which window title substring or HWND would you like to close?",
+    "desktop_close_window": "Which window title substring or HWND would you like to close?",
+    "desktop.service_health": "Which service name (e.g. 'n8n', 'ollama', 'dev_server') or port would you like to check?",
+    "desktop_service_health": "Which service name (e.g. 'n8n', 'ollama', 'dev_server') or port would you like to check?",
+    "desktop.send_keys": "Which window target and text would you like to send?",
+    "desktop_send_keys": "Which window target and text would you like to send?",
 }
 
 PARAM_ALIASES: Dict[str, List[str]] = {
@@ -227,10 +237,78 @@ class ArgumentResolver:
             if pid is not None:
                 slots["pid"] = _slot("pid", pid, ArgumentExtractionSource.DETERMINISTIC_REGEX)
 
-        elif capability_id == "launch_app":
+        elif capability_id in ("launch_app", "desktop.launch_app", "desktop_launch_app"):
             app = extract_app_name(prompt)
             if app:
                 slots["app_name"] = _slot("app_name", app, ArgumentExtractionSource.DETERMINISTIC_REGEX)
+
+        elif capability_id in ("desktop.list_windows", "desktop_list_windows"):
+            quoted = re.findall(r"['\"]([^'\"]+)['\"]", prompt)
+            if quoted:
+                slots["filter_title"] = _slot("filter_title", quoted[0], ArgumentExtractionSource.DETERMINISTIC_REGEX)
+
+        elif capability_id in ("desktop.focus_window", "desktop_focus_window", "desktop.close_window", "desktop_close_window"):
+            hwnd_match = re.search(r"\b(\d{4,8})\b", prompt)
+            quoted = re.findall(r"['\"]([^'\"]+)['\"]", prompt)
+            app = extract_app_name(prompt)
+            if hwnd_match:
+                slots["target"] = _slot("target", int(hwnd_match.group(1)), ArgumentExtractionSource.DETERMINISTIC_REGEX)
+            elif quoted:
+                slots["target"] = _slot("target", quoted[0], ArgumentExtractionSource.DETERMINISTIC_REGEX)
+            elif app:
+                slots["target"] = _slot("target", app, ArgumentExtractionSource.DETERMINISTIC_REGEX)
+
+        elif capability_id in ("desktop.service_health", "desktop_service_health"):
+            port_match = re.search(r"\b(?:port\s*)?(\d{2,5})\b", prompt, re.IGNORECASE)
+            s_name = None
+            for known in ("n8n", "ollama", "antigravity", "dev_server"):
+                if known in prompt.lower():
+                    s_name = known
+                    break
+            if not s_name and port_match:
+                s_name = f"port_{port_match.group(1)}"
+            elif not s_name:
+                quoted = re.findall(r"['\"]([^'\"]+)['\"]", prompt)
+                if quoted:
+                    s_name = quoted[0]
+
+            if s_name:
+                slots["service_name"] = _slot("service_name", s_name, ArgumentExtractionSource.DETERMINISTIC_REGEX)
+            if port_match and port_match.group(1).isdigit():
+                slots["port"] = _slot("port", int(port_match.group(1)), ArgumentExtractionSource.DETERMINISTIC_REGEX)
+
+        elif capability_id in ("desktop.send_keys", "desktop_send_keys"):
+            quoted = re.findall(r"['\"]([^'\"]+)['\"]", prompt)
+            app = extract_app_name(prompt)
+            hwnd_match = re.search(r"\b(\d{4,8})\b", prompt)
+
+            if hwnd_match:
+                slots["target"] = _slot("target", int(hwnd_match.group(1)), ArgumentExtractionSource.DETERMINISTIC_REGEX)
+                if quoted:
+                    slots["text"] = _slot("text", quoted[0], ArgumentExtractionSource.DETERMINISTIC_REGEX)
+            elif len(quoted) >= 2:
+                if app and app.lower() in quoted[1].lower():
+                    slots["target"] = _slot("target", quoted[1], ArgumentExtractionSource.DETERMINISTIC_REGEX)
+                    slots["text"] = _slot("text", quoted[0], ArgumentExtractionSource.DETERMINISTIC_REGEX)
+                elif app and app.lower() in quoted[0].lower():
+                    slots["target"] = _slot("target", quoted[0], ArgumentExtractionSource.DETERMINISTIC_REGEX)
+                    slots["text"] = _slot("text", quoted[1], ArgumentExtractionSource.DETERMINISTIC_REGEX)
+                else:
+                    slots["target"] = _slot("target", quoted[0], ArgumentExtractionSource.DETERMINISTIC_REGEX)
+                    slots["text"] = _slot("text", quoted[1], ArgumentExtractionSource.DETERMINISTIC_REGEX)
+            elif len(quoted) == 1:
+                if app:
+                    slots["target"] = _slot("target", app, ArgumentExtractionSource.DETERMINISTIC_REGEX)
+                    slots["text"] = _slot("text", quoted[0], ArgumentExtractionSource.DETERMINISTIC_REGEX)
+                else:
+                    slots["text"] = _slot("text", quoted[0], ArgumentExtractionSource.DETERMINISTIC_REGEX)
+            elif app:
+                slots["target"] = _slot("target", app, ArgumentExtractionSource.DETERMINISTIC_REGEX)
+
+            if "text" not in slots:
+                m = re.search(r"""(?:type|send|write|keys)\s+['"]?([^'"]+)['"]?""", prompt, re.IGNORECASE)
+                if m:
+                    slots["text"] = _slot("text", m.group(1).strip(), ArgumentExtractionSource.DETERMINISTIC_REGEX)
 
         elif capability_id == "list_processes":
             proc = extract_process_name(prompt)

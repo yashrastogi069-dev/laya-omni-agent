@@ -170,7 +170,22 @@ class PolicyEngine:
             blast_radius = "LOCAL_FILE"
         elif spec.id in ("directory_tree", "search_code", "git_status"):
             blast_radius = "LOCAL_WORKSPACE"
-        elif spec.id in ("kill_process", "launch_app", "powershell", "run_python", "clipboard", "desktop_screenshot"):
+        elif spec.id in (
+            "kill_process",
+            "launch_app",
+            "powershell",
+            "run_python",
+            "clipboard",
+            "desktop_screenshot",
+            "desktop.launch_app",
+            "desktop_launch_app",
+            "desktop.focus_window",
+            "desktop_focus_window",
+            "desktop.close_window",
+            "desktop_close_window",
+            "desktop.send_keys",
+            "desktop_send_keys",
+        ):
             blast_radius = "LOCAL_SYSTEM"
         elif spec.id in ("web_search", "scrape_url", "http_api", "visual_browse", "browser_screenshot", "ping_test", "deep_research", "research.deep", "browser_interact", "browser.interact"):
             blast_radius = "EXTERNAL_NETWORK"
@@ -318,8 +333,8 @@ class PolicyEngine:
                         )
 
         # 3. Protected Critical System Processes (csrss, lsass, smss, services, PID 0/4)
-        if spec.id == "kill_process":
-            target = arguments.get("target") or arguments.get("pid")
+        if spec.id in ("kill_process", "desktop.kill_process", "desktop_kill_process", "desktop.close_window", "desktop_close_window", "desktop.terminate_app"):
+            target = arguments.get("target") or arguments.get("pid") or arguments.get("hwnd")
             is_prot_proc, reason = is_protected_process(target)
             if is_prot_proc:
                 return self._make_decision(

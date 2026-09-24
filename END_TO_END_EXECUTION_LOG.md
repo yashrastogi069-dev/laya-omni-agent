@@ -11,11 +11,11 @@
 | **System Role** | Standalone Autonomous Operating Agent (Independent from Jarvis Core V2) |
 | **Active Architecture Branch** | `laya-autonomous-v2` |
 | **Public GitHub Remote** | `https://github.com/yashrastogi069-dev/laya-omni-agent.git` |
-| **Latest Branch Commit** | `2a2b1fa` (L7.5 Verified & Committed) |
-| **Total Automated Tests** | **207 / 207 Passing (100%)** (+ 47 subtests) in ~229 seconds |
-| **Test Categorization** | **205 Feature Acceptance Tests** + **2 Known Defect Reproduction Tests** |
-| **Checkpoints Completed** | **L0, L1, L1.1, L2, L2.1, L3, L4, L5, L6A, L7, L6B, L7.5, L8** |
-| **Active Checkpoint** | **L9** (Deterministic Policy Engine & Persistent User Constraints) |
+| **Latest Branch Commit** | `27caf68` (R2 Verified & Committed) |
+| **Total Automated Tests** | **314 / 314 Passing (100%)** (+ 47 subtests = 361 total checks) in ~211 seconds |
+| **Test Categorization** | **312 Feature Acceptance Tests** + **2 Known Defect Reproduction Tests** |
+| **Checkpoints Completed** | **L0–L9, Foundation Gate, R1, R2, R3** |
+| **Active Checkpoint** | **R4** (n8n Automation Engine) |
 
 ---
 
@@ -46,7 +46,43 @@
 [L3: CANONICAL CAPABILITY SUBSTRATE]
        │ ── 80/80 Tests Passing + 23 Subtests (Commit on laya-autonomous-v2)
        ▼
-[L4: ACTIVE — PROVIDER FOUNDATIONS (SYSTEM 1 & GENERATIVE)]
+[L4: PROVIDER FOUNDATIONS (SYSTEM 1 & GENERATIVE)]
+       │ ── 99/99 Tests Passing (Commit: 87b22a6 on laya-autonomous-v2)
+       ▼
+[L5: DECISION FABRIC FOUNDATION]
+       │ ── 111/111 Tests Passing (Commit: ad73f3c on laya-autonomous-v2)
+       ▼
+[L6A: HIERARCHICAL ROUTING FOUNDATION]
+       │ ── 123/123 Tests Passing (Commit: 7ab5b68 on laya-autonomous-v2)
+       ▼
+[L7: SKILLS SUBSTRATE & WORKFLOW MANIFESTS]
+       │ ── 149/149 Tests Passing (Commit: a7bf9ca on laya-autonomous-v2)
+       ▼
+[L6B: SKILL-AWARE HIERARCHICAL ROUTER]
+       │ ── 165/165 Tests Passing (Commit: b8a6234 on laya-autonomous-v2)
+       ▼
+[L7.5: TRUTH, CALIBRATION & UPSTREAM ALIGNMENT]
+       │ ── 181/181 Tests Passing (Commit: 2a2b1fa on laya-autonomous-v2)
+       ▼
+[L8: TYPED ARGUMENT RESOLUTION & EXTRACTION ENGINE]
+       │ ── 207/207 Tests Passing (Commit: fd50bf8 on laya-autonomous-v2)
+       ▼
+[L9: DETERMINISTIC POLICY ENGINE & USER CONSTRAINTS]
+       │ ── 232/232 Tests Passing (Commit: 3b4009d on laya-autonomous-v2)
+       ▼
+[FOUNDATION GATE: SYSTEM 1 BROKER & CALIBRATION TRUTH]
+       │ ── 259/259 Tests Passing (Commit: 9cf8aaf on laya-autonomous-v2)
+       ▼
+[R1: DEEP EVIDENCE-GROUNDED RESEARCH ENGINE]
+       │ ── 277/277 Tests Passing (Commit: 61c8a9c on laya-autonomous-v2)
+       ▼
+[R2: REAL PERSISTENT BROWSER ENGINE]
+       │ ── 293/293 Tests Passing (Commit: 27caf68 on laya-autonomous-v2)
+       ▼
+[R3: WINDOWS DESKTOP, APP & LOCAL SERVICE ENGINE]
+       │ ── 314/314 Tests Passing (Ready to Commit)
+       ▼
+[R4: ACTIVE — N8N AUTOMATION ENGINE]
 ```
 
 ---
@@ -1327,3 +1363,86 @@ Phase R1 implements a real, evidence-first deep research engine for the standalo
 
 ---
 
+## 18. Phase R3: Windows Desktop, App & Local Service Engine
+
+### 1. Objectives & Architectural Invariants
+- **Core Mission**: Build an evidence-grounded, native Windows desktop application management, UI interaction, and local microservice health probing engine operating safely under host resource constraints.
+- **Key Capabilities**:
+  1. Desktop application lifecycle management (`launch_app`, `focus_window`, `close_window`, `list_windows`, `terminate_app`).
+  2. Safe foreground activation avoiding thread attachment deadlocks (`AttachThreadInput`).
+  3. Launcher trampoline resolution (e.g. `calc.exe`, `code.cmd`) mapping ephemeral launcher PIDs to true UI windows and PIDs via baseline HWND diffing and child-tree traversal.
+  4. Local microservice health probing (`service_health`) supporting dual-stack loopback (`127.0.0.1` -> `::1`), `SO_LINGER` socket reset, and host proxy environment isolation.
+  5. Isolated UI input dispatch (`send_keys`) with pre-focus verification and non-intrusive `WM_CHAR` character dispatch.
+  6. Rule-0 process defense blocking termination of critical operating system processes (`csrss`, `lsass`, `smss`, `services`, `wininit`, `winlogon`, `system`, PID 0, PID 4).
+- **Core Invariant Enforcement**:
+  - **Invariant 1 (Deterministic Control)**: Process lifecycle and window state transitions are owned strictly by deterministic Win32/psutil routines, not probabilistic models.
+  - **Invariant 4 (Strongly Typed Contracts)**: All desktop operations emit strongly typed Pydantic models (`WindowBounds`, `WindowState`, `AppWindowInfo`, `AppLaunchResult`, `ServiceHealthStatus`, `DesktopActionResult`) with `extra="forbid"`.
+  - **Invariant 6 (Evidence-Based Completion)**: Physical outcome receipts required for every action: `launcher_pid`, `active_pid`, `hwnd`, `bounds`, `is_listening`, `http_status`, `response_time_ms`.
+  - **Rule-0 Safety Defense**: Critical system processes are unconditionally shielded; human confirmation is strictly ignored for Rule-0.
+  - **Non-Switching Boundary**: Legacy `omni_agent.py` and `omni_engine/planner.py` remain **100% untouched** (0 diffs).
+
+---
+
+### 2. Technology Audit & Architecture Decision (`docs/research/ADR_R3_WINDOWS_APP_ENGINE.md` / ADR-010)
+- **Win32 API (`win32gui`, `win32process`, `win32con`, `ctypes.windll.user32`)**: **ADOPT** via `Win32Backend` abstraction for window enumeration, non-blocking state manipulation, and input dispatch.
+- **Process Management (`psutil`, `subprocess`)**: **ADOPT** with Windows process creation flags (`CREATE_NO_WINDOW`, `DETACHED_PROCESS`) and recursive child process tree traversal.
+- **Safe Window Activation**: **ADOPT** `ctypes.windll.user32.IsHungAppWindow` pre-check, simulated menu key event (`VK_MENU`) to claim Windows foreground activation rights legitimately, non-blocking `ShowWindowAsync(SW_RESTORE)` for minimized windows (`IsIconic`), and asynchronous activation polling. **REJECT** `AttachThreadInput` due to fatal deadlock risk on unresponsive threads.
+- **Process Trampoline Resolution**: **ADOPT** pre-launch baseline HWND diffing (`current_hwnds - baseline_hwnds`) combined with recursive child process tree traversal (`psutil.Process.children(recursive=True)`).
+- **Local Service Health Probing**: **ADOPT** dual-stack cascade (`127.0.0.1` -> `::1`), `SO_LINGER` connection reset to prevent `TIME_WAIT` socket buildup, dedicated `ProxyHandler({})` opener to bypass host proxy environment traps, bounded 4KB HTTP reads, and strict timeouts (<=500ms socket, <=1500ms HTTP).
+- **Decoupled Backend for Testing**: **ADOPT** `Win32Backend` abstract base class with `MockWin32Backend` and ephemeral loopback sockets, allowing `tests/test_r3_desktop.py` to run 100% offline, with zero GUI popups and zero focus stealing, in under 1 second.
+
+---
+
+### 3. Implementation Deliverables
+1. `docs/research/ADR_R3_WINDOWS_APP_ENGINE.md`: Architectural Decision Record and technology audit.
+2. `omni_engine/contracts/desktop.py`: Strongly typed Pydantic contracts:
+   - `WindowBounds`: `left`, `top`, `right`, `bottom`, `width`, `height`.
+   - `WindowState`: `NORMAL`, `MINIMIZED`, `MAXIMIZED`, `HIDDEN`.
+   - `AppWindowInfo`: `hwnd`, `title`, `process_name`, `pid`, `is_active`, `state`, `bounds`.
+   - `AppLaunchResult`: `app_name`, `launcher_pid`, `active_pid`, `process_name`, `hwnd`, `window_title`, `bounds`, `exit_code`, `startup_time_ms`, `verification_status`, `error`.
+   - `ServiceHealthStatus`: `service_name`, `host`, `port`, `is_listening`, `http_status`, `response_time_ms`, `error`, `verification_status`.
+   - `DesktopActionResult`: `action`, `target`, `prior_state`, `posterior_state`, `verification_status`, `evidence`, `error`.
+3. `omni_engine/contracts/__init__.py`: Clean re-export of desktop contracts.
+4. `omni_engine/desktop/service.py`: `LocalServiceProber` implementing dual-stack cascade, `SO_LINGER`, proxy bypass, and bounded HTTP reads.
+5. `omni_engine/desktop/app_manager.py`: `Win32Backend` (ABC), `NativeWin32Backend`, and `AppWindowManager` implementing non-blocking focus rights via `VK_MENU`, `IsHungAppWindow` rejection, `ShowWindowAsync(SW_RESTORE)`, async activation polling, and launcher trampoline resolution via baseline HWND diffing + child process tree traversal.
+6. `omni_engine/desktop/uia_driver.py`: `WindowsInputDriver` with verified pre-focus check and `WM_CHAR` non-intrusive character dispatch.
+7. `omni_engine/desktop/engine.py`: `ComputerUseDriver` composite engine unifying app management, input dispatch, and service probing.
+8. `omni_engine/desktop/__init__.py`: Package exports for desktop engines and drivers.
+9. `omni_engine/capabilities/definitions.py`:
+   - Registered `desktop.launch_app`, `desktop.list_windows`, `desktop.focus_window`, `desktop.close_window`, `desktop.service_health`, `desktop.send_keys`, and dotless aliases in `build_real_capability_registry()`.
+   - Canonical 23-tool `build_canonical_registry()` strictly preserved.
+10. `omni_engine/capabilities/__init__.py`: Clean exports of desktop capability specs.
+11. `omni_engine/policy/engine.py`:
+    - Broadened Stage 0 Rule-0 process defense across all desktop process-terminating capabilities (`kill_process`, `desktop.kill_process`, `desktop_kill_process`, `desktop.close_window`, `desktop_close_window`, `desktop.terminate_app`).
+    - Mapped desktop blast radii in `_assess_risk` (`LOCAL_SYSTEM` for mutating desktop actions, `NONE` for read-only window listing).
+12. `omni_engine/arguments/resolver.py`:
+    - Added desktop clarification prompts (`CLARIFICATION_PROMPTS`) for `app_name`, `port`, `keys`.
+    - Added deterministic slot extractors for desktop app names, window titles, ports, and keystrokes (disambiguating multiple quoted strings).
+13. `tests/test_r3_desktop.py`: 21 comprehensive offline unit and integration tests.
+
+---
+
+### 4. Adversarial Plan & Diff Reviews
+- **Adversarial Plan Reviewer**: Subagent `0b018a3a-73bc-4039-901e-5f1161505db1`.
+  - Conditional Approval with 6 Blocking Requirements (REQ-R3-1 through REQ-R3-6). All 6 requirements were systematically implemented.
+- **Adversarial Diff Reviewer**: Subagent `286fba8a-36f5-4ab6-b993-ab0eb8ad56f3`.
+  - Final Verdict: **PASS (APPROVED FOR CHECKPOINT R3)**.
+  - Verified:
+    1. REQ-R3-1 (Window Focus & Input Deadlocks): Alt menu key (`VK_MENU`) foreground activation rights; `ctypes.windll.user32.IsHungAppWindow` pre-check; `ShowWindowAsync(SW_RESTORE)` for minimized windows (`IsIconic`); async activation polling.
+    2. REQ-R3-2 (Process Trampoline Resolution & Evidence Verification): Baseline HWND diffing (`current_hwnds - baseline_hwnds`) + `psutil` child-tree traversal; strongly typed physical receipts (`launcher_pid`, `active_pid`, `hwnd`, `bounds`).
+    3. REQ-R3-3 (Local Service Health Probing): Dual-stack cascade (`127.0.0.1` -> `::1`); `SO_LINGER` socket reset; `ProxyHandler({})` opener to bypass host proxies; strict timeouts (500ms socket, 1.5s HTTP); 4KB bounded HTTP read.
+    4. REQ-R3-4 (Process Safety & Rule-0 Defense): Dual-layer protection in `PolicyEngine` Stage 0 and `AppWindowManager` pre-flight checks blocking critical OS processes (`csrss`, `lsass`, `smss`, `services`, `wininit`, `winlogon`, `system`, PID 0, PID 4), strictly ignoring human confirmation.
+    5. REQ-R3-5 (Offline Testability & Isolation): Decoupled `Win32Backend` with `MockWin32Backend`; ephemeral loopback HTTP/socket server; 100% offline, zero GUI popups, zero focus stealing, in 0.953s.
+    6. REQ-R3-6 (Capability Substrate Integration & Non-Switching Boundary): Capabilities registered in `definitions.py`, `build_real_capability_registry()`, `resolver.py`, and `policy/engine.py`; canonical 23-tool registry invariant preserved; `omni_agent.py` and `omni_engine/planner.py` 100% untouched (0 diffs).
+
+---
+
+### 5. Verification & Test Evidence
+- **R3 Unit & Integration Test Suite (`tests/test_r3_desktop.py`)**:
+  - `Ran 21 tests in 0.953s`: **21 passed, 0 failed (100% pass rate)**.
+- **Full Repository Test Suite Across All Checkpoints (L0–L9 + Foundation Gate + R1 + R2 + R3)**:
+  - `Ran 314 tests in 211.05s`: **314 passed (+ 47 subtests = 361 total checks), 0 failures, 0 errors (100% pass rate)**.
+- **Non-Switching Boundary**:
+  - `git diff HEAD omni_agent.py omni_engine/planner.py` returns **0 diffs**.
+
+---

@@ -87,6 +87,14 @@ from .browser import (
     BrowserActionRequest,
     BrowserActionResult,
 )
+from .desktop import (
+    WindowBounds,
+    WindowState,
+    AppWindowInfo,
+    AppLaunchResult,
+    ServiceHealthStatus,
+    DesktopActionResult,
+)
 
 __all__ = [
     # Base
@@ -160,5 +168,12 @@ __all__ = [
     "BrowserSnapshot",
     "BrowserActionRequest",
     "BrowserActionResult",
+    # Desktop
+    "WindowBounds",
+    "WindowState",
+    "AppWindowInfo",
+    "AppLaunchResult",
+    "ServiceHealthStatus",
+    "DesktopActionResult",
 ]
 

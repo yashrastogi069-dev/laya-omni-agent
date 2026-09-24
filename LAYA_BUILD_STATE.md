@@ -1,9 +1,9 @@
 # LAYA_BUILD_STATE.md — Current Ground Truth State
 
-**Last Updated**: 2026-09-24T05:30:00+05:30  
+**Last Updated**: 2026-09-24T16:30:00+05:30  
 **Current Branch**: `laya-autonomous-v2`  
-**Active Checkpoint**: `L6B — Final Skill-Aware Hierarchical Router` (**COMPLETED & VERIFIED**)  
-**Last Passing Test Suite**: `tests/test_l0_baselines.py`, `tests/test_l1_repairs.py`, `tests/test_l2_contracts.py`, `tests/test_l2_1_reconciliation.py`, `tests/test_l3_capabilities.py`, `tests/test_l4_providers.py`, `tests/test_l5_decision_fabric.py`, `tests/test_l6a_routing.py`, `tests/test_l7_skills.py`, `tests/test_l6b_skill_routing.py` (**165/165 passed in 148.33s (100% pass rate)**)  
+**Active Checkpoint**: `L7.5 — System One Truth, Calibration & Upstream Alignment` (**COMPLETED & VERIFIED**)  
+**Last Passing Test Suite**: `tests/test_l0_baselines.py`, `tests/test_l1_repairs.py`, `tests/test_l2_contracts.py`, `tests/test_l2_1_reconciliation.py`, `tests/test_l3_capabilities.py`, `tests/test_l4_providers.py`, `tests/test_l5_decision_fabric.py`, `tests/test_l6a_routing.py`, `tests/test_l7_skills.py`, `tests/test_l6b_skill_routing.py`, `tests/test_l7_5_calibration.py` (**181/181 passed in 48.60s (100% pass rate)**)  
 **Mission Role**: Complete Standalone Autonomous Operating Agent.
 
 ---
@@ -11,7 +11,7 @@
 ## 1. Current Architecture Summary
 
 The repository contains a standalone prototype CLI (`laya_agent.py` / `omni_engine/`) transitioning towards a **complete standalone autonomous operating agent**:
-1. **System 1**: Local ModernBERT-large (`laya.Router()`) providing high-frequency decisions (<35ms).
+1. **System 1**: Local ModernBERT-large (`laya.Router()`) providing high-frequency decisions.
 2. **Deterministic Control**: The runtime strictly owns state transitions, permissions, operation identity, and execution.
 3. **Phased Roadmap**: Checkpoints L0–L25 sequential evolution.
 4. **Checkpoint L1 & L1.1 Milestone Reached**:
@@ -65,6 +65,16 @@ The repository contains a standalone prototype CLI (`laya_agent.py` / `omni_engi
     - Implemented Dual-Threshold Gating & Anti-Locking Defenses (destructive verb gate, single generic token gate, description score ceiling at 0.50, morphological stemming).
     - Preserved zero-latency fast-paths (<5ms) and legacy non-switching boundary.
     - Comprehensive unit test suite `tests/test_l6b_skill_routing.py` (16 tests).
+12. **Checkpoint L7.5 Milestone Reached**:
+    - **Source-Truth Gate A (SkillManifest Invariants)**: Updated autonomy profile floor in `SkillRegistry` to inspect all constituent capabilities (`required_capabilities | optional_capabilities | step_capabilities`), guaranteeing no skill can bypass autonomy constraints via optional tools.
+    - **Source-Truth Gate B (Hardware & Latency Truth)**: Empirically measured on host CPU: ModernBERT-large consumes 1.64 GB RAM, cold load = 69.3s, warm latency = 749ms (1 question) to 15.4s (15 questions). Proven that <35ms is CUDA-only, justifying two-stage Adaptive Triage.
+    - **Calibration Contracts**: Created `omni_engine/contracts/calibration.py` with `CalibratedModelThresholds`, `DeterministicPolicyThresholds`, and `CalibrationConfig`, eliminating scattered inline magic numbers.
+    - **Upstream Alignment & RAM Safety**: Hardened `omni_engine/providers/system1.py` with pre-eviction unload/gc, process-wide thread lock (`_ROUTER_LOCK`), single-model preload guard (`names=[model_name]`), configurable model selection (`english`, `multilingual`, `typed-decisions`), and backward-compatible ModernBERT-large naming.
+    - **Decision Evaluation Corpus**: Created `omni_engine/decision/eval_corpus.py` with 103 reviewable ground-truth labeled cases covering 6 domains, prompt injection, and automation workflows.
+    - **Hardware-Aware Benchmark**: Created `omni_engine/decision/benchmark.py` measuring cold load, warm latency, batch scaling, and graceful unconfigured Jev handling.
+    - **Adaptive Decision Fabric**: Implemented `DecisionFabric.evaluate_adaptive()` with fast 4-question triage early exit for conversational queries, achieving a ~4.2x speedup on CPU.
+    - **Shadow Semantic Skill Routing**: Integrated shadow semantic evaluation and agreement tracking into `HierarchicalRouter`.
+    - **Comprehensive Test Suite**: Created `tests/test_l7_5_calibration.py` (16 unit tests, 100% pass rate).
 
 ---
 
@@ -100,7 +110,7 @@ The repository contains a standalone prototype CLI (`laya_agent.py` / `omni_engi
 
 ## 3. Test Suite & Health Metrics Breakdown
 
-- **Total Automated Tests**: 165 tests (+ 23 subtests)
+- **Total Automated Tests**: 181 tests (+ 23 subtests)
   - **L0 Baseline Tests**: 10 passed
   - **L1 & L1.1 Memory and Math Tests**: 12 passed
   - **L2 Contracts Tests**: 18 passed
@@ -111,25 +121,26 @@ The repository contains a standalone prototype CLI (`laya_agent.py` / `omni_engi
   - **L6A Hierarchical Routing Tests**: 12 passed
   - **L7 Skills Substrate Tests**: 26 passed
   - **L6B Skill-Aware Routing Tests**: 16 passed
-- **Pass Rate**: 100% (165 passed, 0 failed, 0 errors, 23 subtests passed).
-- **Runtime**: ~148.33s via `python -m unittest discover tests -v`.
+  - **L7.5 Truth, Calibration & Upstream Alignment Tests**: 16 passed
+- **Pass Rate**: 100% (181 passed, 0 failed, 0 errors, 23 subtests passed).
+- **Runtime**: ~48.60s via `python -m unittest discover tests -v`.
 
 ---
 
 ## 4. Current Blockers
 
-- **None**. Checkpoint L6B is verified, reviewed, and passing 100% of automated tests.
+- **None**. Checkpoint L7.5 is verified, reviewed, and passing 100% of automated tests.
 
 ---
 
-## 5. Next Checkpoint Scope: L8 (Argument Resolution & Extraction Engine) — PAUSED AT HARD STOPPING BOUNDARY
+## 5. Next Checkpoint Scope: L8 (Typed Argument Resolution & Extraction Engine)
 
-Per the user's explicit instructions:
-- **PAUSE**: Stop before beginning Checkpoint L8 (Argument Resolver).
-- Do NOT implement Argument Resolver (L8), Policy Engine (L9), Quest Engine (L10), Planner (L12), or DAG Executor (L14).
-- Future L8 Scope:
-  1. Build deterministic extractors for structured arguments.
+Within active goal `L7.5 → L8 → L9`:
+- Next Phase: **L8 — Typed Argument Resolution & Extraction Engine**
+- Core Objectives for L8:
+  1. Build deterministic extractors for structured arguments (paths, URLs, PIDs, processes, apps/services e.g. `n8n`, SQL statements, commands).
   2. Implement bounded LLM argument completion fallback (`GenerativeProvider`).
   3. Validate arguments strictly against target `CapabilitySpec.input_schema`.
   4. Ensure non-switching boundary remains until policy engine L9.
+  5. Hard stop after L9 remains strictly active.
 

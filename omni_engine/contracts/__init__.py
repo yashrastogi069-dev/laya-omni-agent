@@ -44,6 +44,11 @@ from .skill import (
     SkillStepTemplate,
     SkillManifest,
 )
+from .calibration import (
+    CalibratedModelThresholds,
+    DeterministicPolicyThresholds,
+    CalibrationConfig,
+)
 
 __all__ = [
     # Base
@@ -80,4 +85,8 @@ __all__ = [
     # Skill
     "SkillStepTemplate",
     "SkillManifest",
+    # Calibration
+    "CalibratedModelThresholds",
+    "DeterministicPolicyThresholds",
+    "CalibrationConfig",
 ]

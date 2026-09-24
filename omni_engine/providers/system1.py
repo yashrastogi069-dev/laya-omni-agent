@@ -11,6 +11,7 @@ Adheres to Prime Directive & Invariants:
 - Graceful non-crashing unconfigured state for optional Jev provider
 """
 
+import gc
 import math
 import os
 import threading
@@ -27,23 +28,31 @@ _ROUTER_LOCK = threading.RLock()
 _SHARED_ROUTER = None
 
 
-def get_shared_laya_router(preload: bool = False):
-    """Retrieves or initializes the shared laya.Router instance."""
+def get_shared_laya_router(model_name: str = "english", preload: bool = False):
+    """Retrieves or initializes the shared laya.Router instance with strict RAM protection."""
     global _SHARED_ROUTER
-    if _SHARED_ROUTER is None:
-        with _ROUTER_LOCK:
-            if _SHARED_ROUTER is None:
-                # Suppress checkpoint temperature calibration warnings
-                with warnings.catch_warnings():
-                    warnings.filterwarnings("ignore", category=RuntimeWarning, module=r".*laya.*")
-                    warnings.filterwarnings("ignore", message=r".*checkpoint ships temperatures outside.*")
-                    import laya
-                    _SHARED_ROUTER = laya.Router(max_loaded=1)
-                    if preload:
-                        try:
-                            _SHARED_ROUTER.preload(["english"])
-                        except Exception:
-                            pass
+    with _ROUTER_LOCK:
+        if _SHARED_ROUTER is None:
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore", category=RuntimeWarning, module=r".*laya.*")
+                warnings.filterwarnings("ignore", message=r".*checkpoint ships temperatures outside.*")
+                import laya
+                _SHARED_ROUTER = laya.Router(max_loaded=1)
+                if preload:
+                    try:
+                        _SHARED_ROUTER.preload(names=[model_name])
+                    except Exception:
+                        pass
+        else:
+            # Pre-eviction memory guard: if switching to an unloaded checkpoint, evict resident model
+            if model_name not in _SHARED_ROUTER.loaded and _SHARED_ROUTER.loaded:
+                _SHARED_ROUTER.unload()
+                gc.collect()
+            if preload and model_name not in _SHARED_ROUTER.loaded:
+                try:
+                    _SHARED_ROUTER.preload(names=[model_name])
+                except Exception:
+                    pass
     return _SHARED_ROUTER
 
 
@@ -83,11 +92,15 @@ def _extract_decision_data(ans: Any) -> Tuple[str, float, Dict[str, float]]:
 class LayaProvider(SystemOneProvider):
     """Primary high-frequency System 1 decision provider using local ModernBERT-large."""
 
-    def __init__(self, preload: bool = False) -> None:
+    def __init__(self, model_name: str = "english", preload: bool = False) -> None:
+        valid_models = ["english", "multilingual", "typed-decisions"]
+        if model_name not in valid_models:
+            raise ValueError(f"Unknown Laya model '{model_name}'. Must be one of {valid_models}.")
+        self.model_name = model_name
         self.provider_id = "laya"
-        self.model_id = "ModernBERT-large"
+        self.model_id = "ModernBERT-large" if model_name == "english" else f"ModernBERT-{model_name}"
         self.is_configured = True
-        self._router = get_shared_laya_router(preload=preload)
+        self._router = get_shared_laya_router(model_name=model_name, preload=preload)
         self.cold_start = True
 
     def predict_signals(
@@ -110,19 +123,47 @@ class LayaProvider(SystemOneProvider):
             else:
                 formatted_q[q_name] = q_val
 
-        try:
-            with warnings.catch_warnings():
-                warnings.filterwarnings("ignore", category=RuntimeWarning, module=r".*laya.*")
-                warnings.filterwarnings("ignore", message=r".*checkpoint ships temperatures outside.*")
-                raw_res = self._router.predict(state=context, questions=formatted_q)
-        except Exception as e:
-            raise ProviderError(
-                code=ErrorCode.PROCESS_FAILED,
-                message=f"Laya forward pass failed: {e}",
-                details={"context": context, "questions": questions},
-                provider_id=self.provider_id,
-                model_id=self.model_id,
-            )
+        # Process-wide lock protects host RAM and CPU scheduler against multi-thread thrashing
+        with _ROUTER_LOCK:
+            # Pre-eviction memory guard: Ensure victim model is unloaded before loading target
+            if self.model_name not in self._router.loaded and self._router.loaded:
+                self._router.unload()
+                gc.collect()
+
+            try:
+                with warnings.catch_warnings():
+                    warnings.filterwarnings("ignore", category=RuntimeWarning, module=r".*laya.*")
+                    warnings.filterwarnings("ignore", message=r".*checkpoint ships temperatures outside.*")
+                    raw_res = self._router.predict(
+                        state=context,
+                        questions=formatted_q,
+                        model=self.model_name,
+                    )
+            except Exception as e:
+                # If non-default model failed (e.g. offline download), attempt graceful fallback to english
+                if self.model_name != "english":
+                    try:
+                        raw_res = self._router.predict(
+                            state=context,
+                            questions=formatted_q,
+                            model="english",
+                        )
+                    except Exception as inner_e:
+                        raise ProviderError(
+                            code=ErrorCode.PROCESS_FAILED,
+                            message=f"Laya forward pass failed (and fallback to english failed: {inner_e}): {e}",
+                            details={"context": context, "questions": questions},
+                            provider_id=self.provider_id,
+                            model_id=self.model_id,
+                        )
+                else:
+                    raise ProviderError(
+                        code=ErrorCode.PROCESS_FAILED,
+                        message=f"Laya forward pass failed: {e}",
+                        details={"context": context, "questions": questions},
+                        provider_id=self.provider_id,
+                        model_id=self.model_id,
+                    )
 
         t1 = time.perf_counter()
         latency_ms = round((t1 - t0) * 1000, 3)
@@ -133,7 +174,6 @@ class LayaProvider(SystemOneProvider):
         signals: Dict[str, DecisionSignal] = {}
 
         for q_name, decision in answers.items():
-            # Determine canonical DecisionSignalType if matched
             sig_type_enum = DecisionSignalType.INTENT
             try:
                 sig_type_enum = DecisionSignalType(q_name.upper())
@@ -150,7 +190,7 @@ class LayaProvider(SystemOneProvider):
                 provider_id=self.provider_id,
                 model_id=self.model_id,
                 decision_schema_version="1.0.0",
-                calibration_version="temperature-scaled-v1",
+                calibration_version="modernbert-large-temp-scaled-v1",
                 latency_ms=latency_ms,
                 metadata={"cold_start": was_cold, "question_name": q_name},
             )

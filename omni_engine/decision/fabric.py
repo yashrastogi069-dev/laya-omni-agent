@@ -17,6 +17,7 @@ import uuid
 from typing import Any, Dict, List, Optional
 
 from omni_engine.contracts.base import BaseContractModel
+from omni_engine.contracts.calibration import CalibrationConfig
 from omni_engine.contracts.decision import DecisionFrame, DecisionSignal
 from omni_engine.contracts.enums import DecisionSignalType, ErrorCode
 from omni_engine.providers.base import ProviderError, SystemOneProvider
@@ -46,12 +47,14 @@ class DecisionFabric:
         self,
         provider: Optional[SystemOneProvider] = None,
         high_risk_patterns: Optional[List[str]] = None,
+        calibration: Optional[CalibrationConfig] = None,
     ) -> None:
         self.provider = provider if provider is not None else LayaProvider(preload=False)
         self.high_risk_patterns = high_risk_patterns or DEFAULT_HIGH_RISK_PATTERNS
         self._compiled_risk_patterns = [
             re.compile(p, re.IGNORECASE) for p in self.high_risk_patterns
         ]
+        self.calibration = calibration or CalibrationConfig()
 
     def _truncate_prompt(self, prompt: str, max_chars: int = 3000) -> str:
         """Sliding-window head-tail truncation to fit model context window."""
@@ -281,43 +284,36 @@ class DecisionFabric:
             },
         }
 
-    def evaluate(
+    def _get_triage_questions(self) -> Dict[str, Any]:
+        """Returns the minimal triage question set (4 questions) for rapid conversational routing."""
+        all_q = self._get_batched_questions()
+        return {
+            "intent": all_q["intent"],
+            "risk": all_q["risk"],
+            "needs_tools": all_q["needs_tools"],
+            "requires_action": all_q["requires_action"],
+        }
+
+    def _assemble_decision_frame(
         self,
-        prompt: str,
-        session_context: Optional[Dict[str, Any]] = None,
-        request_id: Optional[str] = None,
+        cleaned_prompt: str,
+        signals: Dict[str, DecisionSignal],
+        t0: float,
+        req_id: str,
     ) -> DecisionFrame:
-        """Evaluates input prompt through System 1 nervous system, returning validated DecisionFrame."""
-        t0 = time.perf_counter()
-        req_id = request_id or str(uuid.uuid4())
-        raw_prompt = prompt or ""
-
-        # 1. Deterministic Fast-Path: Empty or Whitespace Only
-        if not raw_prompt.strip():
-            return self._build_empty_prompt_frame(req_id, t0)
-
-        cleaned_prompt = self._truncate_prompt(raw_prompt.strip())
-        ctx = {"prompt": cleaned_prompt}
-        if session_context:
-            ctx.update(session_context)
-
-        # 2. Neural Evaluation Pass (Batched Single Forward Pass)
-        questions = self._get_batched_questions()
-        try:
-            signals = self.provider.predict_signals(context=ctx, questions=questions)
-        except Exception as e:
-            return self._build_fallback_frame(req_id, t0, str(e))
-
+        """Assembles a validated DecisionFrame from neural signals and deterministic safety floors."""
         t1 = time.perf_counter()
         total_latency_ms = round((t1 - t0) * 1000, 3)
+        cal_ver = self.calibration.calibration_version
 
         # Helper to safely retrieve signal with guaranteed type and bounds
         def _get_sig(name: str, def_type: DecisionSignalType, def_val: Any) -> DecisionSignal:
             if name in signals:
                 s = signals[name]
-                # Ensure correct DecisionSignalType enum
+                meta = dict(s.metadata) if s.metadata else {}
+                meta.setdefault("calibration_version", cal_ver)
                 if s.signal_type != def_type:
-                    s = DecisionSignal(
+                    return DecisionSignal(
                         signal_type=def_type,
                         value=s.value,
                         confidence=s.confidence,
@@ -325,7 +321,18 @@ class DecisionFabric:
                         provider_id=s.provider_id,
                         model_id=s.model_id,
                         latency_ms=s.latency_ms,
-                        metadata=s.metadata,
+                        metadata=meta,
+                    )
+                if "calibration_version" not in (s.metadata or {}):
+                    return DecisionSignal(
+                        signal_type=s.signal_type,
+                        value=s.value,
+                        confidence=s.confidence,
+                        probabilities=s.probabilities,
+                        provider_id=s.provider_id,
+                        model_id=s.model_id,
+                        latency_ms=s.latency_ms,
+                        metadata=meta,
                     )
                 return s
             return DecisionSignal(
@@ -335,6 +342,7 @@ class DecisionFabric:
                 provider_id=getattr(self.provider, "provider_id", "laya"),
                 model_id=getattr(self.provider, "model_id", "default"),
                 latency_ms=total_latency_ms,
+                metadata={"calibration_version": cal_ver},
             )
 
         intent_sig = _get_sig("intent", DecisionSignalType.INTENT, "informational")
@@ -372,7 +380,7 @@ class DecisionFabric:
                 provider_id="deterministic-safety-rule",
                 model_id="rule-pattern-matcher",
                 latency_ms=total_latency_ms,
-                metadata={"override": "high_risk_pattern_detected"},
+                metadata={"override": "high_risk_pattern_detected", "calibration_version": cal_ver},
             )
             reversibility_sig = DecisionSignal(
                 signal_type=DecisionSignalType.REVERSIBILITY,
@@ -381,6 +389,7 @@ class DecisionFabric:
                 provider_id="deterministic-safety-rule",
                 model_id="rule-pattern-matcher",
                 latency_ms=total_latency_ms,
+                metadata={"calibration_version": cal_ver},
             )
             escalation_bool = True
             requires_action_bool = True
@@ -395,14 +404,18 @@ class DecisionFabric:
                     provider_id=risk_sig.provider_id,
                     model_id=risk_sig.model_id,
                     latency_ms=total_latency_ms,
+                    metadata={"calibration_version": cal_ver},
                 )
 
-        # 4c. Ambiguity Escalation
+        # 4c. Ambiguity Escalation (Calibrated Thresholds)
+        ambiguity_max_thresh = self.calibration.model_thresholds.ambiguity_max
+        ambiguity_min_words = self.calibration.deterministic_policy.ambiguity_min_words
+
         is_ambiguous = (
             ambiguity_sig.value in ["ambiguous", True]
-            or (isinstance(ambiguity_sig.value, (int, float)) and ambiguity_sig.value > 0.65)
-            or (ambiguity_sig.probabilities and ambiguity_sig.probabilities.get("ambiguous", 0.0) > 0.65)
-            or len(cleaned_prompt.split()) <= 2
+            or (isinstance(ambiguity_sig.value, (int, float)) and ambiguity_sig.value > ambiguity_max_thresh)
+            or (ambiguity_sig.probabilities and ambiguity_sig.probabilities.get("ambiguous", 0.0) > ambiguity_max_thresh)
+            or len(cleaned_prompt.split()) <= ambiguity_min_words
         )
         if is_ambiguous:
             needs_clarification_bool = True
@@ -431,7 +444,6 @@ class DecisionFabric:
             model_tier_val = "flash" if needs_gen_bool else "system_1"
 
         # 5. Extract Candidate Domains
-        # Domain contract trap: DecisionFrame has candidate_domains: List[str] and NO domain field
         candidate_domains = []
         domain_sig = signals.get("domain")
         if domain_sig and domain_sig.probabilities:
@@ -444,7 +456,6 @@ class DecisionFabric:
         else:
             candidate_domains = ["general"]
 
-        # Ensure top domain is primary
         if not candidate_domains:
             candidate_domains = ["general"]
 
@@ -453,6 +464,8 @@ class DecisionFabric:
         mod_id = getattr(self.provider, "model_id", "ModernBERT-large")
 
         def _update_bool_sig(orig_sig: DecisionSignal, val: bool) -> DecisionSignal:
+            meta = dict(orig_sig.metadata) if orig_sig.metadata else {}
+            meta.setdefault("calibration_version", cal_ver)
             return DecisionSignal(
                 signal_type=orig_sig.signal_type,
                 value=val,
@@ -461,7 +474,7 @@ class DecisionFabric:
                 provider_id=orig_sig.provider_id or prov_id,
                 model_id=orig_sig.model_id or mod_id,
                 latency_ms=orig_sig.latency_ms,
-                metadata=orig_sig.metadata,
+                metadata=meta,
             )
 
         needs_plan_sig = _update_bool_sig(needs_plan_sig, needs_plan_bool)
@@ -478,9 +491,9 @@ class DecisionFabric:
             provider_id=prov_id,
             model_id=mod_id,
             latency_ms=total_latency_ms,
+            metadata={"calibration_version": cal_ver},
         )
 
-        # Preserve raw domain signal in raw_signals
         raw_signals_store = dict(signals)
 
         return DecisionFrame(
@@ -506,3 +519,153 @@ class DecisionFabric:
             provider_id=prov_id,
             raw_signals=raw_signals_store,
         )
+
+    def evaluate(
+        self,
+        prompt: str,
+        session_context: Optional[Dict[str, Any]] = None,
+        request_id: Optional[str] = None,
+    ) -> DecisionFrame:
+        """Evaluates input prompt through System 1 nervous system, returning validated DecisionFrame."""
+        t0 = time.perf_counter()
+        req_id = request_id or str(uuid.uuid4())
+        raw_prompt = prompt or ""
+
+        # 1. Deterministic Fast-Path: Empty or Whitespace Only
+        if not raw_prompt.strip():
+            return self._build_empty_prompt_frame(req_id, t0)
+
+        cleaned_prompt = self._truncate_prompt(raw_prompt.strip())
+        ctx = {"prompt": cleaned_prompt}
+        if session_context:
+            ctx.update(session_context)
+
+        # 2. Neural Evaluation Pass (Batched Single Forward Pass)
+        questions = self._get_batched_questions()
+        try:
+            signals = self.provider.predict_signals(context=ctx, questions=questions)
+        except Exception as e:
+            return self._build_fallback_frame(req_id, t0, str(e))
+
+        return self._assemble_decision_frame(cleaned_prompt, signals, t0, req_id)
+
+    def evaluate_adaptive(
+        self,
+        prompt: str,
+        session_context: Optional[Dict[str, Any]] = None,
+        request_id: Optional[str] = None,
+    ) -> DecisionFrame:
+        """Adaptive two-stage evaluation: fast triage for conversational queries, full pass for tasks.
+        
+        Saves significant latency on CPU by evaluating only 4 triage criteria for safe informational queries.
+        """
+        t0 = time.perf_counter()
+        req_id = request_id or str(uuid.uuid4())
+        raw_prompt = prompt or ""
+
+        # 1. Deterministic Fast-Path: Empty or Whitespace Only
+        if not raw_prompt.strip():
+            return self._build_empty_prompt_frame(req_id, t0)
+
+        cleaned_prompt = self._truncate_prompt(raw_prompt.strip())
+        ctx = {"prompt": cleaned_prompt}
+        if session_context:
+            ctx.update(session_context)
+
+        # 2. Deterministic High-Risk Pattern Check: If regex matches, execute full evaluation
+        is_pattern_high_risk = any(p.search(cleaned_prompt) for p in self._compiled_risk_patterns)
+        if is_pattern_high_risk:
+            questions = self._get_batched_questions()
+            try:
+                signals = self.provider.predict_signals(context=ctx, questions=questions)
+            except Exception as e:
+                return self._build_fallback_frame(req_id, t0, str(e))
+            return self._assemble_decision_frame(cleaned_prompt, signals, t0, req_id)
+
+        # 3. Stage 1: Fast Triage Pass (4 questions)
+        triage_q = self._get_triage_questions()
+        try:
+            triage_signals = self.provider.predict_signals(context=ctx, questions=triage_q)
+        except Exception as e:
+            return self._build_fallback_frame(req_id, t0, str(e))
+
+        intent_sig = triage_signals.get("intent")
+        intent_val = intent_sig.value if intent_sig else "informational"
+        risk_sig = triage_signals.get("risk")
+        risk_val = risk_sig.value if risk_sig else "safe_read_only"
+        needs_tools_sig = triage_signals.get("needs_tools")
+        needs_tools = (needs_tools_sig.value in [True, "tools_required", "true", "yes"]) if needs_tools_sig else False
+        req_action_sig = triage_signals.get("requires_action")
+        requires_action = (req_action_sig.value in [True, "action_required", "true", "yes"]) if req_action_sig else False
+
+        # 4. Fast Conversational Exit
+        if intent_val == "informational" and risk_val == "safe_read_only" and not needs_tools and not requires_action:
+            cal_ver = self.calibration.calibration_version
+            triage_lat = round((time.perf_counter() - t0) * 1000, 3)
+            prov_id = getattr(self.provider, "provider_id", "laya")
+            mod_id = getattr(self.provider, "model_id", "ModernBERT-large")
+
+            words = cleaned_prompt.split()
+            ambig_min_w = self.calibration.deterministic_policy.ambiguity_min_words
+            is_ambig = len(words) <= ambig_min_w
+            ambig_val = "ambiguous" if is_ambig else "unambiguous"
+
+            def _synthesize(st: DecisionSignalType, val: Any) -> DecisionSignal:
+                return DecisionSignal(
+                    signal_type=st,
+                    value=val,
+                    confidence=0.95,
+                    provider_id=prov_id,
+                    model_id=mod_id,
+                    latency_ms=triage_lat,
+                    metadata={"calibration_version": cal_ver, "adaptive_triage": "early_exit"},
+                )
+
+            signals = dict(triage_signals)
+            intent_meta = dict(intent_sig.metadata) if intent_sig and intent_sig.metadata else {}
+            intent_meta["adaptive_triage"] = "early_exit"
+            signals["intent"] = DecisionSignal(
+                signal_type=DecisionSignalType.INTENT,
+                value=intent_val,
+                confidence=intent_sig.confidence if intent_sig else 0.95,
+                probabilities=intent_sig.probabilities if intent_sig else None,
+                provider_id=intent_sig.provider_id if intent_sig else prov_id,
+                model_id=intent_sig.model_id if intent_sig else mod_id,
+                latency_ms=triage_lat,
+                metadata=intent_meta,
+            )
+            signals["task_class"] = _synthesize(DecisionSignalType.TASK_CLASS, "single_turn_reflex")
+            signals["urgency"] = _synthesize(DecisionSignalType.URGENCY, "routine")
+            signals["importance"] = _synthesize(DecisionSignalType.IMPORTANCE, "normal")
+            signals["reversibility"] = _synthesize(DecisionSignalType.REVERSIBILITY, "reversible")
+            signals["ambiguity"] = _synthesize(DecisionSignalType.AMBIGUITY, ambig_val)
+            signals["needs_plan"] = _synthesize(DecisionSignalType.NEEDS_PLAN, False)
+            signals["model_tier"] = _synthesize(DecisionSignalType.MODEL_TIER, "system_1")
+            signals["needs_clarification"] = _synthesize(DecisionSignalType.NEEDS_CLARIFICATION, is_ambig)
+            signals["needs_generative_reasoning"] = _synthesize(DecisionSignalType.NEEDS_GENERATIVE_REASONING, False)
+            signals["escalation_required"] = _synthesize(DecisionSignalType.ESCALATION_REQUIRED, False)
+            signals["domain"] = DecisionSignal(
+                signal_type=DecisionSignalType.DOMAIN,
+                value="general",
+                confidence=1.0,
+                probabilities={"general": 1.0},
+                provider_id=prov_id,
+                model_id=mod_id,
+                latency_ms=triage_lat,
+                metadata={"calibration_version": cal_ver, "adaptive_triage": "early_exit"},
+            )
+
+            return self._assemble_decision_frame(cleaned_prompt, signals, t0, req_id)
+
+        # 5. Stage 2: Full pass for tasks / tools / risk
+        all_q = self._get_batched_questions()
+        remaining_q = {k: v for k, v in all_q.items() if k not in triage_q}
+        try:
+            remaining_signals = self.provider.predict_signals(context=ctx, questions=remaining_q)
+        except Exception as e:
+            return self._build_fallback_frame(req_id, t0, str(e))
+
+        combined_signals = dict(triage_signals)
+        combined_signals.update(remaining_signals)
+        return self._assemble_decision_frame(cleaned_prompt, combined_signals, t0, req_id)
+

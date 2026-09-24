@@ -93,15 +93,16 @@ class SkillRegistry:
                             f"and cannot declare confirmation_policy=ConfirmationPolicy.NEVER."
                         )
 
-            # 2b. Autonomy Profile Policy Floor across required capabilities
-            for cap_id in manifest.required_capabilities:
+            # 2b. Autonomy Profile Policy Floor across all constituent capabilities (required and optional)
+            for cap_id in sorted(list(all_constituent_caps)):
                 spec = cap_reg.get_spec(cap_id)
                 if spec is not None:
                     cap_autonomy_rank = AUTONOMY_RANK.get(spec.minimum_autonomy_profile, 1)
                     if skill_autonomy_rank < cap_autonomy_rank:
+                        cap_kind = "required" if cap_id in manifest.required_capabilities else "optional"
                         raise ValueError(
                             f"Skill '{manifest.skill_id}' declares autonomy profile '{manifest.applicable_autonomy.value}', "
-                            f"which is weaker than required capability '{cap_id}' profile '{spec.minimum_autonomy_profile.value}'."
+                            f"which is weaker than {cap_kind} capability '{cap_id}' profile '{spec.minimum_autonomy_profile.value}'."
                         )
 
             # Store deepcopy to guarantee registry state isolation

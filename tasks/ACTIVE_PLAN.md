@@ -1,69 +1,75 @@
-# ACTIVE_PLAN.md — Checkpoint L6B: Final Skill-Aware Hierarchical Router (COMPLETED)
+# ACTIVE_PLAN.md — Checkpoint L8: Typed Argument Resolution & Extraction Engine (ACTIVE)
 
-## 1. Summary of Completed Checkpoint L6B (Final Skill-Aware Hierarchical Router)
+## 1. Summary of Completed Checkpoint L7.5 (System One Truth, Calibration & Upstream Alignment)
 - **Status**: **COMPLETED & VERIFIED**
-- **Artifacts Created / Hardened**:
-  - `omni_engine/contracts/routing.py`:
-    - Strongly typed `RouteDecision` extended with skill awareness:
-      - `selected_skill: Optional[str]`: Canonical identifier of primary matching skill, if selected.
-      - `candidate_skills: List[str]`: Ranked list of candidate skill IDs evaluated.
-      - `skill_workflow_template: Optional[List[SkillStepTemplate]]`: Predefined deterministic DAG step template attached to the selected skill.
-      - `skill_confirmation_policy: Optional[ConfirmationPolicy]`: Interactive human confirmation requirement declared by the skill.
-    - Model Validators:
-      - Enforces that if `selected_skill is None`, `skill_workflow_template` and `skill_confirmation_policy` must strictly be `None`.
-      - Enforces that if `selected_skill is not None`, it cannot be empty/whitespace and is guaranteed to be present in `candidate_skills`.
-      - Clean relative imports avoiding circular import deadlocks.
-  - `omni_engine/routing/router.py`:
-    - `HierarchicalRouter`: Upgraded to full multi-tier Skill-Aware Hierarchical Capability Router:
-      `Request → DecisionFrame → Domain Routing → Skill Routing → Small Candidate Set → Capability`
-    - Injected `skill_registry: Optional[SkillRegistry] = None`, defaulting to `build_canonical_skill_registry(self.registry)`.
-    - **Blocking-1 (Dynamic Floor Expansion)**: Mandatory capabilities (`pinned_caps ∪ skill.required_capabilities`) are unconditionally included. If `len(mandatory_caps) > max_candidates`, candidate budget dynamically expands (`effective_max = max(max_candidates, len(mandatory_caps))`) and records `metadata["budget_expanded"] = True`.
-    - **Blocking-2 (Cross-Domain Spec Backfill)**: Unconditionally backfills `domain_specs` for all constituent capabilities of the selected skill from `CapabilityRegistry`, preventing tool-dropping across domains.
-    - **Blocking-3 (Dual-Threshold Gating & Anti-Locking Defenses)**:
-      - Destructive Verb Conflict Gate: Detects destructive verbs (`delete`, `remove`, `kill`, `drop`, `purge`, `terminate`) and zeroes match score for non-destructive skills, preventing dangerous false-positive skill locking.
-      - Generic Single Token Gate: Generic tokens (`file`, `run`, `status`, `data`, `system`, `check`, `test`, `web`, `code`, `repo`, `python`) cannot trigger skill selection on their own.
-      - Description Score Ceiling: Description token overlaps are capped at 0.50, ensuring only high-confidence intent pattern matches (>=0.75) can trigger skill selection.
-      - Morphological Stemmer: Word suffix and root alignment (`_stem_token`) aligns verb inflections without external dependencies.
-    - **Unified Deduplication & Multi-Rationale Merging**: If a capability is both pinned and skill-required, score is pinned at 1.0 with composite rationale `"explicit_keyword_pinned+skill_required"`.
-    - **Budget-Conscious Optional Capability Ingestion**: Optional tools receive score 0.75 with rationale `"skill_optional"` and do not cause budget expansion.
-    - **Fast-Paths & Latency SLA**: Empty prompts and conversational non-tool queries return in <5ms. Warm neural routing executes in <35ms.
-  - `tests/test_l6b_skill_routing.py`:
-    - 16 comprehensive unit and integration tests covering:
-      1. `test_route_decision_contract_skill_fields_and_validation`
-      2. `test_fastpath_empty_and_conversational`
-      3. `test_canonical_skill_matching_web_research`
-      4. `test_canonical_skill_matching_diagnose_system`
-      5. `test_canonical_skill_matching_inspect_repository`
-      6. `test_canonical_skill_matching_analyze_data`
-      7. `test_canonical_skill_matching_browser_task`
-      8. `test_canonical_skill_matching_git_inspection`
-      9. `test_blocking_1_dynamic_floor_expansion`
-      10. `test_blocking_2_cross_domain_spec_backfill`
-      11. `test_blocking_3_destructive_verb_prevents_false_positive_lock`
-      12. `test_blocking_3_generic_single_token_prevents_skill_lock`
-      13. `test_deduplication_and_multi_rationale_merging`
-      14. `test_optional_capabilities_ingestion_and_scoring`
-      15. `test_legacy_non_switching_boundary`
-      16. `test_live_modernbert_skill_routing`
-- **Test Suite Results**:
-  - `tests/test_l6b_skill_routing.py`: **16/16 passed in 83.82s (100% pass rate)**.
-  - Full repository test suite (`python -m unittest discover tests -v`): **165/165 passed in 148.33s (100% pass rate)**.
-- **Adversarial Diff Review**: **PASS ✅ (All 5 blocking recommendations verified, zero regressions, strict non-switching boundary)**.
+- **Test Suite**: **181/181 passed in 48.60s (100% pass rate)**.
+- **Key Deliverables**:
+  1. `omni_engine/contracts/calibration.py`: `CalibratedModelThresholds`, `DeterministicPolicyThresholds`, and `CalibrationConfig`.
+  2. `omni_engine/skills/registry.py`: Autonomy profile floor validator inspects `required_capabilities | optional_capabilities | step_capabilities`, preventing autonomy bypass via optional tools.
+  3. `omni_engine/providers/system1.py`: Upstream alignment with `max_loaded=1`, pre-eviction unload/gc, process-wide thread lock (`_ROUTER_LOCK`), single-model preload guard (`names=[model_name]`), and configurable model routing (`english`, `multilingual`, `typed-decisions`).
+  4. `omni_engine/decision/eval_corpus.py`: 103 reviewable ground-truth labeled evaluation cases across 6 domains, prompt injection, and automation workflows.
+  5. `omni_engine/decision/benchmark.py`: Hardware-aware benchmark harness with batch scaling and adaptive triage telemetry.
+  6. `omni_engine/decision/fabric.py`: Integrated calibrated thresholds and `evaluate_adaptive()` 4-question fast triage for conversational queries saving ~11.8s CPU latency.
+  7. `omni_engine/routing/router.py`: Integrated calibrated scoring thresholds and shadow semantic skill routing telemetry.
+  8. `tests/test_l7_5_calibration.py`: 16 unit tests covering all calibration requirements.
+- **Adversarial Diff Review**: **PASS ✅** (Subagent `85316cc5-c0b3-4cca-a911-a0cda52da3c4`).
 
 ---
 
-## 2. Long-Horizon Engineering Goal (L3 – L7/L6B) Status: COMPLETE
+## 2. Active Checkpoint L8: Typed Argument Resolution & Extraction Engine
 
-With Checkpoints L3, L4, L5, L6A, L7, and L6B implemented, verified, and passing 100% across 165 tests, the capability substrate, provider foundations, System 1 decision fabric, skills layer, and hierarchical router are fully realized.
+### Objective
+Transform candidate capabilities selected by `HierarchicalRouter` into strongly-typed, schema-conforming `CapabilityInvocation` payloads. Deterministic extraction solves routine cases in <1ms; bounded generative synthesis resolves complex phrasing; missing arguments generate structured clarifications without hallucinatory defaults.
 
-### Hard Stopping Boundary:
-**STOP BEFORE L8**.
-Do **NOT** implement:
-- Argument Resolver (L8)
-- Policy Engine & Autonomy Profiles (L9)
-- Persisted SQLite Quest Engine (L10)
-- Operation Ledger & Idempotency (L11)
-- Structured DAG Planner (L12)
-- Plan Validator (L13)
-- Deterministic DAG Executor (L14)
-The current goal is complete. Next actions will be determined by the user.
+### Architecture & Components
+1. **Contracts (`omni_engine/contracts/arguments.py`)**:
+   - `ArgumentExtractionSource` (Enum: `DETERMINISTIC_EXTRACTOR`, `SYNTACTIC_AST`, `GENERATIVE_SYNTHESIS`, `SCHEMA_DEFAULT`)
+   - `ArgumentSlot`: Represents a single argument slot with `name`, `value`, `is_resolved`, `source`, `confidence`, and `error`.
+   - `ArgumentResolutionEnvelope`: Encapsulates resolution outcome:
+     - `capability_id: str`
+     - `arguments: Dict[str, Any]`
+     - `resolved_slots: Dict[str, ArgumentSlot]`
+     - `is_valid: bool`
+     - `validation_errors: List[str]`
+     - `clarification_needed: bool`
+     - `clarification_prompt: Optional[str]`
+     - `latency_ms: float`
+     - `metadata: Dict[str, Any]`
+
+2. **Deterministic Extractors (`omni_engine/arguments/extractors.py`)**:
+   - High-precision regex and AST extractors matching all 23 canonical capabilities:
+     - `extract_file_paths(text)`: Quoted paths, Windows paths (`C:\...`, `.\...`, `*.ext`), POSIX paths.
+     - `extract_urls(text)`: HTTP/HTTPS URLs, domains, ports (e.g. `:5678`).
+     - `extract_pids(text)`: Numeric process IDs with prefix matching (`pid 1234`, `process 456`).
+     - `extract_process_names(text)`: Application names, `.exe` processes, script runtimes (`node`, `python`, `n8n`, `chrome`).
+     - `extract_sql(text)`: SQL statements (`SELECT`, `INSERT`, `UPDATE`, `CREATE TABLE`).
+     - `extract_math_expression(text)`: Mathematical equations and arithmetic expressions.
+     - `extract_powershell_script(text)`: Command strings, shell one-liners.
+     - `extract_search_query(text)`: Natural language queries for code search and web search.
+
+3. **Argument Resolver (`omni_engine/arguments/resolver.py`)**:
+   - `ArgumentResolver`:
+     - Validates extracted arguments against `CapabilitySpec.input_schema`.
+     - Fast deterministic path: When regex/AST extraction satisfies all required fields of `CapabilitySpec.input_schema`, returns valid envelope in <1ms.
+     - Ambiguity & Missing Slot Detection: When required parameters are missing (e.g. user said "delete file" or "kill process" without specifying path or PID), sets `clarification_needed = True` with a clean clarification prompt.
+     - Generative Fallback: When deterministic extraction is incomplete and an optional `GenerativeProvider` is available, requests structured JSON matching the schema.
+
+4. **Integration & Parity**:
+   - Mapped 1:1 against all 23 canonical tool input schemas.
+   - Non-switching boundary preserved: `omni_agent.py` and `omni_engine/planner.py` untouched.
+
+5. **Test Suite (`tests/test_l8_arguments.py`)**:
+   - 25+ comprehensive unit tests covering all 23 tools, slot extraction, schema validation, and clarification generation.
+
+---
+
+## 3. Strict Goal Boundaries
+
+- Active Goal Scope: `L7.5 (Complete) → L8 (Active) → L9 (Next)`
+- **HARD STOP AFTER L9**:
+  Do **NOT** implement:
+  - SQLite Quest Persistence (L10)
+  - Operation Ledger (L11)
+  - Structured DAG Planner (L12)
+  - Plan DAG Validator (L13)
+  - Deterministic DAG Executor (L14)

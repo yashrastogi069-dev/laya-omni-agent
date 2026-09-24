@@ -24,6 +24,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 
 from omni_engine.capabilities.definitions import CANONICAL_SPECS, build_canonical_registry
 from omni_engine.capabilities.registry import CapabilityRegistry
+from omni_engine.contracts.calibration import CalibrationConfig
 from omni_engine.contracts.capability import CapabilitySpec
 from omni_engine.contracts.decision import DecisionFrame, DecisionSignal
 from omni_engine.contracts.enums import ActionClass, ConfirmationPolicy
@@ -145,11 +146,19 @@ class HierarchicalRouter:
         provider: Optional[SystemOneProvider] = None,
         fabric: Optional[DecisionFabric] = None,
         skill_registry: Optional[SkillRegistry] = None,
+        calibration: Optional[CalibrationConfig] = None,
+        enable_shadow_semantic: bool = False,
     ) -> None:
         self.registry = registry or build_canonical_registry()
         self.provider = provider or LayaProvider()
-        self.fabric = fabric or DecisionFabric(provider=self.provider)
+        self.calibration = (
+            calibration
+            or (fabric.calibration if fabric is not None else None)
+            or CalibrationConfig()
+        )
+        self.fabric = fabric or DecisionFabric(provider=self.provider, calibration=self.calibration)
         self.skill_registry = skill_registry or build_canonical_skill_registry(self.registry)
+        self.enable_shadow_semantic = enable_shadow_semantic
 
     def _score_skill_match(
         self,
@@ -204,7 +213,7 @@ class HierarchicalRouter:
                         token_score = min(0.98, token_score + 0.10)
                     best_score = max(best_score, token_score)
 
-        # 3. Description & name token overlap (capped at 0.50 so it never triggers selection alone)
+        # 3. Description & name token overlap (capped by calibration ceiling so it never triggers selection alone)
         desc_text = f"{manifest.name} {manifest.description}".lower()
         desc_tokens = set(re.findall(r"\w+", desc_text))
         desc_stems = {_stem_token(t) for t in desc_tokens} | desc_tokens
@@ -213,10 +222,58 @@ class HierarchicalRouter:
             if t not in GENERIC_SINGLE_TOKENS and _stem_token(t) not in GENERIC_SINGLE_TOKENS
         ]
         if len(non_generic_desc_overlap) >= 2:
-            desc_score = min(0.50, 0.20 + 0.10 * len(non_generic_desc_overlap))
+            ceiling = self.calibration.model_thresholds.skill_description_overlap_ceiling
+            desc_score = min(ceiling, 0.20 + 0.10 * len(non_generic_desc_overlap))
             best_score = max(best_score, desc_score)
 
         return round(best_score, 3)
+
+    def _evaluate_shadow_semantic_skills(
+        self,
+        prompt: str,
+        active_skills: List[SkillManifest],
+    ) -> Dict[str, Any]:
+        """Runs shadow semantic skill routing by presenting skills as criteria to Laya ModernBERT.
+        
+        Zero impact on production lexical decisions; records agreement telemetry in metadata.
+        """
+        if not active_skills or not hasattr(self.provider, "predict_signals"):
+            return {"shadow_selected_skill": None, "semantic_agreement": True, "shadow_probabilities": {}}
+
+        criteria = {}
+        for s in active_skills[:8]:
+            criteria[s.skill_id] = f"{s.name}: {s.description[:100]}"
+
+        question = {
+            "type": "choice",
+            "instructions": "Select the best matching autonomous skill for this request:",
+            "criteria": criteria,
+        }
+
+        try:
+            res = self.provider.predict_signals(
+                context={"prompt": prompt},
+                questions={"skill_choice": question},
+            )
+            sig = res.get("skill_choice")
+            if sig and sig.probabilities:
+                top_skill = max(sig.probabilities.items(), key=lambda kv: kv[1])
+                return {
+                    "shadow_selected_skill": top_skill[0],
+                    "shadow_skill_confidence": round(top_skill[1], 3),
+                    "shadow_probabilities": {k: round(v, 3) for k, v in sig.probabilities.items()},
+                }
+            elif sig and sig.value:
+                return {
+                    "shadow_selected_skill": str(sig.value),
+                    "shadow_skill_confidence": round(sig.confidence, 3),
+                    "shadow_probabilities": {},
+                }
+        except Exception as e:
+            return {"shadow_selected_skill": None, "error": str(e)}
+
+        return {"shadow_selected_skill": None}
+
 
     def route(
         self,
@@ -225,6 +282,7 @@ class HierarchicalRouter:
         context: Optional[Dict[str, Any]] = None,
         min_candidates: int = 3,
         max_candidates: int = 6,
+        enable_shadow_semantic: Optional[bool] = None,
     ) -> RouteDecision:
         """Computes hierarchical routing decision for the given prompt.
         
@@ -338,7 +396,9 @@ class HierarchicalRouter:
         needs_clarif_val = getattr(frame.needs_clarification, "value", False) if frame.needs_clarification is not None else False
         needs_clarif = needs_clarif_val in [True, "ask_user", "true", "yes"]
 
-        if domain_confidence < 0.55 or ambiguity_num > 0.65 or needs_clarif:
+        dom_conf_min = self.calibration.model_thresholds.domain_confidence_min
+        ambig_max = self.calibration.model_thresholds.ambiguity_max
+        if domain_confidence < dom_conf_min or ambiguity_num > ambig_max or needs_clarif:
             is_fail_open = True
             fallback_reasons.append("low_domain_confidence_or_high_ambiguity")
 
@@ -374,7 +434,7 @@ class HierarchicalRouter:
         primary_domain = active_domains[0] if active_domains else None
 
         # -------------------------------------------------------------------
-        # 4. Explicit Capability Pinning (Score = 1.0)
+        # 4. Explicit Capability Pinning
         # -------------------------------------------------------------------
         pinned_caps: Dict[str, CapabilityCandidate] = {}
         for pattern, cap_id in CAPABILITY_PIN_MAP:
@@ -384,7 +444,7 @@ class HierarchicalRouter:
                     pinned_caps[cap_id] = CapabilityCandidate(
                         capability_id=cap_id,
                         domain=spec.domain,
-                        score=1.0,
+                        score=self.calibration.deterministic_policy.pinned_capability_score,
                         rationale="explicit_keyword_pinned",
                         spec_summary=f"{spec.name}: {spec.description[:80]}",
                     )
@@ -411,7 +471,7 @@ class HierarchicalRouter:
                 manifest=manifest,
                 primary_domain=primary_domain,
             )
-            if score >= 0.50:
+            if score >= self.calibration.model_thresholds.skill_candidate_min:
                 scored_skills.append((score, manifest))
 
         # Deterministic sorting: highest score, domain match preference, lexicographical ID
@@ -427,7 +487,7 @@ class HierarchicalRouter:
         selected_skill_manifest: Optional[SkillManifest] = None
         selected_skill: Optional[str] = None
 
-        if scored_skills and scored_skills[0][0] >= 0.75:
+        if scored_skills and scored_skills[0][0] >= self.calibration.model_thresholds.skill_selection_min:
             selected_skill_manifest = scored_skills[0][1]
             selected_skill = selected_skill_manifest.skill_id
 
@@ -483,7 +543,7 @@ class HierarchicalRouter:
                         skill_required_caps[cap_id] = CapabilityCandidate(
                             capability_id=cap_id,
                             domain=spec.domain,
-                            score=0.98,
+                            score=self.calibration.deterministic_policy.skill_required_capability_score,
                             rationale="skill_required",
                             spec_summary=f"{spec.name}: {spec.description[:80]}",
                         )
@@ -495,7 +555,7 @@ class HierarchicalRouter:
                         skill_optional_caps[cap_id] = CapabilityCandidate(
                             capability_id=cap_id,
                             domain=spec.domain,
-                            score=0.75,
+                            score=self.calibration.deterministic_policy.skill_optional_capability_score,
                             rationale="skill_optional",
                             spec_summary=f"{spec.name}: {spec.description[:80]}",
                         )
@@ -530,7 +590,11 @@ class HierarchicalRouter:
                         CapabilityCandidate(
                             capability_id=cap_id,
                             domain=spec.domain,
-                            score=0.85 if spec.domain == primary_domain else 0.70,
+                            score=(
+                                self.calibration.deterministic_policy.domain_primary_default_score
+                                if spec.domain == primary_domain
+                                else self.calibration.deterministic_policy.domain_pooled_default_score
+                            ),
                             rationale="domain_primary" if spec.domain == primary_domain else "pooled_domain",
                             spec_summary=f"{spec.name}: {spec.description[:80]}",
                         )
@@ -542,9 +606,22 @@ class HierarchicalRouter:
                     spec_text = f"{spec.id} {spec.name} {spec.domain} {spec.description}".lower()
                     spec_tokens = set(re.findall(r"\w+", spec_text))
                     overlap = len(prompt_tokens.intersection(spec_tokens))
-                    base_score = 0.50 if spec.domain == primary_domain else 0.35
-                    relevance_boost = min(0.40, overlap * 0.15)
-                    score = round(min(0.90, base_score + relevance_boost), 3)
+                    base_score = (
+                        self.calibration.deterministic_policy.lexical_primary_base_score
+                        if spec.domain == primary_domain
+                        else self.calibration.deterministic_policy.lexical_pooled_base_score
+                    )
+                    relevance_boost = min(
+                        self.calibration.deterministic_policy.lexical_overlap_boost_max,
+                        overlap * self.calibration.deterministic_policy.lexical_overlap_boost_per_token,
+                    )
+                    score = round(
+                        min(
+                            self.calibration.deterministic_policy.lexical_score_cap,
+                            base_score + relevance_boost,
+                        ),
+                        3,
+                    )
 
                     domain_scores.append(
                         (
@@ -594,6 +671,21 @@ class HierarchicalRouter:
         }
         if budget_expanded:
             metadata["expanded_reason"] = "skill_required_capabilities_exceeded_max"
+
+        # Shadow Semantic Routing Telemetry (if enabled)
+        should_shadow = (
+            enable_shadow_semantic
+            if enable_shadow_semantic is not None
+            else self.enable_shadow_semantic
+        )
+        if should_shadow and skills_to_consider:
+            shadow_data = self._evaluate_shadow_semantic_skills(
+                prompt=stripped_prompt,
+                active_skills=list(unique_skills_map.values()),
+            )
+            shadow_skill = shadow_data.get("shadow_selected_skill")
+            shadow_data["semantic_agreement"] = (shadow_skill == selected_skill)
+            metadata["shadow_routing"] = shadow_data
 
         return RouteDecision(
             request_id=req_id,

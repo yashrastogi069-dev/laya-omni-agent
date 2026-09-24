@@ -49,3 +49,11 @@
 - **Status**: ACCEPTED
 - **Problem**: The legacy `[:12]` slice in `system1.py` excluded 11 tools. However, simply removing the slice and dumping all 23+ tool descriptions into a flat choice prompt exceeds context constraints, degrades classification accuracy, and fails to scale to 50–100 tools.
 - **Decision**: Reject the flat 23-tool dump. Implement hierarchical capability routing in Checkpoint L6: `Request → Domain → Skill → Small Candidate Set → Capability`, with fail-open fallback.
+
+---
+
+## ADR-007: SystemOneBroker, User Model Sovereignty & Two-Level Hierarchical Locking
+- **Date**: 2026-09-24
+- **Status**: ACCEPTED
+- **Problem**: Upstream single-lock concurrency serialized both model management (load/unload/preload) and inference, threatening deadlocks or memory corruption during swaps. Furthermore, model selection lacked explicit user sovereignty (`USER_LOCKED`, `USER_PREFERRED`, `AUTO`), allowlists, or task overrides.
+- **Decision**: Implement `SystemOneBroker` implementing `SystemOneProvider` under ironclad User Model Sovereignty (`USER_LOCKED` strictly prohibits silent fallback; `USER_PREFERRED` permits fallback only for measurable reasons with mandatory telemetry). Enforce two-level hierarchical locking: Level 1 (`_MODEL_LIFECYCLE_LOCK`, RLock) outer, Level 2 (`_INFERENCE_SEMAPHORE`, Semaphore) inner, with exclusive permit draining on swaps/evictions. Ban multilingual models (English-only scope). Implement debounced Windows RAM protection (3 consecutive breaches over >=5s before idle eviction).

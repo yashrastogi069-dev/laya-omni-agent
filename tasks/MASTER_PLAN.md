@@ -90,13 +90,34 @@ This guarantees that future multi-agent coordination or supervisor routing can b
   - Dynamic candidate floor expansion, cross-domain spec backfill, dual-threshold anti-locking defenses.
   - Test suite `tests/test_l6b_skill_routing.py` (16 tests). Full repository test suite: **165 passed in 148.33s (100% pass rate)**.
 
-### Phase III: Argument Resolution & Safety Policy (L8 – L9) (PAUSED - PENDING NEXT USER GOAL)
-- [ ] **L8 — Typed Capability Argument Resolver**:
-  - Multi-tier argument resolution: Deterministic regex/AST → Conversation state → Skill template → Small structured model.
-  - Strict validation against capability input schemas before dispatch.
-- [ ] **L9 — Deterministic Action Policy & Autonomy Profiles**:
+### Phase III: Argument Resolution & Safety Policy (L8 – L9) (COMPLETED & VERIFIED)
+- [x] **L8 — Typed Capability Argument Resolver**:
+  - Deterministic parameter extraction in 0.118 ms across 23 canonical tools with schema validation, alias bridging, and zero-hallucination clarification gating (`CLARIFICATION_PROMPTS`).
+  - Unit test suite `tests/test_l8_arguments.py` (26 tests, 100% pass rate).
+- [x] **L9 — Deterministic Action Policy & Autonomy Profiles**:
   - Centralized policy engine enforcing autonomy tiers (`ADVISOR`, `SAFE_ASSISTANT`, `LOCAL_OPERATOR`, `TRUSTED_OPERATOR`, `WORKFLOW_AUTHORIZED`).
-  - Strict confirmation gates for destructive actions (`LOCAL_DELETE`, `EXTERNAL_SEND`, `SYSTEM_ACTION`).
+  - Inviolable Rule-0 hard invariants (`user_confirmed` strictly ignored), boundary-aware user blacklists, and non-disruptive shadow mode simulation.
+  - Unit test suite `tests/test_l9_policy.py` (25 tests, 100% pass rate).
+
+### Phase IIIA: Real Capability Engines (R1 – R5) (ACTIVE MILESTONE)
+- [x] **Foundation Gate — System One Broker, Concurrency Correction & Calibration Truth**:
+  - User Model Sovereignty (`USER_LOCKED`, `USER_PREFERRED`, `AUTO`), allowlist enforcement, and task-level overrides.
+  - Two-level hierarchical locking (`_MODEL_LIFECYCLE_LOCK` outer, `_INFERENCE_SEMAPHORE` inner) with exclusive permit draining on swaps/evictions.
+  - Strict English-only invariant: banned multilingual checkpoints.
+  - Debounced Windows RAM protection: psutil with ctypes fallback, requiring 3 consecutive breaches over >=5s before idle eviction.
+  - Empirical concurrency benchmark (concurrency 1 vs 2 vs 4 on CPU): proven cold start is 47.4s / 1.67 GB RAM, warm inference is ~712ms.
+  - Deterministic 70/30 stratified calibration partition (72 dev / 31 test) and 10-bin ECE evaluation harness.
+  - Unit test suite `tests/test_foundation_broker.py` (27 tests, 100% pass rate). Total repository suite: **259 passed (+ 47 subtests = 306 total)**.
+- [ ] **R1 — Deep Research Engine (ACTIVE)**:
+  - Multi-source discovery, crawl, extraction, dynamic-page fallback, evidence normalization, relevance ranking, gap detection, evidence saturation stop, generative synthesis, and claim-level verification.
+- [ ] **R2 — Real Browser Engine**:
+  - Persistent browser context, dynamic indexed action space, verified state transitions, and confirmation-gated purchase boundaries.
+- [ ] **R3 — Windows / App / Local-Service Engine**:
+  - ComputerUseDriver (WindowsUIADriver, LocalServiceDriver, ShellDriver), structured app/service resolver with port/process checking before execution.
+- [ ] **R4 — n8n Automation Engine**:
+  - Official programmatic n8n MCP/API/Skills integration, draft-test-validate workflow lifecycle, zero leaked secrets.
+- [ ] **R5 — Developer Agent / Antigravity Engine**:
+  - Antigravity CLI adapter (`agy`), Foreman-style supervision, isolated fixture repository acceptance test.
 
 ### Phase IV: Persistent Quest Engine & DAG Execution (L10 – L16)
 - [ ] **L10 — Persisted SQLite Quest Engine**:

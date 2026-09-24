@@ -1,9 +1,9 @@
 # LAYA_BUILD_STATE.md — Current Ground Truth State
 
-**Last Updated**: 2026-09-24T17:28:00+05:30  
+**Last Updated**: 2026-09-24T18:15:00+05:30  
 **Current Branch**: `laya-autonomous-v2`  
-**Active Milestone Goal**: `L7.5 → L8 → L9` (**100% COMPLETE & VERIFIED — HARD STOPPED BEFORE L10**)  
-**Last Passing Test Suite**: `tests/test_l0_baselines.py`, `tests/test_l1_repairs.py`, `tests/test_l2_contracts.py`, `tests/test_l2_1_reconciliation.py`, `tests/test_l3_capabilities.py`, `tests/test_l4_providers.py`, `tests/test_l5_decision_fabric.py`, `tests/test_l6a_routing.py`, `tests/test_l7_skills.py`, `tests/test_l6b_skill_routing.py`, `tests/test_l7_5_calibration.py`, `tests/test_l8_arguments.py`, `tests/test_l9_policy.py` (**232/232 passed in 320s, 47 subtests passed = 279 total (100% pass rate)**)  
+**Active Milestone Goal**: `Real Capability Engines: Foundation Gate (COMPLETE & VERIFIED) → Phase R1 (ACTIVE)`  
+**Last Passing Test Suite**: `tests/test_l0_baselines.py`, `tests/test_l1_repairs.py`, `tests/test_l2_contracts.py`, `tests/test_l2_1_reconciliation.py`, `tests/test_l3_capabilities.py`, `tests/test_l4_providers.py`, `tests/test_l5_decision_fabric.py`, `tests/test_l6a_routing.py`, `tests/test_l7_skills.py`, `tests/test_l6b_skill_routing.py`, `tests/test_l7_5_calibration.py`, `tests/test_l8_arguments.py`, `tests/test_l9_policy.py`, `tests/test_foundation_broker.py` (**259/259 passed in 160.33s, 47 subtests passed = 306 total (100% pass rate)**)  
 **Mission Role**: Complete Standalone Autonomous Operating Agent.
 
 ---
@@ -89,6 +89,15 @@ The repository contains a standalone prototype CLI (`laya_agent.py` / `omni_engi
     - **Shadow Mode Simulation**: Non-disruptive production simulation recording `shadow_mode=True`, `shadow_original_effect`, and diagnostics in decision metadata while strictly preserving Tier-0 hard invariant denials.
     - **Adversarial Diff Review**: **PASS ✅** (Independent subagents `b8ecedc3-4acd-4392-9f25-16ca29461ee1` [vulnerability identification] & `0f038fb7-f33b-47c1-864c-1fcd56e1a540` [verification of remediation]).
     - **Comprehensive Test Suite**: Created `tests/test_l9_policy.py` (25 unit tests, 100% pass rate in 0.269s).
+15. **Foundation Gate Milestone Reached (Prerequisite for R1–R5)**:
+    - **User Model Sovereignty & Precedence Routing**: Implemented `SystemOneBroker` in `omni_engine/providers/broker.py` governed by strict `ProviderSelectionMode` (`USER_LOCKED`, `USER_PREFERRED`, `AUTO`), allowlist enforcement, and task overrides. `USER_LOCKED` strictly prohibits silent provider switches. `USER_PREFERRED` permits fallback only for measurable reasons with mandatory explanatory telemetry (`FallbackReason`).
+    - **Hierarchical Two-Level Locking**: Refactored `omni_engine/providers/system1.py` to enforce Level 1 (`_MODEL_LIFECYCLE_LOCK`, RLock) outer, Level 2 (`_INFERENCE_SEMAPHORE`, Semaphore) inner. Model swaps and evictions exclusively drain all inference permits, completely eliminating swap races and C++ access violations.
+    - **Strict English-Only Invariant**: Banned all multilingual checkpoints, tokenizers, and language detection routines (`VALID_LOCAL_MODELS = ("english", "typed-decisions")`).
+    - **Debounced Windows RAM Protection**: Telemetry via `psutil` with Windows `ctypes.windll.kernel32.GlobalMemoryStatusEx` fallback. Eviction requires 3 consecutive breaches over >= 5s when idle.
+    - **Empirical Concurrency Benchmark**: Concurrency benchmark harness in `omni_engine/decision/concurrency_benchmark.py` measuring levels 1, 2, 4 on CPU. Proven: cold load takes 47.4s / 1.67 GB RAM; warm inference is ~712ms (concurrency 2: 2.79 req/s).
+    - **Deterministic Stratified Calibration**: 70/30 stratified partition (72 dev / 31 test) and 10-bin Expected Calibration Error (ECE) metric evaluation harness in `omni_engine/decision/calibration_eval.py`.
+    - **Adversarial Diff Review**: **PASS (UNCONDITIONAL)** (Subagent `5e8a88cd-a846-4ef9-b639-22afb9b791c2`).
+    - **Comprehensive Test Suite**: Created `tests/test_foundation_broker.py` (27 unit tests, 100% pass rate in 0.047s).
 
 ---
 

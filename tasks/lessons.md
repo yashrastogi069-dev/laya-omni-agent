@@ -23,3 +23,11 @@
 ## Lesson 6: Token Blacklisting Is Insufficient for Safe Evaluation
 - **Observation**: Blacklisting strings like `import` and `open` in `eval()` or AST does not protect against computational exhaustion attacks like `9**9**9**9`, which will lock the Python GIL and freeze the agent process.
 - **Principle**: Sandboxed execution must use an explicit AST NodeVisitor whitelist that only allows verified operations, enforces numeric bounds on exponents, and pairs with execution timeouts.
+
+## Lesson 7: Hierarchical Two-Level Locking Prevents Swap Races
+- **Observation**: Separating model lifecycle synchronization from inference concurrency naively can cause deadlocks if an inference thread triggers a model swap while holding an inference semaphore. In C++ PyTorch runtimes, mutating loaded weights during active forward passes causes access violation segfaults.
+- **Principle**: Model swaps and evictions must acquire the Level 1 lock (`_MODEL_LIFECYCLE_LOCK`) and exclusively drain all Level 2 inference permits before modifying model state. Threads holding inference permits must never acquire the lifecycle lock.
+
+## Lesson 8: Windows RAM Fluctuations Mandate Debounced Eviction
+- **Observation**: Windows 10 available RAM fluctuates by 200–800 MB due to OS file caching and background services. Evicting a 1.64 GB ModernBERT model on an instantaneous dip below a headroom threshold causes catastrophic eviction thrashing, where each request triggers a 47–69 second cold start.
+- **Principle**: RAM eviction must require multiple consecutive threshold breaches over time (e.g., 3 breaches over >= 5 seconds) and only execute when the system is completely idle (zero active inferences).

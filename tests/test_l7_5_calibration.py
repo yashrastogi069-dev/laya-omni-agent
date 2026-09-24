@@ -133,10 +133,10 @@ class TestLayaProviderCalibration(unittest.TestCase):
         self.assertEqual(p_eng.model_name, "english")
         self.assertEqual(p_eng.model_id, "ModernBERT-large")
 
-        # Multilingual model
-        p_multi = LayaProvider(model_name="multilingual", preload=False)
-        self.assertEqual(p_multi.model_name, "multilingual")
-        self.assertEqual(p_multi.model_id, "ModernBERT-multilingual")
+        # Multilingual model is strictly forbidden under English-only invariant
+        with self.assertRaises(ValueError) as ctx:
+            LayaProvider(model_name="multilingual", preload=False)
+        self.assertIn("forbidden", str(ctx.exception).lower())
 
         # Typed-decisions model
         p_typed = LayaProvider(model_name="typed-decisions", preload=False)

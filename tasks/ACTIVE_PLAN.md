@@ -1,86 +1,71 @@
-# ACTIVE_PLAN.md — Checkpoint L9: Deterministic Policy Engine & Persistent User Constraints (COMPLETED & VERIFIED)
+# ACTIVE_PLAN.md — Checkpoint R1: Deep Research Engine (ACTIVE) & Foundation Gate (COMPLETED)
 
-## 1. Summary of Completed Checkpoint L9 (Deterministic Policy Engine & Persistent User Constraints)
+## 1. Summary of Completed Foundation Gate: System One Broker, Concurrency Correction & Calibration Truth
 - **Status**: **COMPLETED & VERIFIED**
-- **Test Suite**: **25/25 unit tests passed in 0.269s; 232/232 full repository tests (+ 47 subtests = 279 total) passed (100% pass rate)**.
+- **Test Suite**: **27/27 unit tests passed in 0.047s; 259/259 full repository tests (+ 47 subtests = 306 total) passed (100% pass rate)**.
 - **Key Deliverables**:
-  1. `omni_engine/contracts/policy.py`: Strongly typed `PolicyEffect`, `ActionAssessment`, `PolicyRule`, and `PolicyDecision` (with `@model_validator` enforcing logical consistency between `allowed`, `effect`, `denial_reason`, and `confirmation_prompt`).
-  2. `omni_engine/contracts/enums.py`: Centralized `AUTONOMY_RANK` mapping across skills and policy engines.
-  3. `omni_engine/policy/rules.py`: Path canonicalization (`canonicalize_path` stripping `\\?\`, `\\?\UNC\`, resolving `\\localhost\admin$` and `drive$`, preventing network SMB hangs), protected system boundaries (`is_protected_path`, `is_protected_process`), and embedded command regex scanners (`scan_embedded_commands`) for forbidden operations (`git reset <ref> --hard`, all `git clean` flag permutations, `git push -f`, PowerShell root wipes `Remove-Item -Recurse -Force C:\`).
-  4. `omni_engine/policy/store.py`: Crash-resilient, thread-safe (`RLock`) persistent `PolicyStore` with atomic file swap (`.tmp` to target via `os.replace`) and `.corrupt` quarantining.
-  5. `omni_engine/policy/engine.py`: Master `PolicyEngine` executing sub-millisecond evaluation (~0.15ms warm, sub-1ms SLA) across Stage 0 (Inviolable Hard Invariants: `user_confirmed` strictly ignored), Stage 1 (Boundary-aware persistent user blacklists), Stage 2 (Autonomy gating: ADVISOR read-only floor), Stage 3 (Confirmation policy gating: ALWAYS, POLICY_CONTROLLED high-risk), and Stage 4 (Permitted baseline / Shadow mode).
-  6. `omni_engine/policy/__init__.py`: Clean public interface exports.
-  7. `tests/test_l9_policy.py`: 25 comprehensive unit tests covering all action classes, autonomy tiers, confirmation policies, protected paths, forbidden commands, custom constraints, shadow mode, corrupt store recovery, and path boundary isolation.
-- **Adversarial Diff Review**: **PASS ✅** (Independent subagents `b8ecedc3-4acd-4392-9f25-16ca29461ee1` [vulnerability identification] & `0f038fb7-f33b-47c1-864c-1fcd56e1a540` [verification of remediation]).
+  1. `omni_engine/contracts/broker.py`: Strongly typed `ProviderSelectionMode` (`USER_LOCKED`, `USER_PREFERRED`, `AUTO`), `BrokerRoutingOutcome`, `FallbackReason`, `TaskProviderOverride`, `ProviderPolicyConfig`, `BrokerDecision`, and `CalibrationMetrics`.
+  2. `omni_engine/providers/system1.py`:
+     - **Two-Level Hierarchical Locking**: Level 1 (`_MODEL_LIFECYCLE_LOCK`, RLock) outer, Level 2 (`_INFERENCE_SEMAPHORE`, Semaphore) inner.
+     - **Exclusive Drain Protocol**: `_drain_inference_permits()` drains all permits before model swaps or evictions, eliminating swap races and C++ access violations.
+     - **Bounded Queue Wait**: `_INFERENCE_SEMAPHORE.acquire(timeout=5.0s)` prevents indefinite thread hangs.
+     - **Strict English-Only Invariant**: `VALID_LOCAL_MODELS = ("english", "typed-decisions")`. All multilingual model loading unconditionally raises `ValueError` ("forbidden").
+     - **Debounced Windows RAM Protection**: `get_available_ram_mb()` incorporates `psutil` with Windows `ctypes.windll.kernel32.GlobalMemoryStatusEx` fallback. `is_ram_pressure_critical()` requires 3 consecutive breaches over >= 5s before evicting a warm model when idle.
+  3. `omni_engine/providers/broker.py`: Master `SystemOneBroker` implementing `SystemOneProvider` with ironclad User Model Sovereignty (`USER_LOCKED` prohibits silent fallback; `USER_PREFERRED` emits explanatory telemetry; `AUTO` optimizes within allowlist).
+  4. `omni_engine/decision/concurrency_benchmark.py`: Empirical load testing harness measuring p50, p95, throughput, and RAM deltas for concurrency levels 1, 2, and 4 on CPU. Proven: cold start is ~47.4s / 1.67 GB RAM, warm inference is ~712ms (concurrency 2: 2.79 req/s).
+  5. `omni_engine/decision/calibration_eval.py`: Deterministic 70/30 stratified corpus partition (72 dev / 31 test) and 10-bin Expected Calibration Error (ECE) metric calculator.
+  6. `docs/research/ADR_SYSTEM_ONE_BROKER.md`: Architectural Decision Record for broker, sovereignty, and concurrency hierarchy.
+  7. `tests/test_foundation_broker.py`: 27 comprehensive unit tests with 100% pass rate.
+- **Adversarial Reviews**:
+  - Plan Review: Conditional Approval with 4 Blocking Requirements (`7886b073-0966-4305-b637-72f242f498c0`).
+  - Diff Review: **PASS (UNCONDITIONAL)** (`5e8a88cd-a846-4ef9-b639-22afb9b791c2`).
 
 ---
 
-## 2. Summary of Completed Checkpoint L8 (Typed Argument Resolution & Extraction Engine)
-- **Status**: **COMPLETED & VERIFIED**
-- **Test Suite**: **26/26 unit tests passed in 0.010s; 207/207 full repository tests passed in 229s (100% pass rate)**.
-- **Key Deliverables**:
-  1. `omni_engine/contracts/arguments.py`: Strongly typed `ArgumentExtractionSource`, `ArgumentSlot`, and `ArgumentResolutionEnvelope` models.
-  2. `omni_engine/arguments/extractors.py`: High-precision deterministic regex and syntactic AST extractors for file paths, URLs, PIDs, process names, app/service names, SQL queries, math expressions, PowerShell commands, and search queries.
-  3. `omni_engine/arguments/resolver.py`: Master `ArgumentResolver` validating against `CapabilitySpec.input_schema`, implementing sub-1ms deterministic extraction (~0.118 ms benchmarked), schema defaults, context inheritance with `PARAM_ALIASES`, structured user clarification prompts (`CLARIFICATION_PROMPTS`), and zero-hallucination guarantees.
-  4. `omni_engine/arguments/__init__.py`: Clean public interface exports.
-  5. `tests/test_l8_arguments.py`: 26 comprehensive unit tests covering all 23 canonical tools and edge cases.
-- **Adversarial Diff Review**: **PASS ✅** (Subagent `00527d05-183d-4711-be67-eeb080163dcc`).
-
----
-
-## 2. Active Checkpoint L9: Deterministic Policy Engine & Persistent User Constraints
+## 2. Active Phase R1: Deep Research Engine
 
 ### Objective
-Enforce the repository Prime Directive ("Deterministic Control, Probabilistic Reasoning") by implementing a high-throughput deterministic policy engine. The policy engine evaluates proposed capability invocations against action classes, autonomy tiers, confirmation policies, persistent user constraints, directory boundaries, and forbidden operations before any execution can take place.
+Build a real, evidence-first deep research engine capable of multi-source discovery, crawl, extraction, dynamic-page fallback, evidence normalization, relevance ranking, gap detection, evidence saturation stopping, generative synthesis, and claim-level verification with zero hallucination.
 
-### Architecture & Components
+### Research Gate & Technology Audit (`docs/research/ADR_R1_DEEP_RESEARCH.md`)
+Evaluate candidates:
+- Tavily Search / Extract / Map / Crawl
+- Crawl4AI
+- Scrapling (Installed)
+- Existing LAYA web tools (`web_search`, `scrape_url`)
+- Citation Verifier architecture
+Formally record ADOPT, ADAPT, REFERENCE ONLY, REJECT decisions.
 
-1. **Contracts (`omni_engine/contracts/policy.py`)**:
-   - `PolicyEffect` (Enum: `ALLOW`, `REQUIRE_CONFIRMATION`, `DENY`, `QUARANTINE`)
-   - `ActionAssessment`: Detailed risk analysis of proposed invocation (`action_class`, `autonomy_required`, `blast_radius`, `is_destructive`, `is_reversible`, `sensitive_targets`, `risk_score`).
-   - `PolicyRule`: Declarative persistent rule contract (`rule_id`, `name`, `description`, `effect`, `match_criteria`, `priority`, `is_active`).
-   - `PolicyDecision`: Output envelope (`allowed: bool`, `effect: PolicyEffect`, `matched_rules: List[str]`, `confirmation_prompt: Optional[str]`, `denial_reason: Optional[str]`, `latency_ms: float`, `metadata: Dict[str, Any]`).
-
-2. **Persistent User Constraints & Rule Store (`omni_engine/policy/rules.py` & `store.py`)**:
-   - Canonical system rules:
-     - Forbidden operations (Invariant 3 in `AGENTS.md`): `git reset --hard`, `git clean -fd`, `rmdir /s /q C:\`, system-level drive formatting.
-     - Protected path boundaries: Deny destructive or write operations targeting Windows system paths (`C:\Windows`, `System32`, `Program Files`, `.ssh`, `.env`, root drives).
-     - Process protection: Deny termination of critical system processes (`csrss.exe`, `lsass.exe`, `smss.exe`, `services.exe`).
-   - User-defined constraint persistence (JSON-backed store for custom allowed/denied paths, domains, and commands).
-
-3. **Deterministic Policy Engine (`omni_engine/policy/engine.py`)**:
-   - `PolicyEngine`:
-     - Method `evaluate(spec: CapabilitySpec, arguments: Dict[str, Any], autonomy_profile: AutonomyProfile = AutonomyProfile.SAFE_ASSISTANT, user_confirmed: bool = False, session_context: Optional[Dict[str, Any]] = None) -> PolicyDecision`.
-     - Sub-1ms deterministic evaluation:
-       1. Rule-0: Hard Invariants and Forbidden Operations (instant `DENY`).
-       2. Protected Resource Boundaries (instant `DENY`).
-       3. Autonomy Profile Gating:
-          - If `spec.minimum_autonomy_profile > autonomy_profile`:
-            - If policy allows confirmation escalation -> `REQUIRE_CONFIRMATION`
-            - Else -> `DENY`.
-       4. Action Class & Confirmation Policy:
-          - If `spec.confirmation_policy == ConfirmationPolicy.ALWAYS` and not `user_confirmed` -> `REQUIRE_CONFIRMATION`.
-          - If `spec.confirmation_policy == ConfirmationPolicy.POLICY_CONTROLLED`:
-            - If high-risk or destructive and not `user_confirmed` -> `REQUIRE_CONFIRMATION`.
-       5. Custom User Constraint Evaluation (matching against pattern, target, domain).
-       6. Telemetry & Shadow Mode (`LAYA_V2_MODE=off|shadow|active`).
-
-4. **Integration & Parity**:
-   - Seamlessly accepts `CapabilitySpec` and `arguments` from L8's `ArgumentResolutionEnvelope`.
-   - Non-switching boundary preserved: `omni_agent.py` and `omni_engine/planner.py` untouched on legacy path.
-
-5. **Test Suite (`tests/test_l9_policy.py`)**:
-   - 25+ comprehensive tests covering all action classes, autonomy tiers, confirmation policies, protected paths, forbidden commands, custom constraints, and shadow mode.
+### Architecture & Pipeline Components
+1. **Contracts (`omni_engine/contracts/research.py`)**:
+   - `ResearchSourceQuality` (Domain authority, TLS, freshness, reputation).
+   - `EvidenceItem`: Canonical URL, title, publisher, retrieval timestamp, content hash, passage text, claim IDs, relevance score, support/contradiction state, confidence.
+   - `ResearchClaim`: Claim text, verification status, cited evidence IDs.
+   - `ResearchBudget`: `max_search_queries` (default 5), `max_urls` (default 20), `max_pages_per_domain` (default 3), `max_total_pages` (default 10), `max_wall_time_sec` (default 60.0), `evidence_saturation_threshold` (default 0.85).
+   - `ResearchDossier`: User query, sub-queries, evidence ledger, synthesized summary, verified claims, citations, execution telemetry.
+2. **Prompt-Injection Defense**:
+   - All crawled/scraped content wrapped in `<untrusted_external_data origin="url">`.
+   - Strips instruction override patterns and injection vectors before semantic ranking or synthesis.
+3. **Research Engine (`omni_engine/research/engine.py`)**:
+   - `DeepResearchEngine`:
+     - Step 1: Sub-query decomposition via System One / Generative tier.
+     - Step 2: Multi-source discovery (Tavily search / DuckDuckGo / web tools).
+     - Step 3: URL canonicalization and deduplication.
+     - Step 4: Source-quality screening and filtering.
+     - Step 5: Page extraction with fallback (Scrapling / BeautifulSoup / text extractor).
+     - Step 6: Evidence normalization and System One relevance scoring.
+     - Step 7: Gap detection and saturation stop evaluation.
+     - Step 8: Synthesis and claim-level citation verification.
+4. **Capability Registration (`omni_engine/capabilities/definitions.py`)**:
+   - High-level capability: `research.deep`
+   - Bounded execution with strict `ResearchBudget`.
+5. **Test Suite (`tests/test_r1_research.py`)**:
+   - Offline fixture tests: multi-query research, conflicting-source handling, dynamic-page fallback, malicious prompt injection defense, saturation stop.
+   - Opt-in live integration test behind marker.
 
 ---
 
 ## 3. Strict Goal Boundaries
-
-- Active Goal Scope: `L7.5 (Complete) → L8 (Complete) → L9 (Active)`
-- **HARD STOP AFTER L9**:
-  Under NO circumstances implement:
-  - SQLite Quest Persistence (L10)
-  - Operation Ledger (L11)
-  - Structured DAG Planner (L12)
-  - Plan DAG Validator (L13)
-  - Deterministic DAG Executor (L14)
+- Current Goal: `Foundation Gate (Complete) → R1 (Active) → R2 → R3 → R4 → R5`
+- **HARD STOP AFTER R5**:
+  Under NO circumstances implement Quest runtime (L10), Operation Ledger (L11), Planner (L12), DAG Validator (L13), or DAG Executor (L14).

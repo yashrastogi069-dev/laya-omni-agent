@@ -17,22 +17,17 @@
 
 ### ISSUE-02: `System1Router.route_tool` Slices Catalog to First 12 Items
 - **Severity**: CRITICAL
-- **Status**: OPEN (Slated for Checkpoint L6 — Hierarchical Capability Routing)
-- **Reproduction**:
-  `criteria = {k: v["desc"][:85] for k, v in list(tool_catalog.items())[:12]}`.
-  Tools after index 11 (`powershell`, `file_read`, `file_write`, `run_python`, etc.) are excluded from System 1.
-- **Architectural Directive**: Naive flat 23-tool dump is **REJECTED**. The resolution must be Hierarchical Capability Routing (`Request → Domain → Skill → Candidate Set → Capability`) scheduled for Checkpoint L6.
-- **Regression Test**: `tests/test_l0_baselines.py::TestL0ConfirmedDefects::test_defect_system1_tool_catalog_truncation`.
+- **Status**: **RESOLVED (Checkpoints L6A & L6B)**
+- **Resolution**: Implemented `HierarchicalRouter` in `omni_engine/routing/router.py`. Eliminates flat catalog dumps and fixed slices by routing through `Request → Domain → Skill → Small Candidate Set → Capability`, with automatic cross-domain pooling, keyword capability pinning, and anti-locking defenses.
+- **Regression Test**: `tests/test_l6a_routing.py` and `tests/test_l6b_skill_routing.py`.
 
 ---
 
 ### ISSUE-03: Natural Language User Prompt Passed Verbatim as Tool Argument
 - **Severity**: CRITICAL
-- **Status**: OPEN (Slated for Checkpoint L8 — Typed Capability Argument Resolver)
-- **Reproduction**:
-  `result = tool_func(mission_prompt)` passes raw user prompt string to tools expecting clean paths or structured payloads.
-- **Resolution Plan**: Build typed `ArgumentResolver` in Checkpoint L8.
-- **Regression Test**: `tests/test_l0_baselines.py::TestL0ConfirmedDefects::test_defect_prompt_passed_directly_as_file_read_arg`.
+- **Status**: **RESOLVED (Checkpoint L8)**
+- **Resolution**: Implemented `ArgumentResolver` in `omni_engine/arguments/resolver.py` with deterministic regex and AST extractors in `extractors.py`, schema validation against `CapabilitySpec.input_schema`, alias bridging (`PARAM_ALIASES`), and structured clarification prompting (`CLARIFICATION_PROMPTS`).
+- **Regression Test**: `tests/test_l8_arguments.py` (26 tests passing).
 
 ---
 

@@ -1,4 +1,4 @@
-# HANDOFF.md — Operational Continuation Guide (Checkpoint L7.5 Complete, Proceeding to L8)
+# HANDOFF.md — Operational Continuation Guide (Checkpoint L8 Complete, Proceeding to L9)
 
 ## What We Are Building
 A **complete standalone autonomous operating agent** powered by:
@@ -6,14 +6,15 @@ A **complete standalone autonomous operating agent** powered by:
 - **Deterministic Control**: The runtime strictly owns state transitions, permissions, operation identity, idempotency, and DAG execution.
 - **Hierarchical Capability Routing**: Dynamic multi-tier tool catalog reduction (`Request → DecisionFrame → Domain Routing → Skill Routing → Small Candidate Set → Capability`) eliminating flat catalog slicing and token bloat.
 - **Skills Layer**: Reusable workflow manifests mapping objectives to constrained capability sets with safety policy floors.
-- **Strongly Typed Capability Contracts**: Clean interface boundaries (`CapabilityInvocation`, `CapabilitySpec`, `ToolResult`, `RouteDecision`, `SkillManifest`, `DecisionFrame`, `CalibrationConfig`, `AgentRequest`, `AgentResponse`, `TraceContext`).
+- **Typed Argument Resolution**: Deterministic parameter extraction in 0.118 ms with schema validation, alias bridging, and zero-hallucination clarification gating.
+- **Strongly Typed Capability Contracts**: Clean interface boundaries (`CapabilityInvocation`, `CapabilitySpec`, `ToolResult`, `RouteDecision`, `SkillManifest`, `DecisionFrame`, `CalibrationConfig`, `ArgumentResolutionEnvelope`, `AgentRequest`, `AgentResponse`, `TraceContext`).
 
 ---
 
 ## Current Architecture & State
 - Repository: Public GitHub `https://github.com/yashrastogi069-dev/laya-omni-agent` on branch `laya-autonomous-v2`.
-- Active Checkpoint: **L7.5 COMPLETED & VERIFIED**; **PROCEEDING TO L8 (Typed Argument Resolution & Extraction Engine)**.
-- Test Suite: **181/181 tests passing** (+ 23 subtests passed) across:
+- Active Checkpoint: **L8 COMPLETED & VERIFIED**; **PROCEEDING TO L9 (Deterministic Policy Engine & Persistent User Constraints)**.
+- Test Suite: **207/207 tests passing** (+ 47 subtests passed) across:
   - `tests/test_l0_baselines.py` (10 tests)
   - `tests/test_l1_repairs.py` (12 tests)
   - `tests/test_l2_contracts.py` (18 tests)
@@ -25,49 +26,53 @@ A **complete standalone autonomous operating agent** powered by:
   - `tests/test_l7_skills.py` (26 tests)
   - `tests/test_l6b_skill_routing.py` (16 tests)
   - `tests/test_l7_5_calibration.py` (16 tests)
+  - `tests/test_l8_arguments.py` (26 tests)
 - Governance: All canonical documents synchronized with verified implementation truth.
 
 ---
 
-## Last Changes (Checkpoint L7.5 Executed)
-1. **Source-Truth Gate A (SkillManifest Invariants)**:
-   - `omni_engine/skills/registry.py`: Autonomy profile floor validator upgraded to inspect ALL constituent capabilities (`required_capabilities | optional_capabilities | step_capabilities`), ensuring optional tools cannot require higher autonomy than declared by the skill.
-2. **Source-Truth Gate B (Hardware & Latency Truth)**:
-   - Measured host reality: Windows 10, 4-core CPU, 7.81 GB RAM, PyTorch 2.13.0+cpu, NO CUDA.
-   - Resident RAM: 1.64 GB RAM for ModernBERT-large. Cold load: 69.3s.
-   - CPU Latency: p50 = 749ms (1 question) to 15.4s (15 questions).
-   - Proven: <35ms is CUDA-only; two-stage Adaptive Triage is empirically justified.
-3. **Calibration Contracts (`omni_engine/contracts/calibration.py`)**:
-   - `CalibratedModelThresholds`: `domain_confidence_min: 0.55`, `ambiguity_max: 0.65`, `skill_candidate_min: 0.50`, `skill_selection_min: 0.75`, `skill_description_overlap_ceiling: 0.50`.
-   - `DeterministicPolicyThresholds`: `pinned_capability_score: 1.0`, `skill_required_capability_score: 0.98`, `skill_optional_capability_score: 0.75`, `domain_primary_default_score: 0.85`, `domain_pooled_default_score: 0.70`, lexical scoring parameters.
-   - `CalibrationConfig`: Master configuration bundle with version tracking.
-4. **Upstream Alignment & RAM Safety (`omni_engine/providers/system1.py`)**:
-   - Strict `max_loaded=1` enforcement with pre-eviction `unload()` + `gc.collect()`.
-   - Process-wide thread lock (`_ROUTER_LOCK`) wrapping inference.
-   - Guarded preload: `names=[model_name]`, never loading all 3 checkpoints simultaneously on 8GB host.
-   - Configurable model selection (`english`, `multilingual`, `typed-decisions`).
-5. **Decision Evaluation Corpus (`omni_engine/decision/eval_corpus.py`)**:
-   - 103 reviewable ground-truth labeled cases across all 6 domains, prompt injection, and automation workflows.
-6. **Hardware-Aware Benchmark (`omni_engine/decision/benchmark.py`)**:
-   - Telemetry measuring cold start, batch scaling, adaptive triage, and graceful unconfigured Jev handling.
-7. **Decision Fabric Adaptive Triage (`omni_engine/decision/fabric.py`)**:
-   - `evaluate_adaptive()` evaluates 4 triage questions for informational queries and exits early, saving ~11.8s on CPU.
-8. **Shadow Semantic Skill Routing (`omni_engine/routing/router.py`)**:
-   - Integrated shadow semantic evaluation and agreement tracking into `HierarchicalRouter`.
-9. **Test Suite & Adversarial Review**:
-   - 16 new tests in `tests/test_l7_5_calibration.py`.
-   - Full suite: **181/181 passing (100%)**.
-   - Adversarial diff review: **PASS ✅**.
+## Last Changes (Checkpoint L8 Executed)
+1. **Typed Argument Contracts (`omni_engine/contracts/arguments.py`)**:
+   - `ArgumentExtractionSource` (Enum: `DETERMINISTIC_REGEX`, `SYNTACTIC_AST`, `GENERATIVE_SYNTHESIS`, `SCHEMA_DEFAULT`, `CONTEXT_INHERITED`).
+   - `ArgumentSlot`: Property name, typed value, resolution status, source, confidence, and error.
+   - `ArgumentResolutionEnvelope`: Complete resolution payload with arguments dict, resolved slots, validity, missing slots, clarification prompt, latency telemetry, and metadata.
+2. **High-Precision Deterministic Extractors (`omni_engine/arguments/extractors.py`)**:
+   - `extract_file_path`: Quoted paths, Windows drive paths, relative paths, local filenames, and keyword targets with non-path filters (`tree`, `structure`, `info`).
+   - `extract_url`: HTTP/HTTPS URLs and localhost endpoints (`http://localhost:5678`).
+   - `extract_pid`: Numeric process IDs (`pid: 1234`, `kill process 4567`).
+   - `extract_process_name`: Executable names (`.exe`) and known processes (`node`, `python`, `n8n`, `calc`).
+   - `extract_app_name`: Desktop applications and services (`launch calc`, `start n8n`).
+   - `extract_sql_query`: Quoted and unquoted SQL statements (`SELECT`, `INSERT`, `UPDATE`).
+   - `extract_math_expression`: Arithmetic and mathematical expressions (`calculate 1024 * 768`).
+   - `extract_powershell_script`: PowerShell commands and one-liners (`powershell 'Get-Date'`).
+   - `extract_python_code`: Markdown fenced blocks (````python ... ````) and inline code.
+   - `extract_search_query`: Quoted and natural search queries.
+   - `extract_ping_host`: IPv4 addresses and domain hosts.
+   - `extract_clipboard_data`: Read vs write actions with text payloads.
+3. **Master Argument Resolver & Validator (`omni_engine/arguments/resolver.py`)**:
+   - `ArgumentResolver.resolve()`: Resolves and validates arguments against `CapabilitySpec.input_schema`.
+   - Sub-1ms deterministic SLA: Benchmarked at **0.118 ms** per resolution.
+   - Schema defaults ingestion for optional parameters (`max_results = 6`, `path = "."`, `max_depth = 3`).
+   - Context parameter inheritance with `PARAM_ALIASES` handling client synonyms (`filepath` vs `file_path`, `target` vs `pid`).
+   - Evidence-based clarification gating: Missing required slots trigger structured user prompts (`CLARIFICATION_PROMPTS`), with zero hallucinated dummy values.
+   - Generative fallback synthesis via `GenerativeProvider.generate_text()` with markdown fence stripping when enabled.
+4. **Comprehensive Test Suite & Diff Review**:
+   - 26 new tests in `tests/test_l8_arguments.py`.
+   - Full suite: **207/207 passing (100%)** in 229s.
+   - Independent adversarial diff review: **PASS ✅** (Subagent `00527d05-183d-4711-be67-eeb080163dcc`).
 
 ---
 
-## NEXT AGENT START HERE
-- **Exact Current Branch**: `laya-autonomous-v2`
-- **Active Checkpoint**: **Checkpoint L8 — Typed Argument Resolution & Extraction Engine**
-- **Last Passing Command**: `python -m unittest discover tests -v` (181 passed in 48.60s)
-- **Failures / Blockers**: None.
-- **Goal Scope & Hard Stopping Boundary**:
-  - Current multi-phase goal covers: `L7.5 (Done) → L8 (Next) → L9 (After L8)`.
-  - **STOP AFTER L9**. Do NOT implement Quest runtime (L10), Operation Ledger (L11), Planner (L12), DAG Validator (L13), or DAG Executor (L14).
-
-
+## Next Steps for Checkpoint L9 (Deterministic Policy Engine & Persistent User Constraints)
+1. **Contracts (`omni_engine/contracts/policy.py`)**:
+   - Implement `PolicyEffect`, `ActionAssessment`, `PolicyRule`, and `PolicyDecision`.
+2. **Persistent User Constraints & Rule Store (`omni_engine/policy/rules.py` & `store.py`)**:
+   - System rules: Forbidden operations (`git reset --hard`, `git clean -fd`, `rmdir /s /q C:\`), protected system paths (`C:\Windows`, `System32`, `Program Files`, `.ssh`, `.env`), and critical system processes.
+   - Custom user constraints persistence (JSON-backed rule store).
+3. **Deterministic Policy Engine (`omni_engine/policy/engine.py`)**:
+   - `PolicyEngine.evaluate()` evaluating action classes, blast radius, autonomy ceilings, and confirmation enforcement in <1ms.
+   - Support shadow runner telemetry (`LAYA_V2_MODE=off|shadow|active`).
+4. **Test Suite (`tests/test_l9_policy.py`)**:
+   - 25+ unit tests covering all action classes, autonomy tiers, confirmation policies, protected paths, forbidden operations, and custom constraints.
+5. **Adversarial Diff Review for L9**.
+6. **Final Goal Report & Hard Stop** (STOP AFTER L9).

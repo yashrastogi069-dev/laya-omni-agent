@@ -11,12 +11,11 @@
 | **System Role** | Standalone Autonomous Operating Agent (Independent from Jarvis Core V2) |
 | **Active Architecture Branch** | `laya-autonomous-v2` |
 | **Public GitHub Remote** | `https://github.com/yashrastogi069-dev/laya-omni-agent.git` |
-| **Latest Branch Commit** | `84d01a6` (Preparing L3 commit) |
-| **Main Branch Commit** | `6a66787` — `fix(L1.1): Memory 3-state verification, corrupted file quarantine & safe_math resource bounds` |
-| **Total Automated Tests** | **80 / 80 Passing (100%)** (+ 23 subtests) in ~32.99 seconds |
-| **Test Categorization** | **78 Feature Acceptance Tests** + **2 Known Defect Reproduction Tests** |
-| **Checkpoints Completed** | **L0** (Audit), **L1** (Repairs), **L1.1** (Hardening), **L2** (Contracts), **L2.1** (Reconciliation), **L3** (Capability Substrate) |
-| **Next Checkpoint** | **L4** (Provider Foundations) |
+| **Latest Branch Commit** | `2a2b1fa` (L7.5 Verified & Committed) |
+| **Total Automated Tests** | **207 / 207 Passing (100%)** (+ 47 subtests) in ~229 seconds |
+| **Test Categorization** | **205 Feature Acceptance Tests** + **2 Known Defect Reproduction Tests** |
+| **Checkpoints Completed** | **L0, L1, L1.1, L2, L2.1, L3, L4, L5, L6A, L7, L6B, L7.5, L8** |
+| **Active Checkpoint** | **L9** (Deterministic Policy Engine & Persistent User Constraints) |
 
 ---
 
@@ -791,6 +790,68 @@ Key architectural capabilities implemented:
 | `omni_engine/decision/fabric.py` | Calibrated thresholds, `evaluate_adaptive()`, and `_assemble_decision_frame()`. |
 | `omni_engine/routing/router.py` | Calibrated scores, dynamic budget expansion, and shadow semantic skill routing. |
 | `omni_engine/skills/registry.py` | Autonomy profile floor validator over required, optional, and step capabilities. |
+| `omni_engine/contracts/arguments.py` | `ArgumentExtractionSource`, `ArgumentSlot`, `ArgumentResolutionEnvelope`. |
+| `omni_engine/arguments/extractors.py` | High-precision deterministic regex & syntactic AST extractors for 23 tools. |
+| `omni_engine/arguments/resolver.py` | `ArgumentResolver` with sub-1ms extraction, schema validation, clarification gating. |
+| `omni_engine/arguments/__init__.py` | Public exports for argument resolution package. |
+| `tests/test_l8_arguments.py` | 26 unit tests covering all 23 canonical capabilities and edge cases. |
+
+---
+
+## [2026-09-24] Checkpoint L8: Typed Capability Argument Resolution & Extraction Engine
+
+### 1. Objective & Invariant Alignment
+- **Mission**: Transform candidates from `HierarchicalRouter` into strongly-typed, schema-conforming `CapabilityInvocation` payloads.
+- **Invariant 1 (Deterministic Control)**: Fast deterministic regex and AST extractors (<1ms) resolve routine requests before generative LLMs are consulted.
+- **Invariant 3 (Minimize Generative Invocations)**: 100% of standard canonical queries resolve without LLM token cost. Generative fallback is strictly bounded and invoked only when deterministic extraction leaves required slots empty.
+- **Invariant 4 (Strongly Typed Contracts)**: All slot resolutions, sources, and envelopes are Pydantic v2 models inheriting `BaseContractModel` (`extra="forbid"`).
+- **Invariant 6 (Evidence-Based Completion & Zero Hallucination)**: Missing required parameters trigger structured user clarification (`CLARIFICATION_PROMPTS`), with zero invented dummy values.
+
+### 2. Implementation Deliverables
+1. **Contracts (`omni_engine/contracts/arguments.py`)**:
+   - `ArgumentExtractionSource`: Enum declaring `DETERMINISTIC_REGEX`, `SYNTACTIC_AST`, `GENERATIVE_SYNTHESIS`, `SCHEMA_DEFAULT`, `CONTEXT_INHERITED`.
+   - `ArgumentSlot`: Represents a single argument slot with `name`, `value`, `is_resolved`, `source`, `confidence` [0.0, 1.0], `raw_text`, and `error`.
+   - `ArgumentResolutionEnvelope`: Encapsulates resolution outcome (`request_id`, `capability_id`, `arguments`, `resolved_slots`, `is_valid`, `validation_errors`, `clarification_needed`, `clarification_prompt`, `missing_slots`, `latency_ms`, `metadata`).
+   - Exported in `omni_engine/contracts/__init__.py`.
+2. **High-Precision Deterministic Extractors (`omni_engine/arguments/extractors.py`)**:
+   - `extract_file_path`: Quoted paths, Windows drive paths, relative paths, local filenames, and keyword targets with non-path filters (`tree`, `structure`, `info`).
+   - `extract_url`: HTTP/HTTPS URLs and localhost endpoints (`http://localhost:5678` for local services such as n8n).
+   - `extract_pid`: Numeric process IDs (`pid: 1234`, `kill process 4567`).
+   - `extract_process_name`: Executable names (`.exe`) and known processes (`node`, `python`, `n8n`, `calc`).
+   - `extract_app_name`: Desktop applications and services (`launch calc`, `start n8n`).
+   - `extract_sql_query`: Quoted and unquoted SQL statements (`SELECT`, `INSERT`, `UPDATE`).
+   - `extract_math_expression`: Arithmetic and mathematical expressions (`calculate 1024 * 768`).
+   - `extract_powershell_script`: PowerShell commands and one-liners (`powershell 'Get-Date'`).
+   - `extract_python_code`: Markdown fenced blocks (````python ... ````) and inline code.
+   - `extract_search_query`: Quoted and natural search queries.
+   - `extract_ping_host`: IPv4 addresses and domain hosts.
+   - `extract_clipboard_data`: Read vs write actions with text payloads.
+3. **Master Argument Resolver & Schema Validator (`omni_engine/arguments/resolver.py`)**:
+   - Polymorphic input: Accepts either `CapabilitySpec` or `ExecutableCapability`.
+   - Deterministic slot mapping tailored to all 23 canonical capabilities.
+   - Schema defaults ingestion for optional parameters (`max_results = 6`, `path = "."`, `max_depth = 3`).
+   - Context parameter inheritance with `PARAM_ALIASES` handling client synonyms (`filepath` vs `file_path`, `target` vs `pid`).
+   - Schema isolation guard: Filters `arguments` to strictly declared properties in `spec.input_schema["properties"]`.
+   - Clarification gating: Missing required slots trigger structured user prompts (`CLARIFICATION_PROMPTS`), with zero hallucinated dummy values.
+   - Bounded generative fallback via `GenerativeProvider.generate_text()` with markdown fence stripping when enabled.
+4. **Public Interface (`omni_engine/arguments/__init__.py`)**:
+   - Clean exports for `ArgumentResolver`, `CLARIFICATION_PROMPTS`, and extractor functions.
+5. **Comprehensive Test Suite (`tests/test_l8_arguments.py`)**:
+   - 26 unit tests covering all 23 tools, slot extraction, schema validation, alias bridging, context inheritance, and generative fallback.
+
+### 3. Verification & Evidence
+- **L8 Unit Test Suite**:
+  `python -m unittest tests/test_l8_arguments.py -v`
+  **26 / 26 passed in 0.010s (100% pass rate)**.
+- **Deterministic Latency Microbenchmark**:
+  `spec="file_read"`, prompt `"read src/main.py"`:
+  Latency = **0.118 ms** (118 microseconds), well within the <1ms target and orders of magnitude below 35ms System 1 threshold.
+- **Full Repository Regression Suite**:
+  `python -m unittest discover tests -v`
+  **207 / 207 passed in 229.01s (100% pass rate)** (+ 47 subtests passed).
+- **Adversarial Diff Review**:
+  Independent subagent `00527d05-183d-4711-be67-eeb080163dcc` verified all 8 evaluation criteria, confirmed non-switching boundary, and issued verdict: **PASS ✅**.
+
 
 
 

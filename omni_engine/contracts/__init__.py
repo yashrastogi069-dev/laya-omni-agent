@@ -49,6 +49,11 @@ from .calibration import (
     DeterministicPolicyThresholds,
     CalibrationConfig,
 )
+from .arguments import (
+    ArgumentExtractionSource,
+    ArgumentSlot,
+    ArgumentResolutionEnvelope,
+)
 
 __all__ = [
     # Base
@@ -89,4 +94,8 @@ __all__ = [
     "CalibratedModelThresholds",
     "DeterministicPolicyThresholds",
     "CalibrationConfig",
+    # Arguments
+    "ArgumentExtractionSource",
+    "ArgumentSlot",
+    "ArgumentResolutionEnvelope",
 ]

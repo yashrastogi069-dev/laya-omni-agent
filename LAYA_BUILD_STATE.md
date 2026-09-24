@@ -1,9 +1,9 @@
 # LAYA_BUILD_STATE.md — Current Ground Truth State
 
-**Last Updated**: 2026-09-24T16:30:00+05:30  
+**Last Updated**: 2026-09-24T16:50:00+05:30  
 **Current Branch**: `laya-autonomous-v2`  
-**Active Checkpoint**: `L7.5 — System One Truth, Calibration & Upstream Alignment` (**COMPLETED & VERIFIED**)  
-**Last Passing Test Suite**: `tests/test_l0_baselines.py`, `tests/test_l1_repairs.py`, `tests/test_l2_contracts.py`, `tests/test_l2_1_reconciliation.py`, `tests/test_l3_capabilities.py`, `tests/test_l4_providers.py`, `tests/test_l5_decision_fabric.py`, `tests/test_l6a_routing.py`, `tests/test_l7_skills.py`, `tests/test_l6b_skill_routing.py`, `tests/test_l7_5_calibration.py` (**181/181 passed in 48.60s (100% pass rate)**)  
+**Active Checkpoint**: `L9 — Deterministic Policy Engine & Persistent User Constraints` (**ACTIVE**)  
+**Last Passing Test Suite**: `tests/test_l0_baselines.py`, `tests/test_l1_repairs.py`, `tests/test_l2_contracts.py`, `tests/test_l2_1_reconciliation.py`, `tests/test_l3_capabilities.py`, `tests/test_l4_providers.py`, `tests/test_l5_decision_fabric.py`, `tests/test_l6a_routing.py`, `tests/test_l7_skills.py`, `tests/test_l6b_skill_routing.py`, `tests/test_l7_5_calibration.py`, `tests/test_l8_arguments.py` (**207/207 passed in 229s, 47 subtests passed (100% pass rate)**)  
 **Mission Role**: Complete Standalone Autonomous Operating Agent.
 
 ---
@@ -75,6 +75,13 @@ The repository contains a standalone prototype CLI (`laya_agent.py` / `omni_engi
     - **Adaptive Decision Fabric**: Implemented `DecisionFabric.evaluate_adaptive()` with fast 4-question triage early exit for conversational queries, achieving a ~4.2x speedup on CPU.
     - **Shadow Semantic Skill Routing**: Integrated shadow semantic evaluation and agreement tracking into `HierarchicalRouter`.
     - **Comprehensive Test Suite**: Created `tests/test_l7_5_calibration.py` (16 unit tests, 100% pass rate).
+13. **Checkpoint L8 Milestone Reached**:
+    - **Typed Argument Contracts**: Created `omni_engine/contracts/arguments.py` with `ArgumentExtractionSource` (Enum), `ArgumentSlot`, and `ArgumentResolutionEnvelope`.
+    - **High-Precision Deterministic Extractors**: Implemented `omni_engine/arguments/extractors.py` handling file paths (Windows drive, POSIX, quoted, relative), URLs (HTTP/HTTPS, localhost ports like `:5678`), PIDs, process names, desktop apps/services (`n8n`, `calc`, `notepad`), SQL statements, arithmetic expressions, PowerShell commands, and search queries.
+    - **Argument Resolver & Schema Validator**: Implemented `ArgumentResolver` in `omni_engine/arguments/resolver.py` validating against `CapabilitySpec.input_schema`. Executes deterministic resolution in **0.118 ms**, enforces zero-hallucination clarification gating via `CLARIFICATION_PROMPTS`, and bridges schema aliases via `PARAM_ALIASES`.
+    - **Generative Fallback Synthesis**: Bounded synthesis via `GenerativeProvider.generate_text()` with markdown fence stripping when deterministic extraction leaves required slots unfulfilled.
+    - **Adversarial Diff Review**: **PASS ✅** (Subagent `00527d05-183d-4711-be67-eeb080163dcc`).
+    - **Comprehensive Test Suite**: Created `tests/test_l8_arguments.py` (26 unit tests, 100% pass rate in 0.010s).
 
 ---
 
@@ -110,7 +117,7 @@ The repository contains a standalone prototype CLI (`laya_agent.py` / `omni_engi
 
 ## 3. Test Suite & Health Metrics Breakdown
 
-- **Total Automated Tests**: 181 tests (+ 23 subtests)
+- **Total Automated Tests**: 207 tests (+ 47 subtests)
   - **L0 Baseline Tests**: 10 passed
   - **L1 & L1.1 Memory and Math Tests**: 12 passed
   - **L2 Contracts Tests**: 18 passed
@@ -122,25 +129,26 @@ The repository contains a standalone prototype CLI (`laya_agent.py` / `omni_engi
   - **L7 Skills Substrate Tests**: 26 passed
   - **L6B Skill-Aware Routing Tests**: 16 passed
   - **L7.5 Truth, Calibration & Upstream Alignment Tests**: 16 passed
-- **Pass Rate**: 100% (181 passed, 0 failed, 0 errors, 23 subtests passed).
-- **Runtime**: ~48.60s via `python -m unittest discover tests -v`.
+  - **L8 Typed Argument Resolution Tests**: 26 passed
+- **Pass Rate**: 100% (207 passed, 0 failed, 0 errors, 47 subtests passed).
+- **Runtime**: ~229s across full test suite.
 
 ---
 
 ## 4. Current Blockers
 
-- **None**. Checkpoint L7.5 is verified, reviewed, and passing 100% of automated tests.
+- **None**. Checkpoint L8 is verified, reviewed, and passing 100% of automated tests.
 
 ---
 
-## 5. Next Checkpoint Scope: L8 (Typed Argument Resolution & Extraction Engine)
+## 5. Next Checkpoint Scope: L9 (Deterministic Policy Engine & Persistent User Constraints)
 
 Within active goal `L7.5 → L8 → L9`:
-- Next Phase: **L8 — Typed Argument Resolution & Extraction Engine**
-- Core Objectives for L8:
-  1. Build deterministic extractors for structured arguments (paths, URLs, PIDs, processes, apps/services e.g. `n8n`, SQL statements, commands).
-  2. Implement bounded LLM argument completion fallback (`GenerativeProvider`).
-  3. Validate arguments strictly against target `CapabilitySpec.input_schema`.
-  4. Ensure non-switching boundary remains until policy engine L9.
-  5. Hard stop after L9 remains strictly active.
-
+- Active Phase: **L9 — Deterministic Policy Engine & Persistent User Constraints**
+- Core Objectives for L9:
+  1. Build policy contracts (`PolicyEffect`, `ActionAssessment`, `PolicyRule`, `PolicyDecision`).
+  2. Implement canonical system rules (forbidden operations, protected path boundaries, process protections).
+  3. Implement persistent user constraints store (JSON-backed custom policy overrides).
+  4. Implement `PolicyEngine` evaluating action classes, blast radius, autonomy ceilings, and confirmation enforcement in <1ms.
+  5. Support shadow runner telemetry (`LAYA_V2_MODE=off|shadow|active`).
+  6. Final Goal Boundary: **HARD STOP AFTER L9**.

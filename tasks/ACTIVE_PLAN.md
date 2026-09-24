@@ -1,73 +1,69 @@
-# ACTIVE_PLAN.md — Checkpoint L8: Typed Argument Resolution & Extraction Engine (ACTIVE)
+# ACTIVE_PLAN.md — Checkpoint L9: Deterministic Policy Engine & Persistent User Constraints (ACTIVE)
 
-## 1. Summary of Completed Checkpoint L7.5 (System One Truth, Calibration & Upstream Alignment)
+## 1. Summary of Completed Checkpoint L8 (Typed Argument Resolution & Extraction Engine)
 - **Status**: **COMPLETED & VERIFIED**
-- **Test Suite**: **181/181 passed in 48.60s (100% pass rate)**.
+- **Test Suite**: **26/26 unit tests passed in 0.010s; 207/207 full repository tests passed in 229s (100% pass rate)**.
 - **Key Deliverables**:
-  1. `omni_engine/contracts/calibration.py`: `CalibratedModelThresholds`, `DeterministicPolicyThresholds`, and `CalibrationConfig`.
-  2. `omni_engine/skills/registry.py`: Autonomy profile floor validator inspects `required_capabilities | optional_capabilities | step_capabilities`, preventing autonomy bypass via optional tools.
-  3. `omni_engine/providers/system1.py`: Upstream alignment with `max_loaded=1`, pre-eviction unload/gc, process-wide thread lock (`_ROUTER_LOCK`), single-model preload guard (`names=[model_name]`), and configurable model routing (`english`, `multilingual`, `typed-decisions`).
-  4. `omni_engine/decision/eval_corpus.py`: 103 reviewable ground-truth labeled evaluation cases across 6 domains, prompt injection, and automation workflows.
-  5. `omni_engine/decision/benchmark.py`: Hardware-aware benchmark harness with batch scaling and adaptive triage telemetry.
-  6. `omni_engine/decision/fabric.py`: Integrated calibrated thresholds and `evaluate_adaptive()` 4-question fast triage for conversational queries saving ~11.8s CPU latency.
-  7. `omni_engine/routing/router.py`: Integrated calibrated scoring thresholds and shadow semantic skill routing telemetry.
-  8. `tests/test_l7_5_calibration.py`: 16 unit tests covering all calibration requirements.
-- **Adversarial Diff Review**: **PASS ✅** (Subagent `85316cc5-c0b3-4cca-a911-a0cda52da3c4`).
+  1. `omni_engine/contracts/arguments.py`: Strongly typed `ArgumentExtractionSource`, `ArgumentSlot`, and `ArgumentResolutionEnvelope` models.
+  2. `omni_engine/arguments/extractors.py`: High-precision deterministic regex and syntactic AST extractors for file paths, URLs, PIDs, process names, app/service names, SQL queries, math expressions, PowerShell commands, and search queries.
+  3. `omni_engine/arguments/resolver.py`: Master `ArgumentResolver` validating against `CapabilitySpec.input_schema`, implementing sub-1ms deterministic extraction (~0.118 ms benchmarked), schema defaults, context inheritance with `PARAM_ALIASES`, structured user clarification prompts (`CLARIFICATION_PROMPTS`), and zero-hallucination guarantees.
+  4. `omni_engine/arguments/__init__.py`: Clean public interface exports.
+  5. `tests/test_l8_arguments.py`: 26 comprehensive unit tests covering all 23 canonical tools and edge cases.
+- **Adversarial Diff Review**: **PASS ✅** (Subagent `00527d05-183d-4711-be67-eeb080163dcc`).
 
 ---
 
-## 2. Active Checkpoint L8: Typed Argument Resolution & Extraction Engine
+## 2. Active Checkpoint L9: Deterministic Policy Engine & Persistent User Constraints
 
 ### Objective
-Transform candidate capabilities selected by `HierarchicalRouter` into strongly-typed, schema-conforming `CapabilityInvocation` payloads. Deterministic extraction solves routine cases in <1ms; bounded generative synthesis resolves complex phrasing; missing arguments generate structured clarifications without hallucinatory defaults.
+Enforce the repository Prime Directive ("Deterministic Control, Probabilistic Reasoning") by implementing a high-throughput deterministic policy engine. The policy engine evaluates proposed capability invocations against action classes, autonomy tiers, confirmation policies, persistent user constraints, directory boundaries, and forbidden operations before any execution can take place.
 
 ### Architecture & Components
-1. **Contracts (`omni_engine/contracts/arguments.py`)**:
-   - `ArgumentExtractionSource` (Enum: `DETERMINISTIC_EXTRACTOR`, `SYNTACTIC_AST`, `GENERATIVE_SYNTHESIS`, `SCHEMA_DEFAULT`)
-   - `ArgumentSlot`: Represents a single argument slot with `name`, `value`, `is_resolved`, `source`, `confidence`, and `error`.
-   - `ArgumentResolutionEnvelope`: Encapsulates resolution outcome:
-     - `capability_id: str`
-     - `arguments: Dict[str, Any]`
-     - `resolved_slots: Dict[str, ArgumentSlot]`
-     - `is_valid: bool`
-     - `validation_errors: List[str]`
-     - `clarification_needed: bool`
-     - `clarification_prompt: Optional[str]`
-     - `latency_ms: float`
-     - `metadata: Dict[str, Any]`
 
-2. **Deterministic Extractors (`omni_engine/arguments/extractors.py`)**:
-   - High-precision regex and AST extractors matching all 23 canonical capabilities:
-     - `extract_file_paths(text)`: Quoted paths, Windows paths (`C:\...`, `.\...`, `*.ext`), POSIX paths.
-     - `extract_urls(text)`: HTTP/HTTPS URLs, domains, ports (e.g. `:5678`).
-     - `extract_pids(text)`: Numeric process IDs with prefix matching (`pid 1234`, `process 456`).
-     - `extract_process_names(text)`: Application names, `.exe` processes, script runtimes (`node`, `python`, `n8n`, `chrome`).
-     - `extract_sql(text)`: SQL statements (`SELECT`, `INSERT`, `UPDATE`, `CREATE TABLE`).
-     - `extract_math_expression(text)`: Mathematical equations and arithmetic expressions.
-     - `extract_powershell_script(text)`: Command strings, shell one-liners.
-     - `extract_search_query(text)`: Natural language queries for code search and web search.
+1. **Contracts (`omni_engine/contracts/policy.py`)**:
+   - `PolicyEffect` (Enum: `ALLOW`, `REQUIRE_CONFIRMATION`, `DENY`, `QUARANTINE`)
+   - `ActionAssessment`: Detailed risk analysis of proposed invocation (`action_class`, `autonomy_required`, `blast_radius`, `is_destructive`, `is_reversible`, `sensitive_targets`, `risk_score`).
+   - `PolicyRule`: Declarative persistent rule contract (`rule_id`, `name`, `description`, `effect`, `match_criteria`, `priority`, `is_active`).
+   - `PolicyDecision`: Output envelope (`allowed: bool`, `effect: PolicyEffect`, `matched_rules: List[str]`, `confirmation_prompt: Optional[str]`, `denial_reason: Optional[str]`, `latency_ms: float`, `metadata: Dict[str, Any]`).
 
-3. **Argument Resolver (`omni_engine/arguments/resolver.py`)**:
-   - `ArgumentResolver`:
-     - Validates extracted arguments against `CapabilitySpec.input_schema`.
-     - Fast deterministic path: When regex/AST extraction satisfies all required fields of `CapabilitySpec.input_schema`, returns valid envelope in <1ms.
-     - Ambiguity & Missing Slot Detection: When required parameters are missing (e.g. user said "delete file" or "kill process" without specifying path or PID), sets `clarification_needed = True` with a clean clarification prompt.
-     - Generative Fallback: When deterministic extraction is incomplete and an optional `GenerativeProvider` is available, requests structured JSON matching the schema.
+2. **Persistent User Constraints & Rule Store (`omni_engine/policy/rules.py` & `store.py`)**:
+   - Canonical system rules:
+     - Forbidden operations (Invariant 3 in `AGENTS.md`): `git reset --hard`, `git clean -fd`, `rmdir /s /q C:\`, system-level drive formatting.
+     - Protected path boundaries: Deny destructive or write operations targeting Windows system paths (`C:\Windows`, `System32`, `Program Files`, `.ssh`, `.env`, root drives).
+     - Process protection: Deny termination of critical system processes (`csrss.exe`, `lsass.exe`, `smss.exe`, `services.exe`).
+   - User-defined constraint persistence (JSON-backed store for custom allowed/denied paths, domains, and commands).
+
+3. **Deterministic Policy Engine (`omni_engine/policy/engine.py`)**:
+   - `PolicyEngine`:
+     - Method `evaluate(spec: CapabilitySpec, arguments: Dict[str, Any], autonomy_profile: AutonomyProfile = AutonomyProfile.SAFE_ASSISTANT, user_confirmed: bool = False, session_context: Optional[Dict[str, Any]] = None) -> PolicyDecision`.
+     - Sub-1ms deterministic evaluation:
+       1. Rule-0: Hard Invariants and Forbidden Operations (instant `DENY`).
+       2. Protected Resource Boundaries (instant `DENY`).
+       3. Autonomy Profile Gating:
+          - If `spec.minimum_autonomy_profile > autonomy_profile`:
+            - If policy allows confirmation escalation -> `REQUIRE_CONFIRMATION`
+            - Else -> `DENY`.
+       4. Action Class & Confirmation Policy:
+          - If `spec.confirmation_policy == ConfirmationPolicy.ALWAYS` and not `user_confirmed` -> `REQUIRE_CONFIRMATION`.
+          - If `spec.confirmation_policy == ConfirmationPolicy.POLICY_CONTROLLED`:
+            - If high-risk or destructive and not `user_confirmed` -> `REQUIRE_CONFIRMATION`.
+       5. Custom User Constraint Evaluation (matching against pattern, target, domain).
+       6. Telemetry & Shadow Mode (`LAYA_V2_MODE=off|shadow|active`).
 
 4. **Integration & Parity**:
-   - Mapped 1:1 against all 23 canonical tool input schemas.
-   - Non-switching boundary preserved: `omni_agent.py` and `omni_engine/planner.py` untouched.
+   - Seamlessly accepts `CapabilitySpec` and `arguments` from L8's `ArgumentResolutionEnvelope`.
+   - Non-switching boundary preserved: `omni_agent.py` and `omni_engine/planner.py` untouched on legacy path.
 
-5. **Test Suite (`tests/test_l8_arguments.py`)**:
-   - 25+ comprehensive unit tests covering all 23 tools, slot extraction, schema validation, and clarification generation.
+5. **Test Suite (`tests/test_l9_policy.py`)**:
+   - 25+ comprehensive tests covering all action classes, autonomy tiers, confirmation policies, protected paths, forbidden commands, custom constraints, and shadow mode.
 
 ---
 
 ## 3. Strict Goal Boundaries
 
-- Active Goal Scope: `L7.5 (Complete) → L8 (Active) → L9 (Next)`
+- Active Goal Scope: `L7.5 (Complete) → L8 (Complete) → L9 (Active)`
 - **HARD STOP AFTER L9**:
-  Do **NOT** implement:
+  Under NO circumstances implement:
   - SQLite Quest Persistence (L10)
   - Operation Ledger (L11)
   - Structured DAG Planner (L12)

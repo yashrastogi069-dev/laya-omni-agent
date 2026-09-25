@@ -4,6 +4,8 @@ Orchestrates template-first skill workflow planning and generative fallback,
 enforcing topological validation, step bounds, and seamless attachment to persisted Quests (Checkpoint L12).
 """
 
+import hashlib
+import json
 from typing import Any, Dict, List, Optional
 
 from ..capabilities.registry import CapabilityRegistry
@@ -45,7 +47,7 @@ class StructuredDAGPlanner:
         """
         self.skill_registry = skill_registry
         self.capability_registry = capability_registry
-        self.template_planner = SkillTemplatePlanner()
+        self.template_planner = SkillTemplatePlanner(capability_registry=capability_registry)
         self.generative_planner = GenerativePlanner(
             provider=generative_provider,
             capability_registry=capability_registry,
@@ -167,13 +169,36 @@ class StructuredDAGPlanner:
                 arguments=p_step.arguments,
                 dependencies=list(p_step.dependencies),
                 status=StepStatus.PENDING,
+                timeout_s=p_step.timeout_s,
+                max_attempts=p_step.max_attempts,
+                can_fail_silently=p_step.can_fail_silently,
+                metadata=dict(p_step.metadata),
             )
             quest_steps.append(q_step)
+
+        # Compute plan hash and provenance (AUDIT-08)
+        plan_hash_payload = {
+            "plan_id": plan.plan_id,
+            "quest_id": plan.quest_id,
+            "plan_type": plan.plan_type.value,
+            "steps": [s.model_dump() for s in plan.steps],
+        }
+        plan_hash = hashlib.sha256(
+            json.dumps(plan_hash_payload, sort_keys=True, default=str).encode("utf-8")
+        ).hexdigest()
+        plan_provenance = {
+            "plan_id": plan.plan_id,
+            "plan_type": plan.plan_type.value,
+            "plan_hash": plan_hash,
+            "timeout_budget_s": plan.timeout_budget_s,
+            "skill_id": plan.skill_id,
+        }
 
         # Attach plan to quest via QuestEngine
         updated_quest = quest_engine.attach_plan(
             quest_id=plan.quest_id,
             steps=quest_steps,
+            metadata={"plan_provenance": plan_provenance},
         )
         return updated_quest
 

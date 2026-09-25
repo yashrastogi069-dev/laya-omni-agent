@@ -6,6 +6,8 @@ eliminating generative model invocations for known capability workflows (Checkpo
 
 from typing import Any, Dict, List, Optional
 
+from ..capabilities.registry import CapabilityRegistry
+from ..contracts.enums import IdempotencyClass, RetryPolicy
 from ..contracts.plan import Plan, PlanStep, PlanType, PlanValidationError
 from ..contracts.skill import SkillManifest, SkillStepTemplate
 from .dag import DAGTopology
@@ -14,8 +16,8 @@ from .dag import DAGTopology
 class SkillTemplatePlanner:
     """Instantiates structured execution plans from deterministic skill workflow templates."""
 
-    def __init__(self) -> None:
-        pass
+    def __init__(self, capability_registry: Optional[CapabilityRegistry] = None) -> None:
+        self.capability_registry = capability_registry
 
     def can_plan_from_skill(self, skill: SkillManifest) -> bool:
         """Determines if the given skill has an actionable deterministic workflow template."""
@@ -72,14 +74,24 @@ class SkillTemplatePlanner:
                     step_args[k] = v
 
             # 2. Build PlanStep
+            timeout_s = 60.0
+            max_attempts = 3
+            if self.capability_registry and self.capability_registry.has(step_tpl.capability_id):
+                spec = self.capability_registry.get_spec(step_tpl.capability_id)
+                if spec is not None:
+                    if spec.retry_policy == RetryPolicy.NEVER or spec.idempotency_class == IdempotencyClass.NON_IDEMPOTENT:
+                        max_attempts = 1
+                    if getattr(spec, "timeout_seconds", None):
+                        timeout_s = spec.timeout_seconds
+
             plan_step = PlanStep(
                 step_id=step_tpl.step_id,
                 capability_id=step_tpl.capability_id,
                 intent=step_tpl.description,
                 arguments=step_args,
                 dependencies=list(step_tpl.depends_on or []),
-                timeout_s=60.0,
-                max_attempts=3,
+                timeout_s=timeout_s,
+                max_attempts=max_attempts,
                 can_fail_silently=step_tpl.can_fail_silently,
                 metadata={
                     "skill_id": skill.skill_id,

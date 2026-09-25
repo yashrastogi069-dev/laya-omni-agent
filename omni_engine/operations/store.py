@@ -9,7 +9,7 @@ import sqlite3
 import threading
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from ..contracts.operation import (
     AttemptState,
@@ -390,6 +390,191 @@ class OperationStore:
             if op:
                 results.append(op)
         return results
+
+    # =========================================================================
+    # Atomic Attempt and Operation Transitions (Checkpoint L14.1 / AUDIT-04)
+    # =========================================================================
+
+    def begin_attempt_atomic(
+        self,
+        attempt: OperationAttempt,
+        updated_op: OperationRecord,
+    ) -> Tuple[OperationAttempt, OperationRecord]:
+        """Atomically inserts a new attempt and transitions operation to IN_PROGRESS in a single transaction.
+        
+        Args:
+            attempt: The newly created OperationAttempt in STARTED state.
+            updated_op: The OperationRecord with state=IN_PROGRESS and incremented attempt count.
+            
+        Returns:
+            Tuple of (persisted OperationAttempt, persisted OperationRecord).
+        """
+        conn = self._get_connection()
+        now = time.time()
+        with self._write_lock:
+            try:
+                # 1. Insert attempt
+                conn.execute(
+                    """
+                    INSERT INTO operation_attempts (
+                        attempt_id, operation_id, attempt_number, state,
+                        started_at, finished_at, execution_receipt, error
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        attempt.attempt_id,
+                        attempt.operation_id,
+                        attempt.attempt_number,
+                        attempt.state.value,
+                        attempt.started_at,
+                        attempt.finished_at,
+                        json.dumps(attempt.execution_receipt, default=str) if attempt.execution_receipt is not None else None,
+                        attempt.error,
+                    )
+                )
+
+                # 2. Update operation
+                cur = conn.execute(
+                    """
+                    UPDATE operations
+                    SET state = ?, current_attempt = ?, updated_at = ?
+                    WHERE operation_id = ?
+                    """,
+                    (
+                        updated_op.state.value,
+                        updated_op.current_attempt,
+                        now,
+                        updated_op.operation_id,
+                    )
+                )
+                if cur.rowcount == 0:
+                    raise OperationNotFoundError(f"Operation {updated_op.operation_id} not found")
+
+                conn.commit()
+                return attempt, updated_op.model_copy(update={"updated_at": now})
+            except Exception:
+                conn.rollback()
+                raise
+
+    def commit_attempt_atomic(
+        self,
+        attempt: OperationAttempt,
+        updated_op: OperationRecord,
+    ) -> Tuple[OperationAttempt, OperationRecord]:
+        """Atomically marks attempt and operation as COMMITTED in a single transaction.
+        
+        Args:
+            attempt: The completed attempt with state=COMPLETED and execution_receipt.
+            updated_op: The operation with state=COMMITTED and execution_receipt.
+            
+        Returns:
+            Tuple of (persisted OperationAttempt, persisted OperationRecord).
+        """
+        conn = self._get_connection()
+        now = time.time()
+        with self._write_lock:
+            try:
+                # 1. Update attempt
+                conn.execute(
+                    """
+                    UPDATE operation_attempts
+                    SET state = ?, finished_at = ?, execution_receipt = ?, error = ?
+                    WHERE attempt_id = ?
+                    """,
+                    (
+                        attempt.state.value,
+                        attempt.finished_at or now,
+                        json.dumps(attempt.execution_receipt, default=str) if attempt.execution_receipt is not None else None,
+                        attempt.error,
+                        attempt.attempt_id,
+                    )
+                )
+
+                # 2. Update operation
+                cur = conn.execute(
+                    """
+                    UPDATE operations
+                    SET state = ?, execution_receipt = ?, error = ?, updated_at = ?
+                    WHERE operation_id = ?
+                    """,
+                    (
+                        updated_op.state.value,
+                        json.dumps(updated_op.execution_receipt, default=str) if updated_op.execution_receipt is not None else None,
+                        updated_op.error,
+                        now,
+                        updated_op.operation_id,
+                    )
+                )
+                if cur.rowcount == 0:
+                    raise OperationNotFoundError(f"Operation {updated_op.operation_id} not found")
+
+                conn.commit()
+                return (
+                    attempt.model_copy(update={"finished_at": attempt.finished_at or now}),
+                    updated_op.model_copy(update={"updated_at": now}),
+                )
+            except Exception:
+                conn.rollback()
+                raise
+
+    def fail_attempt_atomic(
+        self,
+        attempt: OperationAttempt,
+        updated_op: OperationRecord,
+    ) -> Tuple[OperationAttempt, OperationRecord]:
+        """Atomically marks attempt and operation as FAILED or UNKNOWN_COMMIT in a single transaction.
+        
+        Args:
+            attempt: The failed attempt with state=FAILED and error.
+            updated_op: The operation with state=FAILED/UNKNOWN_COMMIT and error.
+            
+        Returns:
+            Tuple of (persisted OperationAttempt, persisted OperationRecord).
+        """
+        conn = self._get_connection()
+        now = time.time()
+        with self._write_lock:
+            try:
+                # 1. Update attempt
+                conn.execute(
+                    """
+                    UPDATE operation_attempts
+                    SET state = ?, finished_at = ?, error = ?
+                    WHERE attempt_id = ?
+                    """,
+                    (
+                        attempt.state.value,
+                        attempt.finished_at or now,
+                        attempt.error,
+                        attempt.attempt_id,
+                    )
+                )
+
+                # 2. Update operation
+                cur = conn.execute(
+                    """
+                    UPDATE operations
+                    SET state = ?, error = ?, updated_at = ?
+                    WHERE operation_id = ?
+                    """,
+                    (
+                        updated_op.state.value,
+                        updated_op.error,
+                        now,
+                        updated_op.operation_id,
+                    )
+                )
+                if cur.rowcount == 0:
+                    raise OperationNotFoundError(f"Operation {updated_op.operation_id} not found")
+
+                conn.commit()
+                return (
+                    attempt.model_copy(update={"finished_at": attempt.finished_at or now}),
+                    updated_op.model_copy(update={"updated_at": now}),
+                )
+            except Exception:
+                conn.rollback()
+                raise
 
     def close(self) -> None:
         """Closes all active connections."""

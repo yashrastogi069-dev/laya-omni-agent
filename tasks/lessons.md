@@ -84,3 +84,16 @@
 - **Observation**: In Python 3.12, `sqlite3.connect(..., autocommit=False)` automatically starts an implicit transaction on the first statement. Executing `PRAGMA journal_mode = WAL;` or `PRAGMA synchronous = NORMAL;` inside an active transaction raises `sqlite3.OperationalError: cannot change into wal mode from within a transaction` or `Safety level may not be changed inside a transaction`.
 - **Principle**: SQLite connection factories in Python 3.12 must initialize the connection with `autocommit=True`, execute all configuration PRAGMAs (`journal_mode = WAL`, `synchronous = NORMAL`, `busy_timeout = 5000`, `foreign_keys = ON`), and only then switch `conn.autocommit = False` to enable explicit PEP 249 transaction demarcation (`conn.commit()` / `conn.rollback()`).
 
+## Lesson 22: Commit Certainty, Not Exception Type, Determines Mutation Retry Safety
+- **Observation**: When a mutating network tool encounters a socket timeout or network partition after dispatching an external request, classifying it as an ordinary `FAILED` error allows automated retry loops to fire. If the remote service actually processed the request before the client timed out (e.g. charging a payment or mutating remote state), retrying creates duplicate side effects and financial damage.
+- **Principle**: Commit certainty, not Python exception category, determines retry eligibility. For any side-effecting mutation where dispatch occurred but outcome confirmation was not received, the operation must transition to `UNKNOWN_COMMIT` and the Quest to `PAUSED_FOR_RECONCILIATION`. Automated blind retries must be strictly blocked until physical evidence reconciliation confirms true remote state.
+
+## Lesson 23: Logical Operation Identity Must Be Distinct from Argument Deduplication
+- **Observation**: Deriving idempotency solely from `capability_id + argument_hash` causes two independent Quests executed at different times with identical arguments (e.g. "send notification X") to collide in the global operation ledger. The second Quest would incorrectly deduplicate and reuse the first Quest's cached receipt without actually performing its intended work.
+- **Principle**: Separate `logical_operation_id` from `argument_fingerprint`. Logical operation identity must include durable causal context (`quest_id`, `step_id`, `capability_id`), scoping automatic ledger deduplication to the specific Quest lifecycle. Global deduplication must only apply when caller explicitly supplies a matching `external_idempotency_key`.
+
+## Lesson 24: Single Coordinator Dispatch Eliminates SQLite OCC Collisions
+- **Observation**: If multiple worker threads executing parallel read steps attempt to transition step status or update quest version directly in SQLite, optimistic concurrency control (`WHERE version = ?`) frequently detects concurrent version increments and raises `OptimisticLockError`.
+- **Principle**: Kahn-style topological DAG traversal must execute on a single dedicated coordinator thread. Worker threads only execute capability logic and return receipts; only the coordinator thread mutates SQLite tables and advances state machine transitions, eliminating write race collisions.
+
+

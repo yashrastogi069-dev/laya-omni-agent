@@ -102,3 +102,30 @@
 - [x] Complete documentation audit and synchronize all canonical `.md` files (`AGENTS.md`, `LAYA_BUILD_STATE.md`, `HANDOFF.md`, `tasks/ACTIVE_PLAN.md`, `tasks/DECISIONS.md`, `END_TO_END_EXECUTION_LOG.md`).
 - [x] **ENFORCE HARD STOP AFTER L14**: Zero implementation of L15 (Completion Verifier), L16 (Replanner), Memory V2, or legacy retirement.
 
+### Step 10: L14.1 — Runtime Integrity, Durability & Failure Accountability Hardening (COMPLETED)
+- [x] **Failure Accountability Ledger**: Created `tasks/FAILURE_LEDGER.md` documenting historical defects `FAIL-HIST-001` through `008` and all 16 audit findings `FAIL-L14.1-001` through `016`.
+- [x] **Batch 1 (AUDIT-04, 05, 06, 07)**:
+  - Atomic multi-statement SQLite transitions in `QuestStore.transition_quest_atomic()` and `OperationStore.record_attempt_atomic()`.
+  - Recovery of interrupted `READ_ONLY` running steps to `READY`.
+  - Uncertain mutation transitions to `StepStatus.AWAITING_RECONCILIATION` and `QuestStatus.PAUSED_FOR_RECONCILIATION` rather than terminal `FAILED`.
+- [x] **Batch 2 (AUDIT-01, 02, 03)**:
+  - Mutation post-dispatch timeout/network error normalization into `UNKNOWN_COMMIT` requiring reconciliation.
+  - Scoped automatic ledger idempotency keys by `quest_id` (`idemp_{quest_id}_{step_id}_{capability_id}_{arg_hash}`) preventing cross-quest collision.
+  - Explicit propagation of custom idempotency keys into `CapabilityInvocation` and tool implementations.
+- [x] **Batch 3 (AUDIT-08, 09, 10, 11)**:
+  - Deterministic `plan_hash` and `plan_provenance` computed in `attach_to_quest` and persisted in `quest.metadata`.
+  - `timeout_s`, `max_attempts`, `can_fail_silently`, and `metadata` added to `QuestStep` contract, schema, and migrations.
+  - Planners derive `max_attempts=1` when `retry_policy == NEVER` or `idempotency_class == NON_IDEMPOTENT`.
+  - GenerativePlanner validates synthesized plan steps against `allowed_capabilities` boundary.
+- [x] **Batch 4 (AUDIT-12, 13, 14, 15, 16)**:
+  - Differentiated missing inputs via `MissingInputError`, pausing step as `PAUSED` and quest as `PAUSED_FOR_INPUT`, and cleanly resuming with merged user inputs.
+  - Transitive ancestor calculation and concurrent resource conflict detection in Pass 9 (`MUTATION_SAFETY`).
+  - Canonical resource identity extraction (`DeterministicPlanValidator.extract_resource_identity`) normalizing URI schemes.
+  - Plan timeout budget enforcement in Kahn coordinator loop (`time.perf_counter() - start_time > timeout_budget_s`).
+  - Deterministic `cancel(quest_id)` transitioning uncompleted steps to `CANCELLED` and emitting `QUEST_CANCELLED`.
+- [x] **Test Verification & Hard Stop**:
+  - Full test suite: 481 automated tests + 47 subtests = 528 checks passing across all 28 test files.
+  - Non-switching boundary: `omni_agent.py` and `omni_engine/planner.py` have **0 diffs**.
+  - **HARD STOP STRICTLY ENFORCED**: Zero implementation of L15 (Completion Verifier), L16 (Replanner), Memory V2, or legacy retirement.
+
+

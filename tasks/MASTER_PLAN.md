@@ -133,6 +133,8 @@ This guarantees that future multi-agent coordination or supervisor routing can b
   - 10 deterministic validation passes: graph acyclicity verification, schema checks, capability availability, budget, autonomy, mutation safety, and depth limits. 29/29 tests passing. Total suite: **448 passed (+ 47 subtests = 495 checks)**.
 - [x] **L14 — Deterministic DAG Executor (COMPLETED & VERIFIED)**:
   - Parallel execution of independent read-only steps; serialized mutation barriers; dynamic argument resolution; OperationLedger integration; policy confirmation pauses; step lifecycle state transitions. 17/17 tests passing. Total suite: **465 passed (+ 47 subtests = 512 checks)**.
+- [x] **L14.1 — Runtime Integrity, Durability & Failure Accountability Hardening (COMPLETED & VERIFIED)**:
+  - Failure Accountability Ledger (`tasks/FAILURE_LEDGER.md`); atomic SQLite multi-statement mutations; post-dispatch timeout/network error normalization into `UNKNOWN_COMMIT`; quest-scoped idempotency keys; caller idempotency key forwarding; plan hash and provenance persistence; step semantics durability; capability-spec-derived `max_attempts`; generative planner capability boundary; `MissingInputError` and input pause/resume lifecycle; concurrent resource conflict detection in Pass 9; canonical resource identity extraction; plan timeout budget enforcement; deterministic cancellation lifecycle. 16/16 tests passing. Total suite: **481 passed (+ 47 subtests = 528 checks)**.
 - [ ] **L15 — Evidence-Based Verifier & Completion Engine**:
   - Deterministic outcome checks first (file existence, process checks, DOM state, exit codes) + cheap semantic completion validation.
   - Never report task completion without physical receipts.

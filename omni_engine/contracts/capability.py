@@ -146,6 +146,10 @@ class CapabilityInvocation(BaseContractModel):
     plan_id: Optional[str] = Field(default=None, description="Enclosing DAG plan identifier if applicable")
     step_id: Optional[str] = Field(default=None, description="Enclosing plan step identifier if applicable")
     operation_id: Optional[str] = Field(default=None, description="Persistent mutation operation identity")
+    idempotency_key: Optional[str] = Field(
+        default=None,
+        description="External/network idempotency key for exactly-once execution"
+    )
     metadata: Dict[str, Any] = Field(
         default_factory=dict,
         description="Supplemental invocation metadata"

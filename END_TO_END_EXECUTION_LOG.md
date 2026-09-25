@@ -11,14 +11,14 @@
 | **System Role** | Standalone Autonomous Operating Agent (Independent from Jarvis Core V2) |
 | **Active Architecture Branch** | `laya-autonomous-v2` |
 | **Public GitHub Remote** | `https://github.com/yashrastogi069-dev/laya-omni-agent.git` |
-| **Latest Branch Commit** | `b9a2dbe` (L14 Verified & Committed) |
-| **Total Automated Tests** | **465 / 465 Passing (100%)** (+ 47 subtests = 512 total checks) |
-| **Test Categorization** | **463 Feature Acceptance Tests** + **2 Known Defect Reproduction Tests** |
+| **Latest Branch Commit** | `3189822f0704ccdfabd79e2e55e3a6408e523464` (Base of L14.1 Hardening on `laya-autonomous-v2`) |
+| **Total Automated Tests** | **481 / 481 Passing (100%)** (+ 47 subtests = 528 total checks) |
+| **Test Categorization** | **479 Feature Acceptance Tests** + **2 Known Defect Reproduction Tests** |
 | **Known Warnings Classification** | **4 Warnings Emitted**: `RuntimeWarning` from `laya/router.py:187` (Upstream library temperature outside [0.5, 5] clamping — BENIGN/UPSTREAM); 0 unhandled warnings in test suite |
 | **Calibration Status** | **Intent Signal**: Calibrated (ECE 0.1192, 72/31 stratified corpus split); **Domain Signal**: Uncalibrated (Deterministic fail-open fallback, cross-domain pooling, and escalation) |
 | **Hardware Operating Baseline** | Windows 10 Host, 4 CPU Cores, 7.81 GB RAM, PyTorch 2.13.0+cpu, NO CUDA GPU (CPU DecisionFrame latency ~15.4s; SystemOneBroker enforces user sovereignty, RAM threshold debouncing, and quality floor) |
-| **Checkpoints Completed** | **L0–L14, Foundation Gate, R1, R2, R3, R4, R5, RV0** |
-| **Active Milestone & Checkpoint** | **MILESTONE COMPLETE: RV0 → L10 → L11 → L12 → L13 → L14 ACHIEVED (HARD STOP ENFORCED)** |
+| **Checkpoints Completed** | **L0–L14.1, Foundation Gate, R1, R2, R3, R4, R5, RV0** |
+| **Active Milestone & Checkpoint** | **MILESTONE COMPLETE: L14.1 RUNTIME INTEGRITY, DURABILITY & FAILURE ACCOUNTABILITY HARDENING ACHIEVED (HARD STOP ENFORCED)** |
 
 ---
 
@@ -109,7 +109,10 @@
 [L14: DETERMINISTIC DAG EXECUTOR]
        │ ── 17/17 Tests Passing (Commit: b9a2dbe on laya-autonomous-v2)
        ▼
-[HARD STOP ENFORCED: L10–L14 MILESTONE COMPLETE]
+[L14.1: RUNTIME INTEGRITY, DURABILITY & FAILURE ACCOUNTABILITY HARDENING]
+       │ ── 16/16 Audit Tests Passing; 481/481 Repository Tests Passing (+47 subtests = 528 checks)
+       ▼
+[HARD STOP ENFORCED: L14.1 COMPLETE — L15/L16 PROHIBITED]
 ```
 
 ---
@@ -2470,6 +2473,109 @@ During implementation and adversarial testing of Checkpoint L14, nine critical e
   - As explicitly mandated by project rules, engineering halts immediately upon completing L14.
   - Zero implementation of L15 (Completion Verifier), L16 (Controlled Replanner), Memory V2 (L19), automation scheduling (L20), MCP expansion (L21), canary promotion (L24), or legacy retirement.
 
+---
 
+## 14. Checkpoint L14.1: Runtime Integrity, Durability & Failure Accountability Hardening (COMPLETED & VERIFIED)
 
+### 14.1 Context, Prime Directive & Operating Invariants
+- **Core Mission**: Execute root-cause hardening of the autonomous execution runtime following an independent source-level GitHub audit across checkpoints L10 through L14.
+- **Prime Directive**:
+  - *"A green test suite is NOT sufficient evidence of correctness."*
+  - Banned pattern: `failure → patch symptom → green → declare success`.
+  - Mandatory cycle: `CAPTURE → CLASSIFY → ROOT CAUSE → REPRODUCE → REPAIR → ADVERSARIALIZE → REGRESSION TEST → VERIFY → DOCUMENT`.
+- **Failure Accountability Protocol**:
+  - Created canonical `tasks/FAILURE_LEDGER.md` documenting historical failures (`FAIL-HIST-001` through `FAIL-HIST-008`, including the historical 6-test failure in `test_l14_executor.py`) and all 16 audit findings (`FAIL-L14.1-001` through `FAIL-L14.1-016`).
+  - Zero deletion or rewriting of historical failures.
+  - No assertion weakening, no arbitrary timeout increases, and no test skipping.
+- **Strict RED → GREEN Reproduction Mandate**:
+  - Every single audit defect was reproduced with a targeted, deterministic test in `tests/test_l14_1_runtime_integrity.py` before any production fix was introduced.
+  - Proved all 16 tests RED, then fixed underlying implementations to achieve 16 GREEN.
+- **Non-Switching Boundary Invariant**:
+  - Legacy production paths `omni_agent.py` and `omni_engine/planner.py` remain **100% untouched** (**0 diffs**).
+- **HARD STOP STRICTLY ENFORCED**:
+  - Zero implementation of L15 (Completion Verifier), L16 (Controlled Replanner), Memory V2, scheduler, or legacy retirement.
 
+---
+
+### 14.2 Complete Audit Resolution Matrix (AUDIT-01 through AUDIT-16)
+
+| Audit ID | Failure Ledger ID | Subsystem | Defect / Vulnerability | Root Cause & Layer | Architectural Repair Made | Reproduction Test | Status |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **AUDIT-01** | `FAIL-L14.1-001` | Execution / Ledger | Post-dispatch mutation timeout / network partition mapped to ordinary `FAILED` | Implementation: Exception handler in `CapabilityRegistry.invoke()` returned `ToolResult(status=FAILURE, error_code=TIMEOUT/NETWORK_ERROR)` without tracking that dispatch had started. Executor treated it as safe failure. | Normalized post-dispatch timeout/network errors to `UNKNOWN_COMMIT` in `OperationLedger.record_attempt()` and `DeterministicDAGExecutor._execute_mutation_step()`. Commit certainty, not exception type, governs mutation safety. | `test_audit_01_mutation_timeout_produces_unknown_commit` | **RESOLVED & GREEN** |
+| **AUDIT-02** | `FAIL-L14.1-002` | Ledger / Identity | Cross-quest mutation argument collision | Implementation: Idempotency key generated solely from `capability_id + arg_hash[:16]`. Two unrelated quests executing identical operations deduplicated globally. | Scoped automatic idempotency keys by `quest_id`: `idemp_{quest_id}_{step_id}_{capability_id}_{arg_hash[:16]}`. Decoupled logical operation identity from argument fingerprint. | `test_audit_02_idempotency_key_scoped_by_quest_id` | **RESOLVED & GREEN** |
+| **AUDIT-03** | `FAIL-L14.1-003` | Capabilities / Ledger | External idempotency key not propagated to handlers | Contract / Implementation: `CapabilityInvocation` lacked `idempotency_key` field; external keys never reached downstream API clients. | Added `idempotency_key: Optional[str] = None` to `CapabilityInvocation` and forwarded caller key from `DeterministicDAGExecutor` into capability invocations. | `test_audit_03_external_idempotency_key_propagated` | **RESOLVED & GREEN** |
+| **AUDIT-04** | `FAIL-L14.1-004` | Operations / Persistence | Non-atomic attempt recording across separate statements | Implementation: `OperationStore` updated operation status and inserted attempt record in separate SQL executions outside an explicit transaction. Crash between statements corrupted ledger. | Implemented `OperationStore.record_attempt_atomic()` executing attempt insertion and operation status update inside a single SQLite transaction with immediate commit. | `test_audit_04_atomic_attempt_recording` | **RESOLVED & GREEN** |
+| **AUDIT-05** | `FAIL-L14.1-005` | Quest / Persistence | Quest state transition and event logging not atomic | Implementation: `QuestStore` updated `quests` table and inserted `quest_events` in separate statements. Interruption produced state transitions without audit trail. | Implemented `QuestStore.transition_quest_atomic()` executing quest state update and event insertion within an atomic transaction. | `test_audit_05_atomic_quest_transition_and_event` | **RESOLVED & GREEN** |
+| **AUDIT-06** | `FAIL-L14.1-006` | Quest / Recovery | Crash recovery did not reset interrupted `READ_ONLY` running steps | Implementation: `recover_active_quests()` left interrupted `RUNNING` steps as `RUNNING`. After reboot, Kahn loop waited indefinitely on dangling running steps. | Added step recovery logic: interrupted `READ_ONLY` running steps are safely reset to `READY` on recovery, enabling immediate re-dispatch. | `test_audit_06_crash_recovery_resets_interrupted_read_only_steps` | **RESOLVED & GREEN** |
+| **AUDIT-07** | `FAIL-L14.1-007` | Execution / Recovery | Interrupted uncertain mutations failed quest rather than pausing for reconciliation | Implementation: `UNKNOWN_COMMIT` mutations failed the step and quest directly, violating Invariant 6 (Evidence-Based Completion). | Updated executor: `UNKNOWN_COMMIT` transitions step to `StepStatus.AWAITING_RECONCILIATION` and quest to `QuestStatus.PAUSED_FOR_RECONCILIATION`, awaiting physical evidence. | `test_audit_07_unknown_commit_transitions_to_awaiting_reconciliation` | **RESOLVED & GREEN** |
+| **AUDIT-08** | `FAIL-L14.1-008` | Planning / Quest | Plan hash and provenance not durably persisted in Quest | Contract / Implementation: `attach_to_quest()` stored steps but discarded plan SHA-256 fingerprint, planner class, and generation metadata. | Stored deterministic `plan_hash` and `plan_provenance` inside `quest.metadata["plan_hash"]` and `quest.metadata["plan_provenance"]` on attachment. | `test_audit_08_plan_hash_and_provenance_persisted` | **RESOLVED & GREEN** |
+| **AUDIT-09** | `FAIL-L14.1-009` | Contracts / Schema | `QuestStep` contract missing per-step execution controls | Contract / Schema: `QuestStep` lacked `timeout_s`, `max_attempts`, `can_fail_silently`, and `metadata`. Schema could not store step-level policies. | Added `timeout_s: float = 300.0`, `max_attempts: int = 3`, `can_fail_silently: bool = False`, and `metadata: Dict[str, Any]` to `QuestStep` contract, SQLite schema, and DB migrations. | `test_audit_09_quest_step_contract_and_schema_fields` | **RESOLVED & GREEN** |
+| **AUDIT-10** | `FAIL-L14.1-010` | Planning / Validation | Non-idempotent steps allowed multi-attempt retry policies | Implementation: Planners defaulted to `max_attempts=3` even for `NON_IDEMPOTENT` capabilities or `RetryPolicy.NEVER`, risking duplicate side effects. | Updated `SkillTemplatePlanner` and `GenerativePlanner` to derive `max_attempts=1` when capability declares `RetryPolicy.NEVER` or `IdempotencyClass.NON_IDEMPOTENT`. | `test_audit_10_non_idempotent_step_derives_single_attempt` | **RESOLVED & GREEN** |
+| **AUDIT-11** | `FAIL-L14.1-011` | Planning / Generative | Generative planner bypassed `allowed_capabilities` boundary | Implementation: `GenerativePlanner.synthesize_plan()` checked `registry.has_capability()` but ignored caller-specified `allowed_capabilities` restriction list. | Added strict enforcement: `GenerativePlanner.synthesize_plan()` validates synthesized steps against `allowed_capabilities` when provided, raising `PlanGenerationError` on violation. | `test_audit_11_generative_planner_respects_allowed_capabilities` | **RESOLVED & GREEN** |
+| **AUDIT-12** | `FAIL-L14.1-012` | Execution / Dynamic | Missing quest input failed hard rather than pausing for input | Implementation: Dynamic resolver raised generic `DynamicResolutionError` on missing `$inputs.<key>`, causing immediate quest failure. | Defined `MissingInputError(DynamicResolutionError)`. Dynamic resolver raises it; executor transitions step to `PAUSED` and quest to `PAUSED_FOR_INPUT`. `resume(inputs=...)` merges new inputs and resumes cleanly. | `test_audit_12_missing_input_pauses_quest_for_input` | **RESOLVED & GREEN** |
+| **AUDIT-13** | `FAIL-L14.1-013` | Validation / Graph | Plan validator missed un-ordered concurrent resource conflicts | Implementation: Pass 9 (`MUTATION_SAFETY`) only checked step attempt counts. Parallel branches modifying the same resource without dependency ordering were allowed. | Implemented transitive ancestor graph analysis in Pass 9: if two steps target the same normalized resource and at least one is a mutation, they MUST have a transitive causal dependency, otherwise validation fails. | `test_audit_13_validator_detects_unordered_resource_conflict` | **RESOLVED & GREEN** |
+| **AUDIT-14** | `FAIL-L14.1-014` | Validation / Normalization | Resource identity was ad-hoc and path-variant | Implementation: Step arguments compared without URI scheme normalization; forward vs back slashes and casing caused collision bypasses. | Added `DeterministicPlanValidator.extract_resource_identity(step)` normalizing all targets into standard URIs (`file:<normalized_posix_path>`, `repo:`, `process:`, `browser:`, `n8n:`). | `test_audit_14_validator_resource_identity_normalization` | **RESOLVED & GREEN** |
+| **AUDIT-15** | `FAIL-L14.1-015` | Execution / Budget | Plan timeout budget not checked during DAG execution loop | Implementation: Plan timeout was checked only at validation. If execution exceeded budget, the executor continued running indefinitely. | Added elapsed runtime check at top of Kahn coordinator loop: if `time.perf_counter() - start_time > timeout_budget_s`, executor cleanly aborts with `TimeoutError`, cancelling in-flight work. | `test_audit_15_executor_enforces_plan_timeout_budget` | **RESOLVED & GREEN** |
+| **AUDIT-16** | `FAIL-L14.1-016` | Execution / Lifecycle | No deterministic cancellation method on executor | Architecture: System lacked clean cancellation primitive. Interrupted quests were either abandoned or forced to `FAILED`. | Implemented `DeterministicDAGExecutor.cancel(quest_id, reason)`: marks uncompleted steps `CANCELLED`, transitions quest to `CANCELLED`, and emits structured `QUEST_CANCELLED` event. | `test_audit_16_deterministic_executor_cancellation` | **RESOLVED & GREEN** |
+
+---
+
+### 14.3 Code Files Created, Modified, and Synchronized
+
+#### Created:
+1. `tasks/FAILURE_LEDGER.md`: Canonical failure accountability record documenting historical failures (`FAIL-HIST-001` through `008`) and all 16 audit defects (`FAIL-L14.1-001` through `016`).
+2. `tests/test_l14_1_runtime_integrity.py`: 16 comprehensive unit and integration tests executing targeted RED → GREEN reproductions for all 16 audit findings.
+
+#### Modified:
+1. `omni_engine/contracts/capability.py`: Added `idempotency_key: Optional[str] = None` to `CapabilityInvocation`.
+2. `omni_engine/contracts/quest.py`: Added `timeout_s`, `max_attempts`, `can_fail_silently`, and `metadata` to `QuestStep` contract. Added `PAUSED_FOR_RECONCILIATION` to `QuestStatus` and `AWAITING_RECONCILIATION` to `StepStatus`.
+3. `omni_engine/contracts/execution.py`: Defined `MissingInputError(DynamicResolutionError)`.
+4. `omni_engine/contracts/__init__.py`: Re-exported all new contracts and error classes.
+5. `omni_engine/capabilities/registry.py`: Propagated `idempotency_key` into tool invocations and execution envelopes.
+6. `omni_engine/operations/store.py`: Implemented `record_attempt_atomic()` for single-transaction persistence.
+7. `omni_engine/operations/ledger.py`: Added quest-scoped idempotency key derivation (`idemp_{quest_id}_{step_id}_{capability_id}_{arg_hash}`).
+8. `omni_engine/quest/store.py`: Added SQLite schema columns/migrations for `QuestStep` controls and implemented `transition_quest_atomic()`.
+9. `omni_engine/quest/engine.py`: Enhanced state transition engine for reconciliation and cancellation states.
+10. `omni_engine/planning/validator.py`: Added transitive ancestor analysis in Pass 9 (`MUTATION_SAFETY`) and `extract_resource_identity()` URI normalization.
+11. `omni_engine/planning/template_planner.py`: Derived `max_attempts=1` for non-idempotent capabilities or `RetryPolicy.NEVER`.
+12. `omni_engine/planning/generative_planner.py`: Added `allowed_capabilities` enforcement and `max_attempts=1` derivation.
+13. `omni_engine/planning/engine.py`: Persisted `plan_hash` and `plan_provenance` into `quest.metadata`.
+14. `omni_engine/execution/dynamic_resolver.py`: Raised `MissingInputError` on missing `$inputs.<key>`.
+15. `omni_engine/execution/executor.py`: Implemented runtime budget timeout check, `PAUSED_FOR_INPUT` handling, `UNKNOWN_COMMIT` reconciliation pause, crash recovery of interrupted read steps, and `cancel()`.
+16. `tasks/ACTIVE_PLAN.md`: Marked Step 10 and Checkpoint L14.1 COMPLETED.
+17. `tasks/MASTER_PLAN.md`: Marked L14.1 COMPLETED.
+18. `tasks/KNOWN_ISSUES.md`: Recorded ISSUE-08 as RESOLVED.
+19. `tasks/DECISIONS.md`: Added ADR-018 documenting L14.1 architectural decisions.
+20. `tasks/lessons.md`: Appended Lessons 22, 23, and 24.
+21. `tasks/DEFERRED.md`: Updated DEF-009 to COMPLETED.
+22. `LAYA_BUILD_STATE.md`: Updated ground truth to 481 passing tests (+ 47 subtests = 528 checks) and recorded L14.1 completion.
+23. `HANDOFF.md`: Updated continuation guide for post-L14.1 state.
+24. `END_TO_END_EXECUTION_LOG.md`: Top health dashboard, flowchart, and complete Section 14 execution log.
+
+---
+
+### 14.4 Verification & Test Evidence
+
+- **L14.1 Targeted Test Suite (`tests/test_l14_1_runtime_integrity.py`)**:
+  - Command: `python -m pytest tests/test_l14_1_runtime_integrity.py -v`
+  - Output: `16 passed in 4.91s` (16/16 passed, 100% pass rate).
+- **Core Multi-Step & Runtime Subsystems (`L10` through `L14`)**:
+  - Command: `python -m pytest tests/test_l10_quest.py tests/test_l11_operation_ledger.py tests/test_l12_planner.py tests/test_l13_validator.py tests/test_l14_executor.py -q`
+  - Output: `93 passed, 4 warnings in 6.20s` (93/93 passed, 100% pass rate).
+- **Full Repository Test Suite Across All Checkpoints (L0 through L14.1)**:
+  - Command: `python -m pytest`
+  - Output: `481 passed, 4 warnings, 47 subtests passed in 1113.68s (0:18:33)`
+  - Total Checks: **528 / 528 passing (100% pass rate, 0 failures)**.
+- **Non-Switching Boundary Verification**:
+  - Command: `git diff omni_agent.py omni_engine/planner.py`
+  - Output: **0 diffs**. Legacy production dispatch paths remain 100% untouched.
+- **Rule-0 Forbidden Operations Check**:
+  - Zero destructive git commands (`git reset --hard`, `git clean -fd`) executed.
+
+---
+
+### 14.5 Checkpoint Completion & Hard Stop Enforcement
+- **Checkpoint L14.1 is Officially PASSED, HARDENED, and COMPLETED**.
+- **HARD STOP STRICTLY ENFORCED**:
+  - As explicitly commanded by project rules, engineering halts immediately upon completing L14.1.
+  - Zero implementation of L15 (Completion Verifier), L16 (Controlled Replanner), Memory V2 (L19), persistent automation scheduler (L20), MCP expansion (L21), canary runtime switch (L24), or legacy retirement.

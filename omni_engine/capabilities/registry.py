@@ -148,6 +148,9 @@ class CapabilityRegistry:
         invocation: Union[CapabilityInvocation, str],
         arguments: Optional[Dict[str, Any]] = None,
         operation_id: Optional[str] = None,
+        idempotency_key: Optional[str] = None,
+        quest_id: Optional[str] = None,
+        step_id: Optional[str] = None,
         **kwargs: Any,
     ) -> ToolResult:
         """Executes a capability through its structured boundary contract.
@@ -164,6 +167,9 @@ class CapabilityRegistry:
                 capability_id=invocation,
                 arguments=arguments or {},
                 operation_id=operation_id,
+                idempotency_key=idempotency_key or kwargs.pop("idempotency_key", None),
+                quest_id=quest_id or kwargs.pop("quest_id", None),
+                step_id=step_id or kwargs.pop("step_id", None),
                 **kwargs,
             )
 
@@ -210,7 +216,18 @@ class CapabilityRegistry:
         bytes_written: Optional[int] = None
 
         try:
-            raw_res = exec_cap.implementation(**invocation.arguments)
+            call_kwargs = dict(invocation.arguments)
+            try:
+                sig = inspect.signature(exec_cap.implementation)
+                accepts_var_keyword = any(p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values())
+                for ctx_key in ("idempotency_key", "operation_id", "quest_id", "step_id"):
+                    val = getattr(invocation, ctx_key, None)
+                    if val is not None and (accepts_var_keyword or ctx_key in sig.parameters):
+                        call_kwargs[ctx_key] = val
+            except (ValueError, TypeError):
+                pass
+
+            raw_res = exec_cap.implementation(**call_kwargs)
 
             # Check if implementation returned an adapted (success: bool, data_or_err) tuple
             if isinstance(raw_res, tuple) and len(raw_res) == 2 and isinstance(raw_res[0], bool):

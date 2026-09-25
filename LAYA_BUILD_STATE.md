@@ -1,11 +1,11 @@
 # LAYA_BUILD_STATE.md — Current Ground Truth State
 
-**Last Updated**: 2026-09-25T10:28:00+05:30  
+**Last Updated**: 2026-09-25T17:42:00+05:30  
 **Current Branch**: `laya-autonomous-v2`  
-**Active Milestone Goal**: `RV0 → L10 QUEST → L11 OPERATION LEDGER → L12 PLANNER → L13 VALIDATOR → L14 EXECUTOR (COMPLETED & VERIFIED) — HARD STOP ENFORCED`  
-**Baseline Verified Commit**: `b9a2dbe` (L14 Checkpoint on `laya-autonomous-v2`)  
-**Last Passing Test Suite**: All 27 test files across L0–L14 + Foundation Gate + R1 + R2 + R3 + R4 + R5 + RV0:
-`tests/test_l0_baselines.py`, `tests/test_l1_repairs.py`, `tests/test_l2_contracts.py`, `tests/test_l2_1_reconciliation.py`, `tests/test_l3_capabilities.py`, `tests/test_l4_providers.py`, `tests/test_l5_decision_fabric.py`, `tests/test_l6a_routing.py`, `tests/test_l7_skills.py`, `tests/test_l6b_skill_routing.py`, `tests/test_l7_5_calibration.py`, `tests/test_l8_arguments.py`, `tests/test_l9_policy.py`, `tests/test_foundation_broker.py`, `tests/test_r1_research.py`, `tests/test_r2_browser.py`, `tests/test_r3_desktop.py`, `tests/test_r4_n8n.py`, `tests/test_r5_developer.py`, `tests/test_rv0_reality_gate.py`, `tests/test_l10_quest.py`, `tests/test_l11_operation_ledger.py`, `tests/test_l12_planner.py`, `tests/test_l13_validator.py`, `tests/test_l14_executor.py` (**465/465 passed, 47 subtests passed = 512 total checks (100% pass rate)**)  
+**Active Milestone Goal**: `L14.1 RUNTIME INTEGRITY, DURABILITY & FAILURE ACCOUNTABILITY HARDENING (COMPLETED & VERIFIED) — HARD STOP ENFORCED`  
+**Baseline Verified Commit**: `3189822f0704ccdfabd79e2e55e3a6408e523464` (Base of L14.1 Hardening on `laya-autonomous-v2`)  
+**Last Passing Test Suite**: All 28 test files across L0–L14.1 + Foundation Gate + R1 + R2 + R3 + R4 + R5 + RV0:
+`tests/test_l0_baselines.py`, `tests/test_l1_repairs.py`, `tests/test_l2_contracts.py`, `tests/test_l2_1_reconciliation.py`, `tests/test_l3_capabilities.py`, `tests/test_l4_providers.py`, `tests/test_l5_decision_fabric.py`, `tests/test_l6a_routing.py`, `tests/test_l7_skills.py`, `tests/test_l6b_skill_routing.py`, `tests/test_l7_5_calibration.py`, `tests/test_l8_arguments.py`, `tests/test_l9_policy.py`, `tests/test_foundation_broker.py`, `tests/test_r1_research.py`, `tests/test_r2_browser.py`, `tests/test_r3_desktop.py`, `tests/test_r4_n8n.py`, `tests/test_r5_developer.py`, `tests/test_rv0_reality_gate.py`, `tests/test_l10_quest.py`, `tests/test_l11_operation_ledger.py`, `tests/test_l12_planner.py`, `tests/test_l13_validator.py`, `tests/test_l14_executor.py`, `tests/test_l14_1_runtime_integrity.py` (**481 automated tests, 47 subtests = 528 total checks passing (100% pass rate)**)  
 **Mission Role**: Complete Standalone Autonomous Operating Agent.
 
 ---
@@ -184,6 +184,20 @@ The repository contains a standalone prototype CLI (`laya_agent.py` / `omni_engi
     - **Cumulative Diagnostic Reporting**: Full diagnostic reporting evaluating all passes without premature fail-fast truncation.
     - **Authored ADR-016**: `docs/research/ADR_L13_PLAN_VALIDATOR.md` registered in system records.
     - **Comprehensive Test Suite**: Created `tests/test_l13_validator.py` (29 unit tests, 100% pass rate in 6.81s). Full repository suite: **448/448 passed (+ 47 subtests = 495 total checks)**.
+26. **Checkpoint L14 Milestone Reached (Deterministic DAG Executor)**:
+    - **Single Coordinator Dispatcher**: Implemented `DeterministicDAGExecutor` in `omni_engine/execution/executor.py` coordinating multi-step Kahn DAG execution on persistent SQLite Quests.
+    - **Mutation Barrier Lock**: Enforced serialized execution for mutations (`_mutation_lock`) while allowing concurrent execution of independent `READ_ONLY` steps via ThreadPoolExecutor.
+    - **Operation Ledger Deduplication**: Routed all mutating capabilities through `OperationLedger` returning cached physical receipts on re-execution.
+    - **Pre-Execution Firewall Integration**: Validated plans through `DeterministicPlanValidator` before dispatching steps.
+    - **Pause and Resume**: Gated unconfirmed operations with `PAUSED_FOR_CONFIRMATION` and supported resumption via `resume()`.
+    - **Comprehensive Test Suite**: Created `tests/test_l14_executor.py` (17 unit tests, 100% pass rate).
+27. **Checkpoint L14.1 Milestone Reached (Runtime Integrity, Durability & Failure Accountability Hardening)**:
+    - **Failure Accountability Protocol**: Created `tasks/FAILURE_LEDGER.md` capturing all historical defects (`FAIL-HIST-001` through `008`) and audit defects (`FAIL-L14.1-001` through `016`) across all layers.
+    - **Batch 1 (AUDIT-04, 05, 06, 07 — State Machine & Persistence Atomicity)**: Atomic multi-statement transactions in `QuestStore` and `OperationStore`; recovered interrupted `READ_ONLY` running steps to `READY`; transitioned uncertain mutations to `StepStatus.AWAITING_RECONCILIATION` and `QuestStatus.PAUSED_FOR_RECONCILIATION` instead of terminal `FAILED`.
+    - **Batch 2 (AUDIT-01, 02, 03 — Idempotency & Uncertainty Classification)**: Normalized post-dispatch timeout and network errors into `UNKNOWN_COMMIT` requiring reconciliation; scoped automatic ledger idempotency keys by `quest_id` (`idemp_{quest_id}_{step_id}_{capability_id}_{arg_hash}`) preventing accidental cross-quest collisions; explicitly propagated custom caller idempotency keys into `CapabilityInvocation` and tool handlers.
+    - **Batch 3 (AUDIT-08, 09, 10, 11 — Plan Durability & Planner Boundaries)**: Computed deterministic SHA-256 `plan_hash` and `plan_provenance` persisted in `quest.metadata`; added `timeout_s`, `max_attempts`, `can_fail_silently`, and `metadata` to `QuestStep` contract, SQLite schema, and migrations; ensured planners derive `max_attempts=1` when `retry_policy == NEVER` or `idempotency_class == NON_IDEMPOTENT`; enforced `allowed_capabilities` containment boundary in `GenerativePlanner`.
+    - **Batch 4 (AUDIT-12, 13, 14, 15, 16 — Resolvers, Resources & Lifecycle)**: Differentiated missing input arguments via `MissingInputError`, pausing steps as `PAUSED` and quest as `PAUSED_FOR_INPUT`, and cleanly resuming with merged user inputs; implemented concurrent resource conflict detection in Pass 9 (`MUTATION_SAFETY`) via transitive ancestor analysis; added canonical resource identity extraction (`DeterministicPlanValidator.extract_resource_identity`); enforced plan timeout budget in Kahn coordinator loop; added deterministic `cancel(quest_id)` transitioning uncompleted steps to `CANCELLED` and emitting `QUEST_CANCELLED`.
+    - **Comprehensive Test Suite**: Created `tests/test_l14_1_runtime_integrity.py` (16 unit tests, 100% pass rate in 4.91s). Full repository suite: **481 passed (+ 47 subtests = 528 total checks)**.
 
 ---
 
@@ -264,27 +278,30 @@ The repository contains a standalone prototype CLI (`laya_agent.py` / `omni_engi
   - **L12 Structured DAG Planner Tests**: 20 passed
   - **L13 Deterministic Plan Validator Tests**: 29 passed
   - **L14 Deterministic DAG Executor Tests**: 17 passed
-- **Pass Rate**: 100% (465 passed, 0 failed, 0 errors, 47 subtests passed).
-- **Runtime**: ~696s across full repository test suite.
+  - **L14.1 Runtime Integrity & Durability Tests**: 16 passed
+- **Pass Rate**: 100% (481 passed, 0 failed, 0 errors, 47 subtests passed = 528 total checks).
+- **Runtime**: ~556s across full repository test suite.
 
 ---
 
 ## 4. Current Blockers
 
-- **None**. The milestone track `RV0 REALITY GATE → L10 QUEST → L11 OPERATION LEDGER → L12 PLANNER → L13 VALIDATOR → L14 EXECUTOR` is complete, verified, and passing 100% of automated tests.
+- **None**. The hardening milestone `L14.1 RUNTIME INTEGRITY, DURABILITY & FAILURE ACCOUNTABILITY HARDENING` is complete, verified, and passing 100% of automated tests.
 
 ---
 
 ## 5. Completed Milestone & Hard Stop Enforcement
 
-Within roadmap `RV0 REALITY GATE → L10 QUEST → L11 OPERATION LEDGER → L12 PLANNER → L13 VALIDATOR → L14 EXECUTOR`:
+Within roadmap `L14.1 RUNTIME INTEGRITY, DURABILITY & FAILURE ACCOUNTABILITY HARDENING`:
 - **Status**: **COMPLETE & FULLY VERIFIED**
 - **Hard Stop Boundary**: **STRICTLY ENFORCED**. 0 diffs in `omni_agent.py` and `omni_engine/planner.py`.
 - **Invariants Upheld**:
   1. Deterministic Control (Invariant 1): Runtime strictly owns state transitions, dependency execution, confirmation enforcement, mutation identity, and lifecycle state.
-  2. Exactly-Once Mutation Semantics (ADR-014): Deduplicated operations return cached physical receipts; blind retries on `UNKNOWN_COMMIT` strictly prohibited.
-  3. Pre-Execution Firewall (ADR-016): 10 deterministic validation passes verify every plan before execution begins.
-  4. Dynamic Argument Resolution (ADR-017): `$inputs.<param>` and `$steps.<step_id>.<path>` resolved deterministically with multi-path navigation and stringified JSON support.
-  5. Evidence-Based Completion (Invariant 6): Upon completing all steps, Quest transitions strictly to `AWAITING_VERIFICATION`. It does NOT mark itself `COMPLETED` (L15 Verifier is future work).
+  2. Exactly-Once Mutation Semantics (ADR-014): Deduplicated operations return cached physical receipts; blind retries on `UNKNOWN_COMMIT` strictly prohibited; timeout/network partitions classified as `UNKNOWN_COMMIT` requiring reconciliation.
+  3. Pre-Execution Firewall (ADR-016): 10 deterministic validation passes verify every plan before execution begins; Pass 9 detects un-ordered concurrent resource conflicts.
+  4. Dynamic Argument Resolution (ADR-017): `$inputs.<param>` and `$steps.<step_id>.<path>` resolved deterministically with multi-path navigation and stringified JSON support; missing inputs trigger `PAUSED_FOR_INPUT` rather than terminal failure.
+  5. Persistence & Concurrency Integrity: Atomic multi-statement transactions in SQLite (`QuestStore` and `OperationStore`); recovery of interrupted read-only steps; plan timeout budget enforcement; deterministic cancellation lifecycle.
+  6. Evidence-Based Completion (Invariant 6): Upon completing all steps, Quest transitions strictly to `AWAITING_VERIFICATION`. It does NOT mark itself `COMPLETED` (L15 Verifier is future work).
 - **Next Milestone**: **L15 Completion Verifier & L16 Controlled Replanner** (scheduled for future phase; zero advance code implemented).
+
 

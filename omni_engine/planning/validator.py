@@ -23,6 +23,7 @@ Invariants:
 - Non-Switching Boundary: omni_agent.py and omni_engine/planner.py untouched.
 """
 
+import os
 import re
 import time
 from typing import Any, Dict, List, Optional, Set, Tuple
@@ -68,6 +69,29 @@ class DeterministicPlanValidator:
     ) -> None:
         self.capability_registry = capability_registry or registry or build_real_capability_registry()
         self.policy_engine = policy_engine or PolicyEngine()
+
+    @staticmethod
+    def extract_resource_identity(step: PlanStep) -> Optional[str]:
+        """Extracts canonical resource target (e.g. 'file:<normalized_path>', 'process:<pid>', 'repo:<path>')."""
+        args = step.arguments or {}
+        # File paths
+        filepath = args.get("filepath") or args.get("file_path") or args.get("path")
+        if filepath and isinstance(filepath, str) and not filepath.startswith("$"):
+            norm = os.path.normpath(filepath).replace("\\", "/")
+            return f"file:{norm}"
+
+        # PIDs / Processes
+        pid = args.get("pid") or args.get("target")
+        if pid is not None and not str(pid).startswith("$"):
+            return f"process:{pid}"
+
+        # Repositories
+        repo = args.get("repo_path")
+        if repo and isinstance(repo, str) and not repo.startswith("$"):
+            norm_repo = os.path.normpath(repo).replace("\\", "/")
+            return f"repo:{norm_repo}"
+
+        return None
 
     def validate(
         self,
@@ -447,6 +471,45 @@ class DeterministicPlanValidator:
                         p9_errors.append(
                             f"Step '{step.step_id}' capability '{spec.id}' is NON_IDEMPOTENT with RetryPolicy.NEVER but declares max_attempts={step.max_attempts} > 1."
                         )
+
+        # Check 2: Conflicting concurrent mutations on identical resources (AUDIT-13, AUDIT-14)
+        ancestors: Dict[str, Set[str]] = {s.step_id: set() for s in plan.steps}
+        for s in plan.steps:
+            queue = list(s.dependencies)
+            visited = set(queue)
+            while queue:
+                curr = queue.pop(0)
+                ancestors[s.step_id].add(curr)
+                curr_step = next((x for x in plan.steps if x.step_id == curr), None)
+                if curr_step:
+                    for dep in curr_step.dependencies:
+                        if dep not in visited:
+                            visited.add(dep)
+                            queue.append(dep)
+
+        for i in range(len(plan.steps)):
+            s1 = plan.steps[i]
+            spec1 = self.capability_registry.get_spec(s1.capability_id) if self.capability_registry.has(s1.capability_id) else None
+            if not spec1 or spec1.action_class == ActionClass.READ_ONLY:
+                continue
+            res1 = self.extract_resource_identity(s1)
+            if not res1:
+                continue
+
+            for j in range(i + 1, len(plan.steps)):
+                s2 = plan.steps[j]
+                spec2 = self.capability_registry.get_spec(s2.capability_id) if self.capability_registry.has(s2.capability_id) else None
+                if not spec2 or spec2.action_class == ActionClass.READ_ONLY:
+                    continue
+                res2 = self.extract_resource_identity(s2)
+                if not res2 or res1 != res2:
+                    continue
+
+                # Conflict if neither is ancestor of the other (they could run concurrently or in undefined order)
+                if s1.step_id not in ancestors[s2.step_id] and s2.step_id not in ancestors[s1.step_id]:
+                    p9_errors.append(
+                        f"Steps '{s1.step_id}' and '{s2.step_id}' have concurrent conflicting mutations targeting resource '{res1}' without causal dependency ordering."
+                    )
 
         if p9_errors:
             msg = "; ".join(p9_errors)

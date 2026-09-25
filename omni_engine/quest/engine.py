@@ -123,12 +123,18 @@ class QuestEngine:
 
         return persisted
 
-    def attach_plan(self, quest_id: str, steps: List[QuestStep]) -> Quest:
+    def attach_plan(
+        self,
+        quest_id: str,
+        steps: List[QuestStep],
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> Quest:
         """Attaches a planned step sequence to a CREATED quest, moving it to PLANNED.
         
         Args:
             quest_id: Target quest ID.
             steps: List of QuestStep objects to attach.
+            metadata: Optional additional metadata (e.g. plan provenance) to merge into the Quest.
             
         Returns:
             Updated Quest in PLANNED status.
@@ -143,25 +149,28 @@ class QuestEngine:
 
         self._validate_quest_transition(quest.status, QuestStatus.PLANNED)
 
-        # Save steps and update quest
-        self.store.save_steps(quest_id, steps)
+        # Atomically save steps, update quest, and record event in a single transaction (AUDIT-05)
+        new_metadata = dict(quest.metadata or {})
+        if metadata:
+            new_metadata.update(metadata)
+
         updated_quest = quest.model_copy(
             update={
                 "status": QuestStatus.PLANNED,
                 "steps": steps,
+                "metadata": new_metadata,
             }
         )
-        saved = self.store.update_quest(updated_quest)
+        event_payload: Dict[str, Any] = {"step_ids": [s.step_id for s in steps]}
+        if metadata:
+            event_payload["metadata"] = metadata
 
-        self.store.record_event(
-            QuestEvent(
-                quest_id=quest_id,
-                event_type=QuestEventEnum.PLAN_ATTACHED,
-                payload={"step_ids": [s.step_id for s in steps]},
-            )
+        event = QuestEvent(
+            quest_id=quest_id,
+            event_type=QuestEventEnum.PLAN_ATTACHED,
+            payload=event_payload,
         )
-
-        return saved
+        return self.store.attach_plan_atomic(updated_quest, steps, event)
 
     def transition_quest(
         self,
@@ -171,6 +180,8 @@ class QuestEngine:
         payload: Optional[Dict[str, Any]] = None,
     ) -> Quest:
         """Transitions a Quest to a new status according to the strict state machine.
+        
+        Atomically updates the Quest status and records the audit event in a single transaction (AUDIT-05).
         
         Args:
             quest_id: Target quest ID.
@@ -192,9 +203,6 @@ class QuestEngine:
 
         self._validate_quest_transition(quest.status, target_status)
 
-        updated_quest = quest.model_copy(update={"status": target_status})
-        saved = self.store.update_quest(updated_quest)
-
         # Map target status to audit event
         event_type = self._map_quest_status_to_event(target_status, quest.status)
         evt_payload = dict(payload or {})
@@ -203,15 +211,14 @@ class QuestEngine:
         evt_payload["from_status"] = quest.status.value
         evt_payload["to_status"] = target_status.value
 
-        self.store.record_event(
-            QuestEvent(
-                quest_id=quest_id,
-                event_type=event_type,
-                payload=evt_payload,
-            )
+        event = QuestEvent(
+            quest_id=quest_id,
+            event_type=event_type,
+            payload=evt_payload,
         )
 
-        return saved
+        updated_quest = quest.model_copy(update={"status": target_status})
+        return self.store.transition_quest_atomic(updated_quest, event)
 
     # =========================================================================
     # Step Lifecycle Management
@@ -227,6 +234,8 @@ class QuestEngine:
         error: Optional[str] = None,
     ) -> QuestStep:
         """Transitions an individual step to a new execution state.
+        
+        Atomically updates the step state and records the audit event in a single transaction (AUDIT-05).
         
         Args:
             quest_id: Parent quest ID.
@@ -258,7 +267,6 @@ class QuestEngine:
             updates["error"] = error
 
         updated_step = step.model_copy(update=updates)
-        saved = self.store.update_step(updated_step)
 
         # Update quest current_step_id if running (safe against concurrent worker OCC collisions)
         if target_status == StepStatus.RUNNING:
@@ -270,24 +278,23 @@ class QuestEngine:
                 except OptimisticLockError:
                     pass
 
-        # Record step audit event
+        # Record step audit event atomically with the step update
         step_event_type = self._map_step_status_to_event(target_status)
-        self.store.record_event(
-            QuestEvent(
-                quest_id=quest_id,
-                step_id=step_id,
-                event_type=step_event_type,
-                payload={
-                    "from_status": step.status.value,
-                    "to_status": target_status.value,
-                    "has_execution_receipt": execution_receipt is not None,
-                    "has_verification_receipt": verification_receipt is not None,
-                    "error": error,
-                },
-            )
+        evt_payload: Dict[str, Any] = {
+            "from_status": step.status.value,
+            "to_status": target_status.value,
+        }
+        if error:
+            evt_payload["error"] = error
+
+        event = QuestEvent(
+            quest_id=quest_id,
+            step_id=step_id,
+            event_type=step_event_type,
+            payload=evt_payload,
         )
 
-        return saved
+        return self.store.transition_step_atomic(updated_step, event)
 
     # =========================================================================
     # Queries & Helpers
@@ -361,11 +368,12 @@ class QuestEngine:
             QuestStatus.PLANNED: QuestEventEnum.PLAN_ATTACHED,
             QuestStatus.RUNNING: (
                 QuestEventEnum.QUEST_RESUMED
-                if current in (QuestStatus.PAUSED_FOR_CONFIRMATION, QuestStatus.PAUSED_FOR_INPUT)
+                if current in (QuestStatus.PAUSED_FOR_CONFIRMATION, QuestStatus.PAUSED_FOR_INPUT, QuestStatus.PAUSED_FOR_RECONCILIATION)
                 else QuestEventEnum.STEP_STARTED
             ),
             QuestStatus.PAUSED_FOR_CONFIRMATION: QuestEventEnum.QUEST_PAUSED,
             QuestStatus.PAUSED_FOR_INPUT: QuestEventEnum.QUEST_PAUSED,
+            QuestStatus.PAUSED_FOR_RECONCILIATION: QuestEventEnum.QUEST_PAUSED_FOR_RECONCILIATION,
             QuestStatus.AWAITING_VERIFICATION: QuestEventEnum.QUEST_AWAITING_VERIFICATION,
             QuestStatus.COMPLETED: QuestEventEnum.QUEST_COMPLETED,
             QuestStatus.FAILED: QuestEventEnum.QUEST_FAILED,
@@ -377,8 +385,10 @@ class QuestEngine:
     def _map_step_status_to_event(target: StepStatus) -> QuestEventEnum:
         """Maps a step status to the corresponding audit event type."""
         mapping = {
+            StepStatus.READY: QuestEventEnum.STEP_RESUMED,
             StepStatus.RUNNING: QuestEventEnum.STEP_STARTED,
             StepStatus.PAUSED: QuestEventEnum.STEP_PAUSED,
+            StepStatus.AWAITING_RECONCILIATION: QuestEventEnum.STEP_AWAITING_RECONCILIATION,
             StepStatus.COMPLETED: QuestEventEnum.STEP_COMPLETED,
             StepStatus.FAILED: QuestEventEnum.STEP_FAILED,
             StepStatus.CANCELLED: QuestEventEnum.STEP_FAILED,

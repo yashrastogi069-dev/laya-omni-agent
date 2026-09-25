@@ -1,4 +1,4 @@
-# HANDOFF.md — Operational Continuation Guide (Checkpoint L14 Deterministic DAG Executor Completed — Milestone Hard Stop Enforced)
+# HANDOFF.md — Operational Continuation Guide (Checkpoint L14.1 Runtime Integrity Hardening Completed — Milestone Hard Stop Enforced)
 
 ## What We Have Built (Current State)
 A **trustworthy pre-execution control plane, provider broker, five complete real capability execution engines, persisted SQLite Quest runtime, Operation Ledger with exactly-once mutation semantics, Structured DAG Planner with template-first precedence, 10-Pass Deterministic Plan Validator Firewall, and Deterministic DAG Executor** powered by:
@@ -119,21 +119,23 @@ A **trustworthy pre-execution control plane, provider broker, five complete real
   - `tests/test_l12_planner.py` (20 tests)
   - `tests/test_l13_validator.py` (29 tests)
   - `tests/test_l14_executor.py` (17 tests)
-- Governance: All canonical documents synchronized with verified implementation truth.
+  - `tests/test_l14_1_runtime_integrity.py` (16 tests)
+- Governance: All canonical documents synchronized with verified implementation truth (`tasks/FAILURE_LEDGER.md` fully populated).
 - Non-Switching Boundary: `omni_agent.py` and `omni_engine/planner.py` have **0 diffs**.
 
 ---
 
 ## Operational Boundary & Next Phase
-- **Completed Milestone Goal**: `RV0 Reality Gate → L10 Quest → L11 Operation Ledger → L12 Planner → L13 Validator → L14 Executor`.
-- **Status**: **COMPLETE & FULLY VERIFIED (100% Pass Rate across 465 automated tests + 47 subtests = 512 checks)**.
-- **Hard Stop Boundary**: **STRICTLY ENFORCED AFTER L14**. Zero implementation of L15 (Completion Verifier), L16 (Controlled Replanner), Memory V2, or legacy retirement.
+- **Completed Milestone Goal**: `L14.1 Runtime Integrity, Durability & Failure Accountability Hardening`.
+- **Status**: **COMPLETE & FULLY VERIFIED (100% Pass Rate across 481 automated tests + 47 subtests = 528 checks)**.
+- **Hard Stop Boundary**: **STRICTLY ENFORCED AFTER L14.1**. Zero implementation of L15 (Completion Verifier), L16 (Controlled Replanner), Memory V2, or legacy retirement.
 - **Milestone Sequence (All Completed)**:
   - RV0: Live Reality Gate across capability engines (System 1, Research, Browser, Windows Desktop, n8n, Antigravity with dirty worktree test) — **PASSED**.
   - L10: Persisted SQLite Quest Engine (`Quest`, `QuestStep`, `QuestEvent`) — **PASSED**.
   - L11: Operation Ledger & Exactly-Once Mutation Semantics (`OperationStore`, `OperationLedger`) — **PASSED**.
   - L12: Structured DAG Planner (`Plan`, `PlanStep`, `DAGTopology`, `SkillTemplatePlanner`, `GenerativePlanner`, `StructuredDAGPlanner`) — **PASSED**.
-  - L13: Deterministic Plan Validator (10 validation passes) — **PASSED**.
-  - L14: Deterministic DAG Executor (scheduling firewall, ready-step calculation, concurrency & resource locks, dynamic resolution, policy confirmation gating) — **PASSED**.
+  - L13: Deterministic Plan Validator (10 validation passes + concurrent resource conflict detection) — **PASSED**.
+  - L14: Deterministic DAG Executor (scheduling firewall, ready-step calculation, concurrency & mutation locks, dynamic resolution, policy confirmation gating) — **PASSED**.
+  - L14.1: Runtime Integrity, Durability & Failure Accountability Hardening (16 AUDIT resolutions across atomicity, idempotency, provenance, step semantics, resource extraction, timeout budget, and cancellation lifecycle) — **PASSED**.
 - **Next Milestone**: **L15 Completion Verifier & L16 Replanner** (scheduled for future phase; zero advance code implemented).
 

@@ -159,6 +159,7 @@ from .validation import (
 from .execution import (
     ExecutionError,
     UnresolvedArgumentError,
+    MissingInputError,
     QuestAlreadyRunningError,
     ExecutionFirewallError,
     PolicyBlockedExecutionError,
@@ -303,6 +304,7 @@ __all__ = [
     # Deterministic DAG Executor (L14)
     "ExecutionError",
     "UnresolvedArgumentError",
+    "MissingInputError",
     "QuestAlreadyRunningError",
     "ExecutionFirewallError",
     "PolicyBlockedExecutionError",

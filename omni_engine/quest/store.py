@@ -144,6 +144,10 @@ class QuestStore:
                     dependencies TEXT NOT NULL,
                     status TEXT NOT NULL,
                     version INTEGER NOT NULL DEFAULT 1,
+                    timeout_s REAL,
+                    max_attempts INTEGER NOT NULL DEFAULT 3,
+                    can_fail_silently INTEGER NOT NULL DEFAULT 0,
+                    metadata TEXT NOT NULL DEFAULT '{}',
                     execution_receipt TEXT,
                     verification_receipt TEXT,
                     error TEXT,
@@ -153,6 +157,18 @@ class QuestStore:
                     FOREIGN KEY (quest_id) REFERENCES quests(quest_id) ON DELETE CASCADE
                 );
                 """)
+                # Migrations for existing tables (AUDIT-09)
+                for col_name, col_type in (
+                    ("timeout_s", "REAL"),
+                    ("max_attempts", "INTEGER DEFAULT 3"),
+                    ("can_fail_silently", "INTEGER DEFAULT 0"),
+                    ("metadata", "TEXT DEFAULT '{}'"),
+                ):
+                    try:
+                        conn.execute(f"ALTER TABLE quest_steps ADD COLUMN {col_name} {col_type};")
+                    except sqlite3.OperationalError:
+                        pass
+
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_steps_status ON quest_steps(quest_id, status);")
 
                 conn.execute("""
@@ -228,25 +244,11 @@ class QuestStore:
                         INSERT INTO quest_steps (
                             step_id, quest_id, capability_id, action_class, intent,
                             arguments, dependencies, status, version, execution_receipt,
-                            verification_receipt, error, created_at, updated_at
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            verification_receipt, error, timeout_s, max_attempts,
+                            can_fail_silently, metadata, created_at, updated_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """,
-                        (
-                            step.step_id,
-                            quest.quest_id,
-                            step.capability_id,
-                            step.action_class.value,
-                            step.intent,
-                            json.dumps(step.arguments, default=str),
-                            json.dumps(step.dependencies, default=str),
-                            step.status.value,
-                            step.version,
-                            json.dumps(step.execution_receipt, default=str) if step.execution_receipt is not None else None,
-                            json.dumps(step.verification_receipt, default=str) if step.verification_receipt is not None else None,
-                            step.error,
-                            step.created_at or created_at,
-                            step.updated_at or updated_at,
-                        )
+                        self._step_to_insert_row(quest.quest_id, step, created_at)
                     )
 
                 conn.commit()
@@ -257,6 +259,65 @@ class QuestStore:
             except Exception:
                 conn.rollback()
                 raise
+
+    @staticmethod
+    def _step_to_insert_row(quest_id: str, step: QuestStep, default_time: float) -> tuple:
+        """Serializes a QuestStep into a parameter tuple for INSERT INTO quest_steps."""
+        return (
+            step.step_id,
+            quest_id,
+            step.capability_id,
+            step.action_class.value,
+            step.intent,
+            json.dumps(step.arguments, default=str),
+            json.dumps(step.dependencies, default=str),
+            step.status.value,
+            step.version,
+            json.dumps(step.execution_receipt, default=str) if step.execution_receipt is not None else None,
+            json.dumps(step.verification_receipt, default=str) if step.verification_receipt is not None else None,
+            step.error,
+            step.timeout_s,
+            step.max_attempts,
+            1 if step.can_fail_silently else 0,
+            json.dumps(step.metadata, default=str),
+            step.created_at or default_time,
+            step.updated_at or default_time,
+        )
+
+    @staticmethod
+    def _row_to_step(row: sqlite3.Row) -> QuestStep:
+        """Deserializes a sqlite3.Row into a QuestStep, safely handling extended columns."""
+        keys = row.keys()
+        timeout_s = row["timeout_s"] if "timeout_s" in keys else None
+        max_attempts = row["max_attempts"] if "max_attempts" in keys and row["max_attempts"] is not None else 3
+        can_fail_silently = bool(row["can_fail_silently"]) if "can_fail_silently" in keys and row["can_fail_silently"] is not None else False
+        meta = {}
+        if "metadata" in keys and row["metadata"]:
+            try:
+                meta = json.loads(row["metadata"])
+            except Exception:
+                meta = {}
+
+        return QuestStep(
+            step_id=row["step_id"],
+            quest_id=row["quest_id"],
+            capability_id=row["capability_id"],
+            action_class=ActionClass(row["action_class"]),
+            intent=row["intent"],
+            arguments=json.loads(row["arguments"]),
+            dependencies=json.loads(row["dependencies"]),
+            status=StepStatus(row["status"]),
+            version=row["version"],
+            execution_receipt=json.loads(row["execution_receipt"]) if row["execution_receipt"] else None,
+            verification_receipt=json.loads(row["verification_receipt"]) if row["verification_receipt"] else None,
+            error=row["error"],
+            timeout_s=timeout_s,
+            max_attempts=max_attempts,
+            can_fail_silently=can_fail_silently,
+            metadata=meta,
+            created_at=row["created_at"],
+            updated_at=row["updated_at"],
+        )
 
     def get_quest(self, quest_id: str) -> Optional[Quest]:
         """Retrieves a Quest and its steps by ID.
@@ -279,26 +340,7 @@ class QuestStore:
                 "SELECT * FROM quest_steps WHERE quest_id = ? ORDER BY created_at ASC, step_id ASC",
                 (quest_id,)
             )
-            steps: List[QuestStep] = []
-            for s_row in step_cur.fetchall():
-                steps.append(
-                    QuestStep(
-                        step_id=s_row["step_id"],
-                        quest_id=s_row["quest_id"],
-                        capability_id=s_row["capability_id"],
-                        action_class=ActionClass(s_row["action_class"]),
-                        intent=s_row["intent"],
-                        arguments=json.loads(s_row["arguments"]),
-                        dependencies=json.loads(s_row["dependencies"]),
-                        status=StepStatus(s_row["status"]),
-                        version=s_row["version"],
-                        execution_receipt=json.loads(s_row["execution_receipt"]) if s_row["execution_receipt"] else None,
-                        verification_receipt=json.loads(s_row["verification_receipt"]) if s_row["verification_receipt"] else None,
-                        error=s_row["error"],
-                        created_at=s_row["created_at"],
-                        updated_at=s_row["updated_at"],
-                    )
-                )
+            steps: List[QuestStep] = [self._row_to_step(s_row) for s_row in step_cur.fetchall()]
 
             return Quest(
                 quest_id=row["quest_id"],
@@ -425,25 +467,11 @@ class QuestStore:
                         INSERT INTO quest_steps (
                             step_id, quest_id, capability_id, action_class, intent,
                             arguments, dependencies, status, version, execution_receipt,
-                            verification_receipt, error, created_at, updated_at
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            verification_receipt, error, timeout_s, max_attempts,
+                            can_fail_silently, metadata, created_at, updated_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """,
-                        (
-                            step.step_id,
-                            quest_id,
-                            step.capability_id,
-                            step.action_class.value,
-                            step.intent,
-                            json.dumps(step.arguments, default=str),
-                            json.dumps(step.dependencies, default=str),
-                            step.status.value,
-                            step.version,
-                            json.dumps(step.execution_receipt, default=str) if step.execution_receipt is not None else None,
-                            json.dumps(step.verification_receipt, default=str) if step.verification_receipt is not None else None,
-                            step.error,
-                            step.created_at or now,
-                            step.updated_at or now,
-                        )
+                        self._step_to_insert_row(quest_id, step, now)
                     )
                 conn.commit()
             except Exception:
@@ -462,22 +490,7 @@ class QuestStore:
             if not row:
                 return None
 
-            return QuestStep(
-                step_id=row["step_id"],
-                quest_id=row["quest_id"],
-                capability_id=row["capability_id"],
-                action_class=ActionClass(row["action_class"]),
-                intent=row["intent"],
-                arguments=json.loads(row["arguments"]),
-                dependencies=json.loads(row["dependencies"]),
-                status=StepStatus(row["status"]),
-                version=row["version"],
-                execution_receipt=json.loads(row["execution_receipt"]) if row["execution_receipt"] else None,
-                verification_receipt=json.loads(row["verification_receipt"]) if row["verification_receipt"] else None,
-                error=row["error"],
-                created_at=row["created_at"],
-                updated_at=row["updated_at"],
-            )
+            return self._row_to_step(row)
         finally:
             try:
                 conn.rollback()
@@ -510,7 +523,8 @@ class QuestStore:
                     UPDATE quest_steps
                     SET capability_id = ?, action_class = ?, intent = ?, arguments = ?,
                         dependencies = ?, status = ?, version = ?, execution_receipt = ?,
-                        verification_receipt = ?, error = ?, updated_at = ?
+                        verification_receipt = ?, error = ?, timeout_s = ?, max_attempts = ?,
+                        can_fail_silently = ?, metadata = ?, updated_at = ?
                     WHERE quest_id = ? AND step_id = ? AND version = ?
                     """,
                     (
@@ -524,6 +538,10 @@ class QuestStore:
                         json.dumps(step.execution_receipt, default=str) if step.execution_receipt is not None else None,
                         json.dumps(step.verification_receipt, default=str) if step.verification_receipt is not None else None,
                         step.error,
+                        step.timeout_s,
+                        step.max_attempts,
+                        1 if step.can_fail_silently else 0,
+                        json.dumps(step.metadata, default=str),
                         now,
                         step.quest_id,
                         step.step_id,
@@ -613,6 +631,257 @@ class QuestStore:
                 conn.rollback()
             except Exception:
                 pass
+
+    # =========================================================================
+    # Atomic Multi-Entity Operations (Checkpoint L14.1 / AUDIT-05)
+    # =========================================================================
+
+    def transition_quest_atomic(self, quest: Quest, event: QuestEvent) -> Quest:
+        """Atomically updates a Quest's status and appends its audit event in a single transaction.
+        
+        Args:
+            quest: The Quest with target status to update (OCC version check applied).
+            event: The corresponding QuestEvent to persist.
+            
+        Returns:
+            Updated Quest with incremented version and updated timestamp.
+            
+        Raises:
+            QuestNotFoundError: If the quest does not exist.
+            OptimisticLockError: If an OCC version conflict occurs.
+        """
+        conn = self._get_connection()
+        now = time.time()
+        new_version = quest.version + 1
+
+        with self._write_lock:
+            try:
+                cur = conn.execute(
+                    """
+                    UPDATE quests
+                    SET title = ?, goal = ?, status = ?, autonomy_profile = ?,
+                        current_step_id = ?, metadata = ?, version = ?, updated_at = ?
+                    WHERE quest_id = ? AND version = ?
+                    """,
+                    (
+                        quest.title,
+                        quest.goal,
+                        quest.status.value,
+                        quest.autonomy_profile.value,
+                        quest.current_step_id,
+                        json.dumps(quest.metadata, default=str),
+                        new_version,
+                        now,
+                        quest.quest_id,
+                        quest.version,
+                    )
+                )
+
+                if cur.rowcount == 0:
+                    check_cur = conn.execute("SELECT version FROM quests WHERE quest_id = ?", (quest.quest_id,))
+                    existing = check_cur.fetchone()
+                    if not existing:
+                        raise QuestNotFoundError(f"Quest {quest.quest_id} not found")
+                    actual_version = existing["version"]
+                    raise OptimisticLockError(
+                        f"Quest {quest.quest_id} OCC conflict: expected version {quest.version}, but database has {actual_version}"
+                    )
+
+                # Atomically append the event
+                conn.execute(
+                    """
+                    INSERT INTO quest_events (
+                        event_id, quest_id, step_id, event_type, payload, timestamp
+                    ) VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        event.event_id,
+                        event.quest_id,
+                        event.step_id,
+                        event.event_type.value,
+                        json.dumps(event.payload, default=str),
+                        event.timestamp,
+                    )
+                )
+
+                conn.commit()
+                return quest.model_copy(update={"version": new_version, "updated_at": now})
+            except Exception:
+                conn.rollback()
+                raise
+
+    def transition_step_atomic(self, step: QuestStep, event: QuestEvent) -> QuestStep:
+        """Atomically updates a step's execution state and records its audit event in a single transaction.
+        
+        Args:
+            step: The QuestStep with target status (OCC version check applied).
+            event: The corresponding QuestEvent to persist.
+            
+        Returns:
+            Updated QuestStep with incremented version and updated timestamp.
+            
+        Raises:
+            StepNotFoundError: If step does not exist.
+            OptimisticLockError: If an OCC version conflict occurs.
+        """
+        conn = self._get_connection()
+        now = time.time()
+        new_version = step.version + 1
+
+        with self._write_lock:
+            try:
+                cur = conn.execute(
+                    """
+                    UPDATE quest_steps
+                    SET capability_id = ?, action_class = ?, intent = ?, arguments = ?,
+                        dependencies = ?, status = ?, version = ?, execution_receipt = ?,
+                        verification_receipt = ?, error = ?, timeout_s = ?, max_attempts = ?,
+                        can_fail_silently = ?, metadata = ?, updated_at = ?
+                    WHERE quest_id = ? AND step_id = ? AND version = ?
+                    """,
+                    (
+                        step.capability_id,
+                        step.action_class.value,
+                        step.intent,
+                        json.dumps(step.arguments, default=str),
+                        json.dumps(step.dependencies, default=str),
+                        step.status.value,
+                        new_version,
+                        json.dumps(step.execution_receipt, default=str) if step.execution_receipt is not None else None,
+                        json.dumps(step.verification_receipt, default=str) if step.verification_receipt is not None else None,
+                        step.error,
+                        step.timeout_s,
+                        step.max_attempts,
+                        1 if step.can_fail_silently else 0,
+                        json.dumps(step.metadata, default=str),
+                        now,
+                        step.quest_id,
+                        step.step_id,
+                        step.version,
+                    )
+                )
+
+                if cur.rowcount == 0:
+                    check_cur = conn.execute(
+                        "SELECT version FROM quest_steps WHERE quest_id = ? AND step_id = ?",
+                        (step.quest_id, step.step_id)
+                    )
+                    existing = check_cur.fetchone()
+                    if not existing:
+                        raise StepNotFoundError(f"Step {step.step_id} in Quest {step.quest_id} not found")
+                    actual_version = existing["version"]
+                    raise OptimisticLockError(
+                        f"Step {step.step_id} OCC conflict: expected version {step.version}, database has {actual_version}"
+                    )
+
+                # Atomically append the event
+                conn.execute(
+                    """
+                    INSERT INTO quest_events (
+                        event_id, quest_id, step_id, event_type, payload, timestamp
+                    ) VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        event.event_id,
+                        event.quest_id,
+                        event.step_id,
+                        event.event_type.value,
+                        json.dumps(event.payload, default=str),
+                        event.timestamp,
+                    )
+                )
+
+                conn.commit()
+                return step.model_copy(update={"version": new_version, "updated_at": now})
+            except Exception:
+                conn.rollback()
+                raise
+
+    def attach_plan_atomic(self, quest: Quest, steps: List[QuestStep], event: QuestEvent) -> Quest:
+        """Atomically updates Quest to PLANNED, inserts all steps, and appends the PLAN_ATTACHED event.
+        
+        Args:
+            quest: The Quest model with status PLANNED and attached steps.
+            steps: Collection of QuestStep objects to persist.
+            event: The PLAN_ATTACHED event to append.
+            
+        Returns:
+            Updated Quest with incremented version and updated timestamp.
+        """
+        conn = self._get_connection()
+        now = time.time()
+        new_version = quest.version + 1
+
+        with self._write_lock:
+            try:
+                # 1. Update Quest
+                cur = conn.execute(
+                    """
+                    UPDATE quests
+                    SET title = ?, goal = ?, status = ?, autonomy_profile = ?,
+                        current_step_id = ?, metadata = ?, version = ?, updated_at = ?
+                    WHERE quest_id = ? AND version = ?
+                    """,
+                    (
+                        quest.title,
+                        quest.goal,
+                        quest.status.value,
+                        quest.autonomy_profile.value,
+                        quest.current_step_id,
+                        json.dumps(quest.metadata, default=str),
+                        new_version,
+                        now,
+                        quest.quest_id,
+                        quest.version,
+                    )
+                )
+
+                if cur.rowcount == 0:
+                    check_cur = conn.execute("SELECT version FROM quests WHERE quest_id = ?", (quest.quest_id,))
+                    existing = check_cur.fetchone()
+                    if not existing:
+                        raise QuestNotFoundError(f"Quest {quest.quest_id} not found")
+                    actual_version = existing["version"]
+                    raise OptimisticLockError(
+                        f"Quest {quest.quest_id} OCC conflict: expected version {quest.version}, but database has {actual_version}"
+                    )
+
+                # 2. Insert all steps
+                for step in steps:
+                    conn.execute(
+                        """
+                        INSERT INTO quest_steps (
+                            step_id, quest_id, capability_id, action_class, intent,
+                            arguments, dependencies, status, version, execution_receipt,
+                            verification_receipt, error, timeout_s, max_attempts,
+                            can_fail_silently, metadata, created_at, updated_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        self._step_to_insert_row(quest.quest_id, step, now)
+                    )
+
+                # 3. Insert the PLAN_ATTACHED event
+                conn.execute(
+                    """
+                    INSERT INTO quest_events (
+                        event_id, quest_id, step_id, event_type, payload, timestamp
+                    ) VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        event.event_id,
+                        event.quest_id,
+                        event.step_id,
+                        event.event_type.value,
+                        json.dumps(event.payload, default=str),
+                        event.timestamp,
+                    )
+                )
+
+                conn.commit()
+                return quest.model_copy(update={"version": new_version, "updated_at": now, "steps": steps})
+            except Exception:
+                conn.rollback()
+                raise
 
     # =========================================================================
     # Lifecycle Management

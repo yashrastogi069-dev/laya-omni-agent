@@ -67,3 +67,12 @@
 - **Resolution**: Implemented `WorkspaceConfiner.capture_baseline_state()` and updated `safe_revert(..., baseline_state=baseline_state)` to capture pre-existing dirty files and content byte-for-byte. Untracked baseline files are never deleted, and modified baseline files are restored to their exact baseline contents rather than clean git commit baseline.
 - **Regression Test**: `tests/test_rv0_reality_gate.py::test_rv0_f_mandatory_dirty_worktree_survival` (passes 100%).
 
+---
+
+### ISSUE-08: Runtime Integrity, Durability & Failure Accountability Hardening (AUDIT-01 through AUDIT-16)
+- **Severity**: HIGH
+- **Status**: **RESOLVED (Checkpoint L14.1 Runtime Integrity Hardening)**
+- **Description**: Independent source-level audit identified 16 latent failure modes across the L10–L14 runtime: mutation timeouts bypassing `UNKNOWN_COMMIT`, global idempotency key collision risk, missing custom idempotency key propagation, non-atomic SQLite multi-statement updates, interrupted step recovery to terminal failed, unpersisted plan provenance, loss of step semantics in QuestStep SQLite schema, planners deriving hardcoded retry attempts, generative planner capability boundary leakage, missing input parameters causing terminal quest failure instead of input pause, validator omitting concurrent resource mutation conflict detection, lack of canonical resource identity normalization, unenforced plan timeout budgets in executor coordinator loop, and absence of a deterministic cancellation lifecycle.
+- **Resolution**: Implemented 16 scoped repairs across Batches 1 through 4, verified each with RED reproduced failures before repairs and GREEN passing tests after repairs. All defects, root causes, repairs, and invariants are fully documented in canonical `tasks/FAILURE_LEDGER.md`.
+- **Regression Test**: `tests/test_l14_1_runtime_integrity.py` (16 unit tests, 100% passing). Total repository suite: 481 automated tests + 47 subtests = 528 checks passing.
+

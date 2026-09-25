@@ -25,6 +25,14 @@ class UnresolvedArgumentError(ExecutionError):
     pass
 
 
+class MissingInputError(UnresolvedArgumentError):
+    """Raised specifically when a required quest input ($inputs.<key>) is absent."""
+
+    def __init__(self, input_key: str, message: str) -> None:
+        super().__init__(message)
+        self.input_key = input_key
+
+
 class QuestAlreadyRunningError(ExecutionError):
     """Raised when an active lease already exists for a running quest."""
     pass

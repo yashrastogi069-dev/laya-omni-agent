@@ -22,6 +22,7 @@ class QuestStatus(str, Enum):
     RUNNING = "running"
     PAUSED_FOR_CONFIRMATION = "paused_for_confirmation"
     PAUSED_FOR_INPUT = "paused_for_input"
+    PAUSED_FOR_RECONCILIATION = "paused_for_reconciliation"
     AWAITING_VERIFICATION = "awaiting_verification"
     COMPLETED = "completed"
     FAILED = "failed"
@@ -34,6 +35,7 @@ class StepStatus(str, Enum):
     READY = "ready"
     RUNNING = "running"
     PAUSED = "paused"
+    AWAITING_RECONCILIATION = "awaiting_reconciliation"
     AWAITING_VERIFICATION = "awaiting_verification"
     COMPLETED = "completed"
     FAILED = "failed"
@@ -50,8 +52,10 @@ class QuestEventEnum(str, Enum):
     STEP_FAILED = "step_failed"
     STEP_PAUSED = "step_paused"
     STEP_RESUMED = "step_resumed"
+    STEP_AWAITING_RECONCILIATION = "step_awaiting_reconciliation"
     QUEST_PAUSED = "quest_paused"
     QUEST_RESUMED = "quest_resumed"
+    QUEST_PAUSED_FOR_RECONCILIATION = "quest_paused_for_reconciliation"
     QUEST_AWAITING_VERIFICATION = "quest_awaiting_verification"
     QUEST_COMPLETED = "quest_completed"
     QUEST_FAILED = "quest_failed"
@@ -87,6 +91,7 @@ VALID_QUEST_TRANSITIONS: Dict[QuestStatus, Set[QuestStatus]] = {
     QuestStatus.RUNNING: {
         QuestStatus.PAUSED_FOR_CONFIRMATION,
         QuestStatus.PAUSED_FOR_INPUT,
+        QuestStatus.PAUSED_FOR_RECONCILIATION,
         QuestStatus.AWAITING_VERIFICATION,
         QuestStatus.FAILED,
         QuestStatus.CANCELLED,
@@ -97,6 +102,11 @@ VALID_QUEST_TRANSITIONS: Dict[QuestStatus, Set[QuestStatus]] = {
         QuestStatus.CANCELLED,
     },
     QuestStatus.PAUSED_FOR_INPUT: {
+        QuestStatus.RUNNING,
+        QuestStatus.FAILED,
+        QuestStatus.CANCELLED,
+    },
+    QuestStatus.PAUSED_FOR_RECONCILIATION: {
         QuestStatus.RUNNING,
         QuestStatus.FAILED,
         QuestStatus.CANCELLED,
@@ -124,7 +134,9 @@ VALID_STEP_TRANSITIONS: Dict[StepStatus, Set[StepStatus]] = {
         StepStatus.CANCELLED,
     },
     StepStatus.RUNNING: {
+        StepStatus.READY,
         StepStatus.PAUSED,
+        StepStatus.AWAITING_RECONCILIATION,
         StepStatus.AWAITING_VERIFICATION,
         StepStatus.COMPLETED,
         StepStatus.FAILED,
@@ -132,6 +144,13 @@ VALID_STEP_TRANSITIONS: Dict[StepStatus, Set[StepStatus]] = {
     },
     StepStatus.PAUSED: {
         StepStatus.RUNNING,
+        StepStatus.FAILED,
+        StepStatus.CANCELLED,
+    },
+    StepStatus.AWAITING_RECONCILIATION: {
+        StepStatus.READY,
+        StepStatus.RUNNING,
+        StepStatus.COMPLETED,
         StepStatus.FAILED,
         StepStatus.CANCELLED,
     },
@@ -184,9 +203,13 @@ class QuestStep(BaseContractModel):
     dependencies: List[str] = Field(default_factory=list)
     status: StepStatus = StepStatus.PENDING
     version: int = 1
+    timeout_s: Optional[float] = Field(default=None, description="Per-step timeout budget in seconds")
+    max_attempts: int = Field(default=3, description="Maximum execution attempts allowed")
+    can_fail_silently: bool = Field(default=False, description="Whether step failure can be tolerated")
     execution_receipt: Optional[Dict[str, Any]] = None
     verification_receipt: Optional[Dict[str, Any]] = None
     error: Optional[str] = None
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="Step metadata and provenance")
     created_at: float = Field(default_factory=time.time)
     updated_at: float = Field(default_factory=time.time)
 

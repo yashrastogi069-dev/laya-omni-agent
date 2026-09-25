@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional
 
 from ..capabilities.registry import CapabilityRegistry
 from ..contracts.capability import CapabilitySpec
+from ..contracts.enums import IdempotencyClass, RetryPolicy
 from ..contracts.plan import Plan, PlanGenerationError, PlanStep, PlanType, PlanValidationError
 from ..providers.base import GenerativeProvider
 from .dag import DAGTopology
@@ -165,11 +166,26 @@ JSON SCHEMA:
             if not cap_id:
                 raise PlanGenerationError(f"Step '{step_id}' is missing required capability_id.")
 
-            # Verify capability exists in registry if available
-            if self.registry and not self.registry.has_capability(cap_id):
+            # Enforce allowed_capabilities boundary (AUDIT-11)
+            if allowed_capabilities is not None and cap_id not in allowed_capabilities:
                 raise PlanValidationError(
-                    f"Step '{step_id}' references unknown capability '{cap_id}' not in registry."
+                    f"Step '{step_id}' references capability '{cap_id}' which is outside allowed_capabilities: {allowed_capabilities}."
                 )
+
+            # Verify capability exists in registry if available
+            timeout_s = 60.0
+            max_attempts = 3
+            if self.registry:
+                if not self.registry.has_capability(cap_id):
+                    raise PlanValidationError(
+                        f"Step '{step_id}' references unknown capability '{cap_id}' not in registry."
+                    )
+                spec = self.registry.get_spec(cap_id)
+                if spec is not None:
+                    if spec.retry_policy == RetryPolicy.NEVER or spec.idempotency_class == IdempotencyClass.NON_IDEMPOTENT:
+                        max_attempts = 1
+                    if getattr(spec, "timeout_seconds", None):
+                        timeout_s = spec.timeout_seconds
 
             try:
                 plan_step = PlanStep(
@@ -178,8 +194,8 @@ JSON SCHEMA:
                     intent=intent,
                     arguments=arguments,
                     dependencies=dependencies,
-                    timeout_s=60.0,
-                    max_attempts=3,
+                    timeout_s=timeout_s,
+                    max_attempts=max_attempts,
                     metadata={"source": "generative_synthesis"},
                 )
                 plan_steps.append(plan_step)

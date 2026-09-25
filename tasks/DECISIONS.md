@@ -194,4 +194,21 @@
   6. **Process Lease Registry (BLK-5)**: In-memory `_active_leases` set protected by `_lease_lock` ensures that duplicate execution attempts on an already active quest raise `QuestAlreadyRunningError`.
   7. **Invariant 6 Evidence Boundary**: Reaching the completion of all DAG steps transitions the quest strictly from `RUNNING` to `AWAITING_VERIFICATION`. The executor does not mark itself `COMPLETED` (L15 Completion Verifier is future work).
 
+---
+
+## ADR-018: Runtime Integrity, Durability & Failure Accountability Hardening (L14.1)
+- **Date**: 2026-09-25
+- **Status**: ACCEPTED
+- **Problem**: Following the initial implementation of checkpoints L10 through L14, an independent source-level audit identified 16 latent runtime vulnerabilities across persistence atomicity, idempotency scoping, mutation uncertainty categorization, plan provenance, step semantics preservation, input pause lifecycle, concurrent resource conflict detection, timeout budget enforcement, and cancellation lifecycle.
+- **Decision**:
+  1. **Atomic Multi-Statement SQLite Operations (AUDIT-04, 05)**: Enforce explicit multi-statement atomic transactions (`transition_quest_atomic`, `record_attempt_atomic`) so that entity state transitions and their corresponding audit events or attempt records commit or roll back together.
+  2. **Commit Certainty Over Exception Category (AUDIT-01, 07)**: For side-effecting mutations, post-dispatch timeouts (`ErrorCode.TIMEOUT`) and network partitions (`ErrorCode.NETWORK_ERROR`) represent uncertain execution outcomes. Normalize these into `UNKNOWN_COMMIT` and transition the step to `AWAITING_RECONCILIATION` and the Quest to `PAUSED_FOR_RECONCILIATION`, strictly preventing premature terminal failure or dangerous blind retries.
+  3. **Quest-Scoped Operation Idempotency (AUDIT-02, 03)**: Automatically derived ledger idempotency keys must include the durable `quest_id` (`idemp_{quest_id}_{step_id}_{capability_id}_{arg_hash}`), preventing identical operations across different quests from accidentally deduplicating globally, while caller-provided custom idempotency keys are explicitly propagated into `CapabilityInvocation` and tool handlers.
+  4. **Plan Provenance & Step Semantics Durability (AUDIT-08, 09, 10, 11)**: Compute deterministic SHA-256 `plan_hash` and persist `plan_provenance` in `quest.metadata`; preserve `timeout_s`, `max_attempts`, `can_fail_silently`, and `metadata` in the `QuestStep` contract, database schema, and deserializers; derive `max_attempts=1` when `retry_policy == NEVER` or `idempotency_class == NON_IDEMPOTENT`; and strictly enforce `allowed_capabilities` containment during generative plan synthesis.
+  5. **Differentiated Missing Input Pause Lifecycle (AUDIT-12)**: Differentiate missing user inputs from syntax/step lookup errors via `MissingInputError`. When a required `$inputs.<param>` is absent, transition the step to `PAUSED` and the Quest to `PAUSED_FOR_INPUT`. Merging user inputs upon `resume(quest_id, user_inputs={...})` updates `quest.metadata["inputs"]` and resumes execution.
+  6. **Transitive Ancestor Resource Conflict Detection (AUDIT-13, 14)**: Normalize resource identities across capabilities into standardized URI schemes (`file:`, `repo:`, `process:`, `browser:`, `n8n:`). In Pass 9 (`MUTATION_SAFETY`), compute transitive ancestor graphs and reject plans where two concurrent mutation steps target the same canonical resource without a causal dependency edge.
+  7. **Kahn Loop Plan Timeout Budget Enforcement (AUDIT-15)**: At each iteration of the executor coordinator loop, verify `time.perf_counter() - start_time <= timeout_budget_s`. If exceeded, cancel in-flight workers, transition the quest to `FAILED` with a diagnostic timeout reason, and return execution summary.
+  8. **Deterministic Cancellation Lifecycle (AUDIT-16)**: Implement `DeterministicDAGExecutor.cancel(quest_id, reason)` acquiring the execution lease, transitioning uncompleted steps to `CANCELLED`, transitioning the quest to `CANCELLED`, logging `QUEST_CANCELLED`, and returning a complete summary envelope.
+
+
 

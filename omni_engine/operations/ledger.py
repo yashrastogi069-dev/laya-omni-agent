@@ -68,11 +68,18 @@ class OperationLedger:
         capability_id: str,
         arguments: Dict[str, Any],
         custom_key: Optional[str] = None,
+        quest_id: Optional[str] = None,
     ) -> str:
-        """Derives a deterministic external idempotency key for capability invocation."""
+        """Derives a deterministic external idempotency key for capability invocation.
+        
+        If custom_key is provided, it is used verbatim (allowing explicit cross-quest deduplication).
+        Otherwise, the key is strictly scoped by quest_id to prevent unintended cross-quest collisions.
+        """
         if custom_key:
             return custom_key
         arg_hash = self.compute_argument_hash(arguments)
+        if quest_id:
+            return f"idem_{quest_id}_{capability_id}_{arg_hash[:16]}"
         return f"idem_{capability_id}_{arg_hash[:16]}"
 
     # =========================================================================
@@ -111,7 +118,12 @@ class OperationLedger:
             LedgerError: If the operation is currently IN_PROGRESS in another attempt.
             MaxAttemptsExceededError: If the operation failed and exhausted all attempts.
         """
-        idempotency_key = self.compute_idempotency_key(capability_id, arguments, custom_idempotency_key)
+        idempotency_key = self.compute_idempotency_key(
+            capability_id,
+            arguments,
+            custom_key=custom_idempotency_key,
+            quest_id=quest_id,
+        )
         arg_hash = self.compute_argument_hash(arguments)
 
         existing = self.store.get_by_idempotency_key(idempotency_key)
@@ -208,7 +220,6 @@ class OperationLedger:
             state=AttemptState.STARTED,
             started_at=now,
         )
-        saved_attempt = self.store.record_attempt(attempt)
 
         # Update operation
         updated_op = op.model_copy(
@@ -218,8 +229,7 @@ class OperationLedger:
                 "updated_at": now,
             }
         )
-        self.store.update_operation(updated_op)
-
+        saved_attempt, _ = self.store.begin_attempt_atomic(attempt, updated_op)
         return saved_attempt
 
     def commit_attempt(
@@ -253,7 +263,6 @@ class OperationLedger:
             finished_at=now,
             execution_receipt=execution_receipt,
         )
-        self.store.update_attempt(attempt)
 
         # Update operation to COMMITTED
         updated_op = op.model_copy(
@@ -264,7 +273,8 @@ class OperationLedger:
                 "updated_at": now,
             }
         )
-        return self.store.update_operation(updated_op)
+        _, committed_op = self.store.commit_attempt_atomic(attempt, updated_op)
+        return committed_op
 
     def fail_attempt(
         self,
@@ -303,7 +313,6 @@ class OperationLedger:
             finished_at=now,
             error=error,
         )
-        self.store.update_attempt(attempt)
 
         # Update operation
         updated_op = op.model_copy(
@@ -313,7 +322,8 @@ class OperationLedger:
                 "updated_at": now,
             }
         )
-        return self.store.update_operation(updated_op)
+        _, failed_op = self.store.fail_attempt_atomic(attempt, updated_op)
+        return failed_op
 
     def commit_operation(
         self,
@@ -349,9 +359,11 @@ class OperationLedger:
     def reconcile_operation(
         self,
         operation_id: str,
-        is_verified_committed: bool,
+        is_verified_committed: Optional[bool] = None,
         execution_receipt: Optional[Dict[str, Any]] = None,
         reconciliation_note: Optional[str] = None,
+        reconciled_state: Optional[Union[MutationState, str]] = None,
+        evidence: Optional[Dict[str, Any]] = None,
     ) -> OperationRecord:
         """Reconciles an operation in UNKNOWN_COMMIT state based on independent physical verification.
         
@@ -360,6 +372,8 @@ class OperationLedger:
             is_verified_committed: True if physical verification confirmed the mutation took effect.
             execution_receipt: Verified outcome data if committed.
             reconciliation_note: Explanation or audit note for the reconciliation decision.
+            reconciled_state: Optional MutationState (COMMITTED/FAILED) or string.
+            evidence: Optional dictionary of evidence (alias for execution_receipt).
             
         Returns:
             The updated OperationRecord (COMMITTED if verified, FAILED if uncommitted).
@@ -378,10 +392,20 @@ class OperationLedger:
                 f"Reconciliation can only be performed on UNKNOWN_COMMIT operations."
             )
 
+        if is_verified_committed is None:
+            if reconciled_state is not None:
+                if isinstance(reconciled_state, str):
+                    is_verified_committed = reconciled_state.lower() in ("committed", "mutationstate.committed")
+                else:
+                    is_verified_committed = (reconciled_state == MutationState.COMMITTED)
+            else:
+                is_verified_committed = False
+
+        receipt_data = execution_receipt or evidence
         now = time.time()
         if is_verified_committed:
             new_state = MutationState.COMMITTED
-            new_receipt = execution_receipt or {"reconciliation": "verified_externally", "note": reconciliation_note}
+            new_receipt = receipt_data or {"reconciliation": "verified_externally", "note": reconciliation_note}
             new_error = None
         else:
             new_state = MutationState.FAILED

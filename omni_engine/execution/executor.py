@@ -12,10 +12,11 @@ import time
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
 
 from ..contracts.capability import IdempotencyClass, ToolResult
-from ..contracts.enums import ActionClass, AutonomyProfile
+from ..contracts.enums import ActionClass, AutonomyProfile, ErrorCode, RetryPolicy
 from ..contracts.execution import (
     ExecutionError,
     ExecutionFirewallError,
+    MissingInputError,
     PolicyBlockedExecutionError,
     QuestAlreadyRunningError,
     QuestExecutionSummary,
@@ -32,6 +33,7 @@ from ..contracts.quest import (
     QuestStep,
     StepNotFoundError,
     StepStatus,
+    TERMINAL_QUEST_STATES,
 )
 from ..capabilities.registry import CapabilityRegistry
 from ..operations.ledger import OperationLedger
@@ -134,6 +136,83 @@ class DeterministicDAGExecutor:
         finally:
             self._release_lease(quest_id)
 
+    def cancel(
+        self,
+        quest_id: str,
+        reason: str = "Execution cancelled by user",
+    ) -> QuestExecutionSummary:
+        """Cancels a quest and transitions uncompleted steps to CANCELLED.
+        
+        Args:
+            quest_id: Target quest identifier.
+            reason: Cancellation reason or audit justification.
+            
+        Returns:
+            QuestExecutionSummary envelope.
+            
+        Raises:
+            QuestNotFoundError: If quest does not exist.
+        """
+        self._acquire_lease(quest_id)
+        try:
+            start_time = time.perf_counter()
+            quest = self.quest_engine.get_quest(quest_id)
+            if not quest:
+                raise QuestNotFoundError(f"Quest '{quest_id}' not found.")
+
+            initial_status = quest.status
+            if quest.status in TERMINAL_QUEST_STATES:
+                return QuestExecutionSummary(
+                    quest_id=quest_id,
+                    initial_status=initial_status,
+                    final_status=quest.status,
+                    total_steps=len(quest.steps),
+                    completed_steps=sum(1 for s in quest.steps if s.status == StepStatus.COMPLETED),
+                    failed_steps=sum(1 for s in quest.steps if s.status == StepStatus.FAILED),
+                    error=f"Quest is already in terminal state '{quest.status.value}'",
+                    latency_ms=round((time.perf_counter() - start_time) * 1000, 3),
+                )
+
+            # Cancel all uncompleted steps
+            cancelled_steps_count = 0
+            for step in quest.steps:
+                if step.status not in (
+                    StepStatus.COMPLETED,
+                    StepStatus.FAILED,
+                    StepStatus.SKIPPED,
+                    StepStatus.CANCELLED,
+                ):
+                    self.quest_engine.transition_step(
+                        quest_id,
+                        step.step_id,
+                        StepStatus.CANCELLED,
+                        error=f"Cancelled: {reason}",
+                    )
+                    cancelled_steps_count += 1
+
+            # Transition quest to CANCELLED
+            updated_quest = self.quest_engine.transition_quest(
+                quest_id,
+                QuestStatus.CANCELLED,
+                reason=reason,
+            )
+
+            completed_count = sum(1 for s in updated_quest.steps if s.status == StepStatus.COMPLETED)
+            failed_count = sum(1 for s in updated_quest.steps if s.status == StepStatus.FAILED)
+
+            return QuestExecutionSummary(
+                quest_id=quest_id,
+                initial_status=initial_status,
+                final_status=QuestStatus.CANCELLED,
+                total_steps=len(updated_quest.steps),
+                completed_steps=completed_count,
+                failed_steps=failed_count,
+                error=f"Quest cancelled: {reason}",
+                latency_ms=round((time.perf_counter() - start_time) * 1000, 3),
+            )
+        finally:
+            self._release_lease(quest_id)
+
     # =========================================================================
     # Internal Execution Engine
     # =========================================================================
@@ -190,7 +269,11 @@ class DeterministicDAGExecutor:
             raise QuestNotFoundError(f"Quest '{quest_id}' not found.")
 
         initial_status = quest.status
-        if quest.status not in (QuestStatus.PAUSED_FOR_CONFIRMATION, QuestStatus.PAUSED_FOR_INPUT):
+        if quest.status not in (
+            QuestStatus.PAUSED_FOR_CONFIRMATION,
+            QuestStatus.PAUSED_FOR_INPUT,
+            QuestStatus.PAUSED_FOR_RECONCILIATION,
+        ):
             raise ExecutionError(f"Cannot resume quest '{quest_id}' in non-paused status '{quest.status.value}'.")
 
         # Handle confirmation response
@@ -219,16 +302,52 @@ class DeterministicDAGExecutor:
                     confirmed_step_id = step.step_id
                     break
 
+        elif quest.status == QuestStatus.PAUSED_FOR_RECONCILIATION:
+            for step in quest.steps:
+                if step.status == StepStatus.AWAITING_RECONCILIATION:
+                    op_id = f"op_{quest_id}_{step.step_id}_{step.capability_id}"
+                    op = self.operation_ledger.get_operation(op_id)
+                    if op and op.state == MutationState.COMMITTED:
+                        self.quest_engine.transition_step(
+                            quest_id,
+                            step.step_id,
+                            StepStatus.COMPLETED,
+                            execution_receipt=op.execution_receipt or {"status": "reconciled_committed"},
+                        )
+                    elif op and op.state == MutationState.FAILED:
+                        if op.current_attempt < op.max_attempts:
+                            self.quest_engine.transition_step(
+                                quest_id,
+                                step.step_id,
+                                StepStatus.READY,
+                            )
+                        else:
+                            self.quest_engine.transition_step(
+                                quest_id,
+                                step.step_id,
+                                StepStatus.FAILED,
+                                error=op.error or "Operation failed and exhausted attempts",
+                            )
+                    else:
+                        raise ExecutionError(
+                            f"Cannot resume quest '{quest_id}': step '{step.step_id}' "
+                            f"is still in UNKNOWN_COMMIT and not reconciled."
+                        )
+            # Refresh quest model after step status updates
+            quest = self.quest_engine.get_quest(quest_id)
+
         # Merge user inputs if resuming from input pause
         merged_inputs = dict(quest.metadata.get("inputs", {}))
         if user_inputs:
             merged_inputs.update(user_inputs)
+        quest.metadata["inputs"] = merged_inputs
+        self.quest_engine.store.update_quest(quest)
 
         # Transition PAUSED -> RUNNING
         quest = self.quest_engine.transition_quest(
             quest_id,
             QuestStatus.RUNNING,
-            reason="Resuming execution after user response",
+            reason="Resuming execution after reconciliation or user response",
         )
 
         return self._run_coordinator_loop(
@@ -256,22 +375,36 @@ class DeterministicDAGExecutor:
         if not quest:
             raise QuestNotFoundError(f"Quest '{quest_id}' not found.")
 
-        # Save inputs to metadata for future resumption
+        # Build effective inputs from metadata and parameters (AUDIT-12)
+        effective_inputs = dict(quest.metadata.get("inputs", {}))
         if inputs:
-            quest.metadata["inputs"] = inputs
+            effective_inputs.update(inputs)
+        if effective_inputs != quest.metadata.get("inputs"):
+            quest.metadata["inputs"] = effective_inputs
             self.quest_engine.store.update_quest(quest)
+
+        # Plan timeout budget (AUDIT-15)
+        provenance = quest.metadata.get("plan_provenance", {})
+        timeout_budget_s = (
+            provenance.get("timeout_budget_s")
+            or quest.metadata.get("timeout_budget_s")
+            or 3600.0
+        )
 
         # Build in-memory state tracking
         step_map: Dict[str, QuestStep] = {s.step_id: s for s in quest.steps}
         completed_steps: Dict[str, QuestStep] = {}
         failed_steps: Dict[str, QuestStep] = {}
 
-        # 1. Crash recovery / State reconciliation (BLK-5)
+        # 1. Crash recovery / State reconciliation (BLK-5 / AUDIT-06 / AUDIT-07)
+        paused_for_reconciliation_step: Optional[QuestStep] = None
         for s in quest.steps:
             if s.status == StepStatus.COMPLETED:
                 completed_steps[s.step_id] = s
             elif s.status == StepStatus.FAILED:
                 failed_steps[s.step_id] = s
+            elif s.status == StepStatus.AWAITING_RECONCILIATION:
+                paused_for_reconciliation_step = s
             elif s.status == StepStatus.RUNNING:
                 # Recovering from an interrupted run
                 if s.action_class == ActionClass.READ_ONLY:
@@ -286,17 +419,77 @@ class DeterministicDAGExecutor:
                     recovered = self.quest_engine.transition_step(
                         quest_id,
                         s.step_id,
-                        StepStatus.FAILED,
+                        StepStatus.AWAITING_RECONCILIATION,
                         error="Mutation interrupted by system crash; requires evidence reconciliation",
                     )
-                    failed_steps[s.step_id] = recovered
                     step_map[s.step_id] = recovered
+                    paused_for_reconciliation_step = recovered
+
+        if paused_for_reconciliation_step:
+            self.quest_engine.transition_quest(
+                quest_id,
+                QuestStatus.PAUSED_FOR_RECONCILIATION,
+                reason=f"Step '{paused_for_reconciliation_step.step_id}' requires evidence reconciliation",
+            )
+            return self._build_summary(
+                quest_id,
+                initial_status,
+                QuestStatus.PAUSED_FOR_RECONCILIATION,
+                len(step_map),
+                completed_steps,
+                failed_steps,
+                start_time,
+                paused_step_id=paused_for_reconciliation_step.step_id,
+                error="Mutation interrupted by system crash; awaiting reconciliation",
+            )
 
         # Worker pool for concurrent read-only steps
         with concurrent.futures.ThreadPoolExecutor(max_workers=self.max_parallel_workers) as executor:
             in_flight: Dict[concurrent.futures.Future, str] = {}
 
             while True:
+                # AUDIT-15: Check plan timeout budget at top of coordinator loop
+                elapsed = time.perf_counter() - start_time
+                if elapsed > timeout_budget_s:
+                    for fut in in_flight:
+                        fut.cancel()
+                    timeout_msg = f"Plan timeout budget exceeded: {elapsed:.2f}s > {timeout_budget_s:.2f}s"
+                    self.quest_engine.transition_quest(
+                        quest_id,
+                        QuestStatus.FAILED,
+                        reason=timeout_msg,
+                    )
+                    return self._build_summary(
+                        quest_id,
+                        initial_status,
+                        QuestStatus.FAILED,
+                        len(step_map),
+                        completed_steps,
+                        failed_steps,
+                        start_time,
+                        error=timeout_msg,
+                    )
+
+                # If any step is awaiting reconciliation, pause quest immediately
+                reconcile_step = next((s for s in step_map.values() if s.status == StepStatus.AWAITING_RECONCILIATION), None)
+                if reconcile_step:
+                    self.quest_engine.transition_quest(
+                        quest_id,
+                        QuestStatus.PAUSED_FOR_RECONCILIATION,
+                        reason=f"Step '{reconcile_step.step_id}' entered UNKNOWN_COMMIT: {reconcile_step.error}",
+                    )
+                    return self._build_summary(
+                        quest_id,
+                        initial_status,
+                        QuestStatus.PAUSED_FOR_RECONCILIATION,
+                        len(step_map),
+                        completed_steps,
+                        failed_steps,
+                        start_time,
+                        paused_step_id=reconcile_step.step_id,
+                        error=reconcile_step.error,
+                    )
+
                 # If any step previously failed, halt quest
                 if failed_steps:
                     first_failure = next(iter(failed_steps.values()))
@@ -374,13 +567,32 @@ class DeterministicDAGExecutor:
                 if mutation_steps:
                     # 1. Drain all active read workers first
                     if in_flight:
-                        self._drain_one_future(
+                        drained = self._drain_one_future(
                             in_flight,
                             step_map,
                             completed_steps,
                             failed_steps,
                             quest_id,
                         )
+                        if drained and drained.status == StepStatus.PAUSED:
+                            is_input_pause = "Missing required input" in (drained.error or "")
+                            pause_status = QuestStatus.PAUSED_FOR_INPUT if is_input_pause else QuestStatus.PAUSED_FOR_CONFIRMATION
+                            self.quest_engine.transition_quest(
+                                quest_id,
+                                pause_status,
+                                reason=drained.error or "Awaiting user response",
+                            )
+                            return self._build_summary(
+                                quest_id,
+                                initial_status,
+                                pause_status,
+                                len(step_map),
+                                completed_steps,
+                                failed_steps,
+                                start_time,
+                                paused_step_id=drained.step_id,
+                                confirmation_prompt=drained.error,
+                            )
                         continue  # Keep draining until empty
 
                     # 2. All reads are drained: dispatch ONE mutation under _mutation_lock
@@ -397,22 +609,24 @@ class DeterministicDAGExecutor:
                         receipt = self._execute_step(
                             quest_id,
                             next_mutation,
-                            inputs,
+                            effective_inputs,
                             completed_steps,
                             user_confirmed=is_confirmed,
                         )
 
                         # Handle pause / completion / failure
                         if receipt.status == StepStatus.PAUSED:
+                            is_input_pause = "Missing required input" in (receipt.error or "")
+                            pause_status = QuestStatus.PAUSED_FOR_INPUT if is_input_pause else QuestStatus.PAUSED_FOR_CONFIRMATION
                             self.quest_engine.transition_quest(
                                 quest_id,
-                                QuestStatus.PAUSED_FOR_CONFIRMATION,
-                                reason="Awaiting user confirmation for sensitive operation",
+                                pause_status,
+                                reason=receipt.error or "Awaiting user response",
                             )
                             return self._build_summary(
                                 quest_id,
                                 initial_status,
-                                QuestStatus.PAUSED_FOR_CONFIRMATION,
+                                pause_status,
                                 len(step_map),
                                 completed_steps,
                                 failed_steps,
@@ -428,6 +642,29 @@ class DeterministicDAGExecutor:
                                 execution_receipt=receipt.tool_result.model_dump() if receipt.tool_result else None,
                             )
                             completed_steps[next_mutation.step_id] = step_map[next_mutation.step_id]
+                        elif receipt.status == StepStatus.AWAITING_RECONCILIATION:
+                            step_map[next_mutation.step_id] = self.quest_engine.transition_step(
+                                quest_id,
+                                next_mutation.step_id,
+                                StepStatus.AWAITING_RECONCILIATION,
+                                error=receipt.error,
+                            )
+                            self.quest_engine.transition_quest(
+                                quest_id,
+                                QuestStatus.PAUSED_FOR_RECONCILIATION,
+                                reason=f"Step '{next_mutation.step_id}' entered UNKNOWN_COMMIT: {receipt.error}",
+                            )
+                            return self._build_summary(
+                                quest_id,
+                                initial_status,
+                                QuestStatus.PAUSED_FOR_RECONCILIATION,
+                                len(step_map),
+                                completed_steps,
+                                failed_steps,
+                                start_time,
+                                paused_step_id=next_mutation.step_id,
+                                error=receipt.error,
+                            )
                         else:
                             step_map[next_mutation.step_id] = self.quest_engine.transition_step(
                                 quest_id,
@@ -454,7 +691,7 @@ class DeterministicDAGExecutor:
                             self._execute_step,
                             quest_id,
                             r_step,
-                            inputs,
+                            effective_inputs,
                             completed_steps,
                             user_confirmed=False,
                         )
@@ -462,13 +699,32 @@ class DeterministicDAGExecutor:
 
                 # If workers are running, wait for at least one to complete
                 if in_flight:
-                    self._drain_one_future(
+                    drained = self._drain_one_future(
                         in_flight,
                         step_map,
                         completed_steps,
                         failed_steps,
                         quest_id,
                     )
+                    if drained and drained.status == StepStatus.PAUSED:
+                        is_input_pause = "Missing required input" in (drained.error or "")
+                        pause_status = QuestStatus.PAUSED_FOR_INPUT if is_input_pause else QuestStatus.PAUSED_FOR_CONFIRMATION
+                        self.quest_engine.transition_quest(
+                            quest_id,
+                            pause_status,
+                            reason=drained.error or "Awaiting user response",
+                        )
+                        return self._build_summary(
+                            quest_id,
+                            initial_status,
+                            pause_status,
+                            len(step_map),
+                            completed_steps,
+                            failed_steps,
+                            start_time,
+                            paused_step_id=drained.step_id,
+                            confirmation_prompt=drained.error,
+                        )
 
     def _drain_one_future(
         self,
@@ -477,16 +733,18 @@ class DeterministicDAGExecutor:
         completed_steps: Dict[str, QuestStep],
         failed_steps: Dict[str, QuestStep],
         quest_id: str,
-    ) -> None:
+    ) -> Optional[StepExecutionReceipt]:
         """Waits for the next future to complete and processes its receipt."""
         done, _ = concurrent.futures.wait(
             in_flight.keys(),
             return_when=concurrent.futures.FIRST_COMPLETED,
         )
+        last_receipt: Optional[StepExecutionReceipt] = None
         for fut in done:
             step_id = in_flight.pop(fut)
             try:
                 receipt: StepExecutionReceipt = fut.result()
+                last_receipt = receipt
                 if receipt.status == StepStatus.COMPLETED:
                     step_map[step_id] = self.quest_engine.transition_step(
                         quest_id,
@@ -501,6 +759,14 @@ class DeterministicDAGExecutor:
                         quest_id,
                         step_id,
                         StepStatus.PAUSED,
+                        error=receipt.error,
+                    )
+                elif receipt.status == StepStatus.AWAITING_RECONCILIATION:
+                    step_map[step_id] = self.quest_engine.transition_step(
+                        quest_id,
+                        step_id,
+                        StepStatus.AWAITING_RECONCILIATION,
+                        error=receipt.error,
                     )
                 else:
                     step_map[step_id] = self.quest_engine.transition_step(
@@ -518,6 +784,7 @@ class DeterministicDAGExecutor:
                     error=str(e),
                 )
                 failed_steps[step_id] = step_map[step_id]
+        return last_receipt
 
     # =========================================================================
     # Step Execution Unit
@@ -534,12 +801,27 @@ class DeterministicDAGExecutor:
         """Executes a single step adhering to dynamic resolution, policy gating, and ledger tracking."""
         t0 = time.perf_counter()
 
-        # 1. Dynamic Argument Resolution (BLK-3)
+        # 1. Dynamic Argument Resolution (BLK-3 / AUDIT-12)
         try:
             resolved_args = DynamicResolver.resolve_arguments(
                 step.arguments,
                 quest_inputs=quest_inputs,
                 completed_steps=completed_steps,
+            )
+        except MissingInputError as mie:
+            self.quest_engine.transition_step(
+                quest_id,
+                step.step_id,
+                StepStatus.PAUSED,
+                error=f"Missing required input parameter: '{mie.input_key}'",
+            )
+            return StepExecutionReceipt(
+                step_id=step.step_id,
+                capability_id=step.capability_id,
+                action_class=step.action_class,
+                status=StepStatus.PAUSED,
+                latency_ms=round((time.perf_counter() - t0) * 1000, 3),
+                error=f"Missing required input parameter: '{mie.input_key}'",
             )
         except UnresolvedArgumentError as uae:
             return StepExecutionReceipt(
@@ -664,7 +946,14 @@ class DeterministicDAGExecutor:
         # Execute mutation with attempt recording
         try:
             self.operation_ledger.begin_attempt(op_id)
-            tool_res = self.capability_registry.invoke(step.capability_id, resolved_args)
+            tool_res = self.capability_registry.invoke(
+                step.capability_id,
+                resolved_args,
+                operation_id=op_id,
+                idempotency_key=op_rec.idempotency_key,
+                quest_id=quest_id,
+                step_id=step.step_id,
+            )
             latency = round((time.perf_counter() - t0) * 1000, 3)
 
             if tool_res.success:
@@ -680,12 +969,17 @@ class DeterministicDAGExecutor:
                 )
             else:
                 err_msg = str(tool_res.error.message if tool_res.error else "Mutation execution failed")
-                self.operation_ledger.fail_operation(op_id, error=err_msg, is_uncertain=False)
+                # AUDIT-01: Timeouts or network partitions during mutation mean execution outcome is UNCERTAIN (UNKNOWN_COMMIT)!
+                is_timeout_or_uncertain = bool(
+                    tool_res.error and tool_res.error.code in (ErrorCode.TIMEOUT, ErrorCode.NETWORK_ERROR)
+                )
+                self.operation_ledger.fail_operation(op_id, error=err_msg, is_uncertain=is_timeout_or_uncertain)
+                step_status = StepStatus.AWAITING_RECONCILIATION if is_timeout_or_uncertain else StepStatus.FAILED
                 return StepExecutionReceipt(
                     step_id=step.step_id,
                     capability_id=step.capability_id,
                     action_class=step.action_class,
-                    status=StepStatus.FAILED,
+                    status=step_status,
                     tool_result=tool_res,
                     latency_ms=latency,
                     error=err_msg,
@@ -699,7 +993,7 @@ class DeterministicDAGExecutor:
                 step_id=step.step_id,
                 capability_id=step.capability_id,
                 action_class=step.action_class,
-                status=StepStatus.FAILED,
+                status=StepStatus.AWAITING_RECONCILIATION,
                 latency_ms=latency,
                 error=f"Mutation failed with uncertain outcome: {e}",
             )
@@ -722,20 +1016,33 @@ class DeterministicDAGExecutor:
 
     def _reconstruct_plan(self, quest: Quest) -> Plan:
         """Reconstructs a Plan instance from an existing Quest and its steps."""
-        plan_steps = [
-            PlanStep(
-                step_id=s.step_id,
-                capability_id=s.capability_id,
-                intent=s.intent,
-                arguments=s.arguments,
-                dependencies=s.dependencies,
+        plan_steps = []
+        for s in quest.steps:
+            spec = self.capability_registry.get_spec(s.capability_id)
+            max_attempts = 3
+            if spec and (spec.retry_policy == RetryPolicy.NEVER or spec.idempotency_class == IdempotencyClass.NON_IDEMPOTENT):
+                max_attempts = 1
+            if hasattr(s, "max_attempts") and s.max_attempts is not None:
+                max_attempts = s.max_attempts
+            timeout_s = getattr(s, "timeout_s", None) or (spec.timeout_seconds if spec else 30.0)
+            plan_steps.append(
+                PlanStep(
+                    step_id=s.step_id,
+                    capability_id=s.capability_id,
+                    intent=s.intent,
+                    arguments=s.arguments,
+                    dependencies=s.dependencies,
+                    max_attempts=max_attempts,
+                    timeout_s=timeout_s,
+                )
             )
-            for s in quest.steps
-        ]
+        provenance = quest.metadata.get("plan_provenance", {})
+        timeout_budget_s = provenance.get("timeout_budget_s") or quest.metadata.get("timeout_budget_s") or 3600.0
         return Plan(
             quest_id=quest.quest_id,
             goal=quest.goal,
             plan_type=PlanType.TEMPLATE_DERIVED,
+            timeout_budget_s=timeout_budget_s,
             steps=plan_steps,
         )
 

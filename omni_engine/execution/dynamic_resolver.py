@@ -10,7 +10,7 @@ import json
 import re
 from typing import Any, Dict, List, Optional, Union
 
-from ..contracts.execution import UnresolvedArgumentError
+from ..contracts.execution import MissingInputError, UnresolvedArgumentError
 from ..contracts.quest import QuestStep, StepStatus
 
 # Pattern matching dynamic reference expressions
@@ -92,7 +92,11 @@ class DynamicResolver:
         """Resolves a single token like $inputs.user_id or $steps.step_1.output.id."""
         if token.startswith("$inputs."):
             subpath = token[len("$inputs."):]
-            return cls._lookup_path(inputs, subpath, source_desc="quest inputs")
+            try:
+                return cls._lookup_path(inputs, subpath, source_desc="quest inputs")
+            except UnresolvedArgumentError as exc:
+                root_key = subpath.split(".")[0]
+                raise MissingInputError(input_key=root_key, message=str(exc)) from exc
 
         elif token.startswith("$steps."):
             parts = token[len("$steps."):].split(".", 1)

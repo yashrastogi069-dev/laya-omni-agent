@@ -13,7 +13,9 @@ Every AI coding agent operating in this repository MUST adhere strictly to the f
    - The deterministic runtime owns those.
 
 2. **System 1 (LAYA) is a Fast Decision Nervous System, NOT a General LLM**:
-   - Use LAYA aggressively for bounded, structured, low-latency decisions (<35ms): intent, task class, domain routing, skill selection, urgency, importance, risk, ambiguity, need-for-planning, need-for-tools, semantic verification, and model tier selection.
+   - Use LAYA aggressively for bounded, structured decisions: intent, task class, domain routing, skill selection, urgency, importance, risk, ambiguity, need-for-planning, need-for-tools, semantic verification, and model tier selection.
+   - Latency SLA is hardware-dependent: target <35ms on CUDA GPU hardware; on host CPU without acceleration, single-question inference is ~749ms and full 15-question DecisionFrame inference is ~15.4s. SystemOneBroker optimizes execution within user-defined policy (`USER_LOCKED`, `USER_PREFERRED`, `AUTO`) while enforcing calibration quality floors and host RAM safety.
+   - Strict English-Only policy: multilingual checkpoints are permanently banned.
    - Never force LAYA to generate arbitrary prose, write arbitrary code, or produce long novel plans.
 
 3. **Minimize Generative Model Invocations**:
@@ -90,6 +92,13 @@ The following canonical documentation files MUST be maintained in exact synchron
 | `docs/SECURITY_AND_POLICY.md` | Action classification, autonomy tiers, approvals, and injection defenses. |
 | `END_TO_END_EXECUTION_LOG.md` | Master cumulative log of all actions, tests, additions, deletions, and results from top to bottom. |
 | `LAYA_CORE_IMPLEMENTATION_REPORT.md` | Long-form evidence report with benchmark data and defect analyses. |
+
+### Permanent Documentation Invariant: `END_TO_END_EXECUTION_LOG.md`
+- `END_TO_END_EXECUTION_LOG.md` is the **MASTER CUMULATIVE ENGINEERING RECORD**.
+- It is **NOT** optional. It is **NOT** merely a high-level checkpoint summary.
+- It must contain the complete significant engineering history required to reconstruct what happened and why across every phase, checkpoint, fix, benchmark, architectural decision, and repair.
+- For EVERY phase: record research performed, external repos/docs studied, implementation plan, rejected alternatives, ADOPT/ADAPT/REJECT decisions, files created/modified/deleted, state-machine/schema/DB changes, concurrency/locking details, bugs & root cause, test commands and exact outputs, benchmark metrics, diff reviews, deferred items, and final checkpoint outcome.
+- **Updating another MD does NOT replace updating END_TO_END**: Whenever another MD file changes, `END_TO_END_EXECUTION_LOG.md` must record which MD changed, why it changed, and the resulting repository truth.
 
 ---
 

@@ -67,8 +67,9 @@ class DeveloperSupervisorEngine:
                     duration_ms=(time.perf_counter() - t0) * 1000,
                 )
 
-        # Capture pre-flight git HEAD
+        # Capture pre-flight git HEAD and baseline dirty state (dirty worktree preservation)
         git_head_before = self._get_git_head(resolved_repo)
+        baseline_state = WorkspaceConfiner.capture_baseline_state(resolved_repo)
 
         # Iteration tracking for thrashing / oscillation detection (REQ-BLOCK-1)
         iteration_history: List[str] = []
@@ -88,7 +89,12 @@ class DeveloperSupervisorEngine:
 
             # Check timeout
             if time.perf_counter() >= deadline:
-                WorkspaceConfiner.safe_revert(resolved_repo, git_head_before or "HEAD", last_modified)
+                WorkspaceConfiner.safe_revert(
+                    resolved_repo,
+                    git_head_before or "HEAD",
+                    last_modified,
+                    baseline_state=baseline_state,
+                )
                 return self._make_failure_receipt(
                     spec=spec,
                     error=f"Task exceeded overall timeout budget of {spec.timeout_seconds}s",
@@ -111,7 +117,12 @@ class DeveloperSupervisorEngine:
 
             if not success and not modified_files:
                 # Mutation failed completely
-                WorkspaceConfiner.safe_revert(resolved_repo, git_head_before or "HEAD", modified_files)
+                WorkspaceConfiner.safe_revert(
+                    resolved_repo,
+                    git_head_before or "HEAD",
+                    modified_files,
+                    baseline_state=baseline_state,
+                )
                 return self._make_failure_receipt(
                     spec=spec,
                     error=f"Code mutation execution failed: {log}",
@@ -126,7 +137,12 @@ class DeveloperSupervisorEngine:
             try:
                 WorkspaceConfiner.verify_not_test_tampering(modified_files, spec.allow_test_edits)
             except PermissionError as e:
-                WorkspaceConfiner.safe_revert(resolved_repo, git_head_before or "HEAD", modified_files)
+                WorkspaceConfiner.safe_revert(
+                    resolved_repo,
+                    git_head_before or "HEAD",
+                    modified_files,
+                    baseline_state=baseline_state,
+                )
                 return self._make_failure_receipt(
                     spec=spec,
                     error=str(e),
@@ -144,7 +160,12 @@ class DeveloperSupervisorEngine:
 
             if state_fingerprint in iteration_history:
                 # Thrashing / oscillation detected (REQ-BLOCK-1)
-                WorkspaceConfiner.safe_revert(resolved_repo, git_head_before or "HEAD", modified_files)
+                WorkspaceConfiner.safe_revert(
+                    resolved_repo,
+                    git_head_before or "HEAD",
+                    modified_files,
+                    baseline_state=baseline_state,
+                )
                 return self._make_failure_receipt(
                     spec=spec,
                     error="THRASHING_DETECTED: Edit-verify loop oscillated to a previously seen state.",
@@ -168,7 +189,12 @@ class DeveloperSupervisorEngine:
                     verification_status=VerificationStatus.VERIFIED_FAILURE,
                 )
                 if current_iter >= max_iters:
-                    WorkspaceConfiner.safe_revert(resolved_repo, git_head_before or "HEAD", modified_files)
+                    WorkspaceConfiner.safe_revert(
+                        resolved_repo,
+                        git_head_before or "HEAD",
+                        modified_files,
+                        baseline_state=baseline_state,
+                    )
                     return DevExecutionReceipt(
                         task_id=spec.task_id,
                         repo_path=resolved_repo,
@@ -211,7 +237,12 @@ class DeveloperSupervisorEngine:
                 )
 
         # Iteration budget exhausted without passing tests
-        WorkspaceConfiner.safe_revert(resolved_repo, git_head_before or "HEAD", last_modified)
+        WorkspaceConfiner.safe_revert(
+            resolved_repo,
+            git_head_before or "HEAD",
+            last_modified,
+            baseline_state=baseline_state,
+        )
         return DevExecutionReceipt(
             task_id=spec.task_id,
             repo_path=resolved_repo,

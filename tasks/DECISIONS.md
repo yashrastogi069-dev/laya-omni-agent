@@ -127,3 +127,17 @@
   6. **Anti-Tampering on Test Suites**: Test files (`test_*.py`, `*_test.py`, `tests/`) are protected by default (`allow_test_edits=False`). Any unauthorized edit to test files raises an immediate tampering exception and triggers automatic rollback (`ConvergenceStatus.TEST_TAMPERING_DETECTED`).
   7. **Fail-Fast AST Syntax Gate**: Before executing test commands, all modified `.py` files are parsed with `ast.parse()`. Syntax errors short-circuit immediately without invoking subprocess test commands.
   8. **Decoupled Runner Architecture**: Decouple CLI invocation behind `AgyRunner` ABC (`SubprocessAgyRunner` for local non-interactive `agy.exe`, `MockAgyRunner` for offline unit and integration tests), enabling 100% offline, deterministic testing.
+
+---
+
+## ADR-013: Persistent SQLite Quest Runtime and Durable Workflow Architecture
+- **Date**: 2026-09-25
+- **Status**: ACCEPTED
+- **Problem**: Multi-step agent tasks lose state upon process crash/restart, risk blind duplicate retries of destructive mutations, allow language models to improperly own runtime state transitions, and lack a mechanism to pause cleanly for human confirmations.
+- **Decision**:
+  1. **SQLite Native Persistence**: Adopt embedded SQLite (`~/.laya/laya_quest.db`) with Write-Ahead Logging (`PRAGMA journal_mode = WAL`), `PRAGMA synchronous = NORMAL`, `PRAGMA busy_timeout = 5000`, and `PRAGMA foreign_keys = ON` on every connection.
+  2. **Python 3.12 Transaction Invariants**: Configure PRAGMAs while in autocommit mode, then use explicit atomic transactions (`conn.autocommit = False`) with connection-per-thread and serialized writes via `_DB_WRITE_LOCK` (`threading.RLock`).
+  3. **Optimistic Concurrency Control (OCC)**: Enforce monotonic integer `version` field on Quests and Steps with `WHERE id = :id AND version = :expected_version` checks, raising `OptimisticConcurrencyError` on collision.
+  4. **Strict State Machine**: Enforce deterministic Quest lifecycle: `CREATED -> PLANNED -> RUNNING -> PAUSED (FOR_CONFIRMATION / FOR_INPUT) -> AWAITING_VERIFICATION -> COMPLETED / FAILED / CANCELLED`.
+  5. **Audit Event Log**: Log immutable structured events in `quest_events` for state changes, policy checks, step dispatches, and receipts.
+

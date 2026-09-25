@@ -1,4 +1,4 @@
-# HANDOFF.md — Operational Continuation Guide (Real Capability Engines R1–R5 ALL COMPLETED)
+# HANDOFF.md — Operational Continuation Guide (RV0 Reality Gate Completed; L10 Quest Runtime Active)
 
 ## What We Have Built (Current State)
 A **trustworthy pre-execution control plane, provider broker, and five complete real capability execution engines** powered by:
@@ -46,8 +46,8 @@ A **trustworthy pre-execution control plane, provider broker, and five complete 
 
 ## Current Architecture & State
 - Repository: Public GitHub `https://github.com/yashrastogi069-dev/laya-omni-agent` on branch `laya-autonomous-v2`.
-- Active Milestone Goal: **Real Capability Engines: Foundation Gate (COMPLETE) → Phase R1 (COMPLETE) → Phase R2 (COMPLETE) → Phase R3 (COMPLETE) → Phase R4 (COMPLETE) → Phase R5 (COMPLETE) — MILESTONE COMPLETED**.
-- Full Test Suite: **364/364 tests passing (+ 47 subtests = 411 total, 100% pass rate)** in 233.91s across 19 test modules:
+- Active Milestone Goal: **L10: Persisted Quest Runtime (ACTIVE) → L11: Operation Ledger & Exactly-Once Semantics → L12: Structured DAG Planner → L13: Deterministic Plan Validator → L14: Deterministic DAG Executor (HARD STOP AFTER L14)**.
+- Full Test Suite: **372/372 tests passing (+ 47 subtests = 419 total checks, 100% pass rate)** in 820.30s across 21 test modules:
   - `tests/test_l0_baselines.py` (10 tests)
   - `tests/test_l1_repairs.py` (12 tests)
   - `tests/test_l2_contracts.py` (18 tests)
@@ -67,18 +67,22 @@ A **trustworthy pre-execution control plane, provider broker, and five complete 
   - `tests/test_r3_desktop.py` (21 tests)
   - `tests/test_r4_n8n.py` (25 tests)
   - `tests/test_r5_developer.py` (25 tests)
+  - `tests/test_rv0_reality_gate.py` (8 tests)
 - Governance: All canonical documents synchronized with verified implementation truth.
 - Non-Switching Boundary: `omni_agent.py` and `omni_engine/planner.py` have **0 diffs**.
 
 ---
 
 ## Operational Boundary & Next Phase
-- **Current Milestone**: Real Capability Engines (R1–R5) are **100% COMPLETE**.
-- **Hard Stop Boundary**: **STRICTLY ENFORCED**. 0 diffs in `omni_agent.py` and `omni_engine/planner.py`. Zero advance implementation of L10–L14.
-- **Next Milestone**: **Phase IV — Persistent Quest Engine & Structured DAG Planning (Checkpoints L10–L16)**.
-  - L10: Persisted SQLite Quest Engine (`Quest`, `QuestStep`, `OperationExecution`).
-  - L11: Operation Ledger & Logical Idempotency (`questId:stepId:capabilityId`).
-  - L12: Structured DAG Planner.
-  - L13: Plan Validator.
-  - L14: Deterministic DAG Executor.
+- **Current Milestone**: RV0 Reality Gate → L10–L14 Autonomous Runtime.
+- **Completed Step**: **RV0 — Live Reality Gate & Documentation Audit (PASSED 100%)**.
+- **Active Step**: **L10 — Persisted SQLite Quest Runtime**.
+- **Hard Stop Boundary**: **STRICTLY ENFORCED AFTER L14**. 0 diffs in `omni_agent.py` and `omni_engine/planner.py`. Zero implementation of L15/L16 or post-L14 subsystems.
+- **Milestone Sequence**:
+  - RV0: Live Reality Gate across capability engines (System 1, Research, Browser, Windows Desktop, n8n, Antigravity with dirty worktree test) — **PASSED**.
+  - L10: Persisted SQLite Quest Engine (`Quest`, `QuestStep`, `QuestEvent`) — **ACTIVE**.
+  - L11: Operation Ledger & Exactly-Once Mutation Semantics (`operation_id`, `attempt_id`, `external_idempotency_key`).
+  - L12: Structured DAG Planner (`Plan`, `PlanStep`, dependency IDs).
+  - L13: Deterministic Plan Validator (10 validation passes).
+  - L14: Deterministic DAG Executor (scheduling firewall, ready-step calculation, concurrency & resource locks).
 

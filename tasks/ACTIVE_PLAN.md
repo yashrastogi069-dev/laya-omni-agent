@@ -1,43 +1,92 @@
-# ACTIVE_PLAN.md — Real Capability Engines: Foundation Gate + R1 → R5 (ALL COMPLETED)
+# ACTIVE_PLAN.md — Active Milestone: RV0 Reality Gate → L10–L14 Autonomous Runtime
 
-## 1. Milestone Status: COMPLETE
-- **Current Branch**: `laya-autonomous-v2`
-- **Total Test Suite**: **364 passed, 2 warnings, 47 subtests passed in 233.91s (411 total assertions, 100% pass rate)**.
-- **Components Completed**:
-  1. **Foundation Gate**: System One Broker, User Model Sovereignty (`USER_LOCKED`, `USER_PREFERRED`, `AUTO`), Two-Level Concurrency Locks, Windows RAM Telemetry, Empirical Calibration (72/31 split, ECE 0.1192).
-  2. **Phase R1 (Deep Research Engine)**: Multi-source web extraction, Cryptographic Citation Hash Verification (`[UNVERIFIED_CITATION: <id>]`), Mathematical Saturation Stopping, Prompt-Injection Sanitization (NFKC, control char stripping, boundary tags), Offline Mocking.
-  3. **Phase R2 (Real Browser Engine)**: Playwright persistent context (`~/.laya/browser_profile`), stale singleton lock recovery, `@1..@N` dynamic indexed action space with semantic fingerprints, pre-execution staleness validation, physical evidence receipts (`dom_mutated`, `input_value`, `url_changed`), hard financial confirmation gate.
-  4. **Phase R3 (Windows Desktop & Local Service Engine)**: Win32 safe window management (Alt-key foreground rights claim, `IsHungAppWindow` check, non-blocking `ShowWindowAsync`), process trampoline resolution (HWND baseline diffing + child tree traversal), dual-stack local service health prober (SO_LINGER, proxy bypass), Rule-0 critical OS process termination protection (`csrss`, `lsass`, PID 0/4).
-  5. **Phase R4 (n8n Automation Engine)**: Programmatic n8n v1 REST engine, strict Draft-Test-Validate Gate Triad (`active=False` default, valid DAG, test execution receipt for exact hash, zero secrets), 3-level nested schema resolution, multi-pattern SecretScrubber, Wait node breakout in polling, two-tier RCE and Stage 0 command policy defense.
-  6. **Phase R5 (Developer Agent & Antigravity Engine)**: Foreman 5-stage bounded supervision lifecycle, composite SHA-256 state fingerprinting for thrashing/oscillation cycle detection, `DeterministicSubprocessRunner` with Windows `CREATE_NEW_PROCESS_GROUP`, `taskkill /F /T /PID` process-tree termination, 50k char output truncation, `WorkspaceConfiner` validating `.git` and preventing path traversal, anti-tampering on test suites (`allow_test_edits=False`), fail-fast AST syntax gate, safe reversion primitive (never `git reset --hard` / `git clean -fd`), decoupled `AgyRunner` ABC (`SubprocessAgyRunner`, `MockAgyRunner`).
-- **Non-Switching Principle**: `omni_agent.py` and `omni_engine/planner.py` remain 100% untouched (0 diffs).
-- **Strict Hard Stop Boundary**: Hard stop observed immediately after Phase R5. No implementation of L10–L14.
+## Current Active Checkpoint: L10 — Persisted SQLite Quest Runtime
 
----
-
-## 2. Summary of Completed Phase R5: Developer Agent / Antigravity Engine
-- **Status**: **COMPLETED & VERIFIED**
-- **Test Suite**: **25/25 unit and integration tests passed in 17.33s; 364/364 full repository tests (+ 47 subtests = 411 total) passed (100% pass rate)**.
-- **Key Deliverables**:
-  1. `docs/research/ADR_R5_DEVELOPER_AGENT.md`: Complete architecture and ADR-012. Status: **ACCEPTED**.
-  2. `omni_engine/contracts/developer.py`: Strongly typed developer contracts (`ConvergenceStatus`, `DevTaskSpec`, `CodeVerificationReceipt`, `DevExecutionReceipt`, `DevActionResult`).
-  3. `omni_engine/developer/process_runner.py`: `DeterministicSubprocessRunner` with Windows process-tree containment, quote-stripping argument parser, and zombie defense.
-  4. `omni_engine/developer/workspace.py`: `WorkspaceConfiner` with git repository root validation, path traversal defense, anti-tampering on test files, and safe revert primitive.
-  5. `omni_engine/developer/runner.py`: Decoupled `AgyRunner` ABC, `SubprocessAgyRunner` (local `agy.exe`), and `MockAgyRunner` (fast offline simulation).
-  6. `omni_engine/developer/engine.py`: `DeveloperSupervisorEngine` implementing Foreman 5-stage lifecycle, AST syntax fail-fast gate, thrashing/oscillation detection via SHA-256 fingerprint, test runner, git diff, and code inspection.
-  7. `omni_engine/developer/__init__.py`: Package exports.
-  8. `omni_engine/capabilities/definitions.py`: Registered 4 canonical developer capability specs (`developer.run_task`, `developer.run_tests`, `developer.git_diff`, `developer.inspect_code`) and dotless aliases in `build_real_capability_registry()`, preserving 23-tool canonical registry.
-  9. `omni_engine/capabilities/__init__.py`: Exported developer capability specs and registration.
-  10. `omni_engine/policy/engine.py`: Mapped developer capabilities to `LOCAL_WORKSPACE` blast radius; Stage 0 scans `test_commands` for Rule-0 violations and blocks protected OS roots in `repo_path`.
-  11. `omni_engine/arguments/resolver.py`: Added developer clarification prompts, parameter aliases, and slot extractors for `repo_path` (with spaces/quotes support), `task_prompt`, `test_commands`, `file_path`.
-  12. `tests/test_r5_developer.py`: 25 unit and integration tests passing in 17.33s.
-- **Adversarial Reviews**:
-  - Plan Review: Conditional Approval with 7 Blocking Requirements (`c96c2b7a-ce7f-4d60-b4c2-aaeef620b7dd`).
-  - Diff Review: **PASS (100% compliant with all 7 blocking requirements and repository operating invariants)** (`fb7ba688-2887-47fa-811d-d25dbe922f53`).
+- **Milestone Scope**: RV0 → L10 Quest → L11 Operation Ledger → L12 Planner → L13 Validator → L14 Executor.
+- **Target Branch**: `laya-autonomous-v2`
+- **Baseline Verified Commit**: `48f10b5` (372 automated tests + 47 subtests = 419 checks passing, 0 failures, 2 benign upstream warnings).
+- **Hard Stop Boundary**: **HARD STOP IMMEDIATELY AFTER L14**. Do NOT begin L15 Completion Verifier, L16 Replanner, Memory V2, automation scheduling, MCP expansion, canary promotion, or legacy retirement.
+- **Permanent Invariants**:
+  1. `END_TO_END_EXECUTION_LOG.md` is the master cumulative engineering record (must record research, plans, diffs, tests, reviews, repairs, decisions, and documentation updates).
+  2. Legacy non-switching boundary: `omni_agent.py` and `omni_engine/planner.py` remain 100% untouched (0 diffs).
+  3. Rule-0 Inviolable: Never run `git reset --hard` or `git clean -fd`; safe reversion is file-by-file and strictly preserves uncommitted user modifications.
+  4. English-Only LAYA: Multilingual models permanently banned (`DEF-008`).
 
 ---
 
-## 3. Repository Readiness & Next Phase
-- All Foundation Gate and Real Capability Engines (R1–R5) are complete, tested, and verified.
-- The capability layer is fully hardened and ready for Phase IV: Multi-Step DAG Planning & Execution (Checkpoints L10–L14) in the next engineering session.
+## Phase Breakdown
 
+### Step 1: Pre-Flight Bootstrap & Documentation-Truth Repair (COMPLETED)
+- [x] Verify Git status, branch, clean tree (`git status`, `git branch`, `git log`).
+- [x] Update `AGENTS.md` with the permanent cumulative engineering record invariant for `END_TO_END_EXECUTION_LOG.md` and hardware-aware System 1 latency / user sovereignty rules.
+- [x] Update top dashboard of `END_TO_END_EXECUTION_LOG.md` with commit `48f10b5`, 364 tests (+47 subtests), warning classification, calibration truth, and RV0 active gate.
+- [x] Update `tasks/ACTIVE_PLAN.md` to reflect RV0 as active checkpoint.
+
+### Step 2: Mandatory External Research Gate (L10–L14 Foundations) (COMPLETED)
+- [x] SQLite in Python 3.12: WAL mode, `PRAGMA synchronous = NORMAL`, `PRAGMA busy_timeout = 5000`, `PRAGMA foreign_keys = ON`, explicit transactions (`autocommit=False` after PRAGMA initialization with `autocommit=True`), connection-per-thread / serialized writer queue.
+- [x] Durable Agent / Workflow Architecture (Atomic as REFERENCE ONLY): persisted stage state, artifacts, dependencies, approval gates, worktree isolation.
+- [x] Author concise research ADR `docs/research/ADR_L10_QUEST_RUNTIME.md` (ADR-013) and record decisions in `tasks/DECISIONS.md` and `END_TO_END_EXECUTION_LOG.md`.
+
+### Step 3: RV0 — Live Reality Gate Execution (COMPLETED)
+- [x] Execute `REALITY_MATRIX` across all real capability engines (`tests/test_rv0_reality_gate.py`):
+  - **RV0-A (System 1 Broker)**: Evaluate LAYA vs Jev (if credentials available), verify fallback explanations and User Sovereignty enforcement (`USER_LOCKED`, `USER_PREFERRED`, `AUTO`).
+  - **RV0-B (Research Engine)**: Execute 1 live safe web-research query and verify cryptographic citation hashing, relevance ranking, and evidence receipts.
+  - **RV0-C (Browser Engine)**: Execute harmless live browser interaction on local fixture/test page and verify physical receipts (`dom_mutated`, `input_value`, `url_changed`).
+  - **RV0-D (Windows Desktop Engine)**: Launch Calculator or Notepad, resolve PID/HWND via trampoline resolution, safe close window, verify Rule-0 process defense.
+  - **RV0-E (n8n Engine)**: Inspect local n8n instance, run safe draft workflow test, verify Gate Triad and secret scrubber.
+  - **RV0-F (Antigravity Developer Engine)**: Execute real `SubprocessAgyRunner` / mock runner + **MANDATORY DIRTY WORKTREE TEST** (pre-existing user edit must survive rollback byte-for-byte; verified 100% passing).
+- [x] Fix Rule-0 dirty worktree flaw in `omni_engine/developer/workspace.py` and `engine.py` via `capture_baseline_state()`.
+- [x] Run full repository test suite across all 21 test files: 372 tests (+ 47 subtests = 419 checks) all passed in 820s.
+- [x] Log complete evidence in `END_TO_END_EXECUTION_LOG.md`.
+
+### Step 4: L10 — Persisted SQLite Quest Runtime (ACTIVE)
+- [ ] SQLite schema: `quests`, `quest_steps`, `quest_events`.
+- [ ] Strong Pydantic contracts: `Quest`, `QuestStep`, `QuestEvent`, `QuestStatus`, `StepStatus`.
+- [ ] State transitions: `CREATED -> PLANNED -> RUNNING -> PAUSED -> AWAITING_VERIFICATION -> COMPLETED / FAILED / CANCELLED`.
+- [ ] Optimistic concurrency control (`version` counter), WAL mode, connection management.
+- [ ] Crash & recovery test harness (Tests A–E: restart mid-quest, power loss simulation, foreign key enforcement, thread concurrency, corrupt db quarantine).
+- [ ] Full test suite and separate git commit for L10.
+
+### Step 5: L11 — Operation Ledger & Exactly-Once Mutation Semantics
+- [ ] Operation Ledger schema: `operations`, `attempts`, `receipts`.
+- [ ] Strongly typed contracts: `OperationId` (`quest_id:step_id:capability_id`), `AttemptId`, `ExternalIdempotencyKey`, `ArgumentFingerprint`.
+- [ ] Mutation states: `PENDING -> IN_PROGRESS -> COMMITTED -> FAILED -> UNKNOWN_COMMIT`.
+- [ ] Protection against duplicate execution: deduplicate identical mutations; prevent blind retries on `UNKNOWN_COMMIT`.
+- [ ] Crash tests 1–6 (kill during mutation, restart with pending mutation, verify exactly-once execution).
+- [ ] Full test suite and separate git commit for L11.
+
+### Step 6: L12 — Structured DAG Planner
+- [ ] Strongly typed contracts: `Plan`, `PlanStep`, dependency IDs, argument intent, timeout budget.
+- [ ] Template-first precedence: Skill workflow templates prioritized before invoking generative planning.
+- [ ] Generative planner fallback using strict JSON schema output.
+- [ ] Bounded graph depth and step limits.
+- [ ] Full test suite and separate git commit for L12.
+
+### Step 7: L13 — Deterministic Plan Validator
+- [ ] Plan Validator Firewall: 10 validation passes:
+  1. DAG acyclicity (topological sort / 3-color DFS).
+  2. Dependency existence (no dangling step IDs).
+  3. Capability registration (all referenced capabilities exist in registry).
+  4. Capability schema conformance (arguments match CapabilitySpec).
+  5. Policy feasibility (no hard-denied operations or protected paths).
+  6. Autonomy profile compliance.
+  7. Step limit bounds ([1, max_steps]).
+  8. Graph depth bounds ([1, max_depth]).
+  9. Idempotency and mutation safety verification.
+  10. Resource & budget constraint checks.
+- [ ] Adversarial invalid plan test corpus (cycles, self-loops, dangling refs, unauthorized mutations, schema mismatches).
+- [ ] Full test suite and separate git commit for L13.
+
+### Step 8: L14 — Deterministic DAG Executor
+- [ ] Execution runtime: scheduling firewall, ready-step computation (in-degree == 0 among uncompleted steps).
+- [ ] Parallel execution of independent read-only steps; serialized execution of mutation steps.
+- [ ] Resource locking & concurrency limits.
+- [ ] Explicit pauses for user confirmation (`PAUSED_FOR_CONFIRMATION`) and clarifying input (`PAUSED_FOR_INPUT`).
+- [ ] Safe resumption from persistent SQLite state.
+- [ ] Full test suite and separate git commit for L14.
+
+### Step 9: Final Multi-Step Milestone Audit & Hard Stop
+- [ ] Run full repository test suite (all checkpoints L0–L14).
+- [ ] Verify 0 diffs on non-switching boundary (`omni_agent.py`, `omni_engine/planner.py`).
+- [ ] Complete documentation audit and synchronize all canonical `.md` files.
+- [ ] **ENFORCE HARD STOP AFTER L14**.

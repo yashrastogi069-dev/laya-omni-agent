@@ -11,11 +11,14 @@
 | **System Role** | Standalone Autonomous Operating Agent (Independent from Jarvis Core V2) |
 | **Active Architecture Branch** | `laya-autonomous-v2` |
 | **Public GitHub Remote** | `https://github.com/yashrastogi069-dev/laya-omni-agent.git` |
-| **Latest Branch Commit** | `27caf68` (R2 Verified & Committed) |
-| **Total Automated Tests** | **314 / 314 Passing (100%)** (+ 47 subtests = 361 total checks) in ~211 seconds |
-| **Test Categorization** | **312 Feature Acceptance Tests** + **2 Known Defect Reproduction Tests** |
-| **Checkpoints Completed** | **L0–L9, Foundation Gate, R1, R2, R3** |
-| **Active Checkpoint** | **R4** (n8n Automation Engine) |
+| **Latest Branch Commit** | `48f10b5` (R5 Verified; RV0 Reality Gate Verified) |
+| **Total Automated Tests** | **372 / 372 Passing (100%)** (+ 47 subtests = 419 total checks) in ~820 seconds |
+| **Test Categorization** | **370 Feature Acceptance Tests** + **2 Known Defect Reproduction Tests** |
+| **Known Warnings Classification** | **2 Warnings Emitted**: `RuntimeWarning` from `laya/router.py:187` (Upstream library temperature outside [0.5, 5] clamping — BENIGN/UPSTREAM); 0 unhandled warnings in test suite |
+| **Calibration Status** | **Intent Signal**: Calibrated (ECE 0.1192, 72/31 stratified corpus split); **Domain Signal**: Uncalibrated (Deterministic fail-open fallback, cross-domain pooling, and escalation) |
+| **Hardware Operating Baseline** | Windows 10 Host, 4 CPU Cores, 7.81 GB RAM, PyTorch 2.13.0+cpu, NO CUDA GPU (CPU DecisionFrame latency ~15.4s; SystemOneBroker enforces user sovereignty, RAM threshold debouncing, and quality floor) |
+| **Checkpoints Completed** | **L0–L9, Foundation Gate, R1, R2, R3, R4, R5, RV0** |
+| **Active Milestone & Checkpoint** | **L10 — Persisted SQLite Quest Runtime** (Milestone: L10 Quest → L11 Operation Ledger → L12 Planner → L13 Validator → L14 Executor) |
 
 ---
 
@@ -80,9 +83,21 @@
        │ ── 293/293 Tests Passing (Commit: 27caf68 on laya-autonomous-v2)
        ▼
 [R3: WINDOWS DESKTOP, APP & LOCAL SERVICE ENGINE]
-       │ ── 314/314 Tests Passing (Ready to Commit)
+       │ ── 314/314 Tests Passing (Commit: 5e89c51 on laya-autonomous-v2)
        ▼
-[R4: ACTIVE — N8N AUTOMATION ENGINE]
+[R4: PROGRAMMATIC N8N AUTOMATION ENGINE]
+       │ ── 339/339 Tests Passing (Commit: c472c0c on laya-autonomous-v2)
+       ▼
+[R5: SUPERVISED DEVELOPER AGENT & ANTIGRAVITY ENGINE]
+       │ ── 364/364 Tests Passing (Commit: 48f10b5 on laya-autonomous-v2)
+       ▼
+[RV0: LIVE REALITY GATE & DOCUMENTATION AUDIT]
+       │ ── 372/372 Tests Passing (+47 subtests = 419 checks)
+       ▼
+[L10: PERSISTED SQLITE QUEST RUNTIME] ◀── ACTIVE
+       │
+       ▼
+[L11 → L14: OPERATION LEDGER, PLANNER, VALIDATOR, EXECUTOR]
 ```
 
 ---
@@ -1631,3 +1646,118 @@ With the successful completion and verification of Phase R5, the entire **Real C
 - **0 regressions across L0–L9 and R1–R5**.
 - **0 diffs in legacy execution paths (`omni_agent.py`, `omni_engine/planner.py`)**.
 - **Hard Stop Boundary Strictly Enforced**: Zero advance code for L10–L14. Ready for Phase IV (Persistent Quest Engine & DAG Planning).
+
+---
+
+## 8. RV0 — Live Reality Gate & Documentation Audit (Completed)
+
+### 8.1 Objectives & Verification Mandate
+1. **Pre-Flight Bootstrap & Documentation Truth Audit**:
+   - Establish `END_TO_END_EXECUTION_LOG.md` as the permanent, mandatory cumulative engineering record in `AGENTS.md`.
+   - Reaffirm hardware-aware System 1 latency reality (host CPU ModernBERT-large is ~749ms single, ~15.4s for full 15-question DecisionFrame; `<35ms` target is CUDA-only).
+   - Reaffirm strict English-Only scope (`DEF-008`: multilingual models permanently banned).
+   - Verify non-switching boundary (`omni_agent.py` and `omni_engine/planner.py` have 0 diffs).
+2. **Mandatory External Architecture & Technology Research Gate**:
+   - Research Python 3.12 SQLite PRAGMA dynamics (WAL mode, synchronous=NORMAL, foreign_keys=ON, busy_timeout=5000, and explicit transactions).
+   - Study Durable Workflow Architecture (Atomic reference model: persisted task entities, state machines, DAG validation, approval gates, worktree isolation).
+   - Author ADR-013 (`docs/research/ADR_L10_QUEST_RUNTIME.md`) and register in `tasks/DECISIONS.md`.
+3. **Rule-0 Invariant Analysis & Dirty Worktree Test Hardening**:
+   - Critically evaluate `WorkspaceConfiner.safe_revert()` in `omni_engine/developer/workspace.py`.
+   - Identified and fixed defect: `safe_revert` previously swept all untracked files (`??`) and checked out all modified files (`M`), which would destroy pre-existing user work outside task scope.
+   - Implemented `WorkspaceConfiner.capture_baseline_state()` and updated `safe_revert()` to strictly exclude and preserve pre-existing dirty files and content byte-for-byte.
+4. **Live Execution of the Complete `REALITY_MATRIX`**:
+   - RV0-A: System 1 Broker Sovereignty (`USER_LOCKED`, `USER_PREFERRED` fallback, `AUTO`, English-only rejection).
+   - RV0-B: Deep Research Cryptographic Citations (SHA-256 evidence item hashing, passage extraction, `[UNVERIFIED_CITATION: <id>]` quarantine).
+   - RV0-C: Playwright Browser Session (`@1..@N` dynamic index stamps, DOM mutation detection, physical input value verification, financial gating).
+   - RV0-D: Desktop Windows & Service Probing (window enumeration, dual-stack loopback socket probe with proxy bypass, Rule-0 critical OS process protection for `csrss`, `lsass`, PID 0, PID 4).
+   - RV0-E: n8n Automation Engine (draft mode default, Gate Triad blocking unverified activation, test execution receipt caching, SecretScrubber credential sanitization while preserving `$json.*` expressions).
+   - RV0-F: Developer Agent & Mandatory Dirty Worktree Survival (AST syntax fail-fast gate, Foreman bounded loop, byte-for-byte survival of pre-existing uncommitted user files `user_scratchpad.txt` and `existing_draft.py` when task changes are reverted).
+
+---
+
+### 8.2 Research Performed & Technology Decisions
+
+#### Python 3.12 SQLite PRAGMA Dynamics (Host Environment Audit)
+- **Host Audit**: Python 3.12.10, SQLite 3.49.1 on Windows 10.
+- **Empirical Behavior Discovered**:
+  - In Python 3.12, initializing `sqlite3.connect(..., autocommit=False)` automatically starts a transaction on the first statement.
+  - Executing `PRAGMA journal_mode = WAL;` or `PRAGMA synchronous = NORMAL;` inside an active transaction raises:
+    `sqlite3.OperationalError: cannot change into wal mode from within a transaction` or `Safety level may not be changed inside a transaction`.
+  - **Adopted Pattern**: Connection factory must initialize connection with `autocommit=True`, execute:
+    - `PRAGMA journal_mode = WAL;`
+    - `PRAGMA synchronous = NORMAL;`
+    - `PRAGMA busy_timeout = 5000;`
+    - `PRAGMA foreign_keys = ON;`
+    and subsequently set `conn.autocommit = False` to enable explicit PEP 249 transaction demarcation (`conn.commit()` / `conn.rollback()`).
+
+#### Durable Agent Architecture Audit (Atomic as REFERENCE ONLY)
+- **Studied Patterns**: Atomic's durable state machine, explicit stage transitions, step status, persisted receipts, and workspace confinement.
+- **Adopted**: Persisted Quest state transitions (`CREATED -> PLANNED -> RUNNING -> PAUSED -> AWAITING_VERIFICATION -> COMPLETED / FAILED / CANCELLED`), step status enum, OCC version check (`UPDATE quests SET status=?, version=version+1 WHERE id=? AND version=?`), SQLite-backed append-only event log.
+- **Adapted**: Lightweight SQLite store using native Python 3.12 `sqlite3` with serialized thread locks and connection pooling, completely free of heavy external ORMs.
+- **Rejected**: In-memory task runners, unpersisted DAG queues, and mixing execution state with conversational memory.
+- **Documented**: Recorded in `docs/research/ADR_L10_QUEST_RUNTIME.md` (ADR-013).
+
+#### Rule-0 Dirty Worktree Safety Repair
+- **Root Cause**: `WorkspaceConfiner.safe_revert()` inspected `git status --porcelain` after failure and reverted any modified file and deleted any untracked file, without checking if those files existed before the task started.
+- **Repair**:
+  - Added `WorkspaceConfiner.capture_baseline_state()` returning `Dict[str, Optional[str]]` mapping file paths to their pre-task baseline (SHA-256 or uncommitted byte contents).
+  - Updated `WorkspaceConfiner.safe_revert(..., baseline_state=...)`:
+    - Untracked files that existed in `baseline_state` are NEVER deleted.
+    - Modified files that were already modified in `baseline_state` are restored to their exact baseline contents, rather than `git checkout -- <file>` which would wipe uncommitted user edits.
+    - All 6 revert call sites in `DeveloperSupervisorEngine` (`omni_engine/developer/engine.py`) now capture baseline state at session start and pass it to `safe_revert`.
+
+---
+
+### 8.3 Code Files Created, Modified, and Deleted
+
+#### Created:
+1. `docs/research/ADR_L10_QUEST_RUNTIME.md`: ADR-013 defining SQLite WAL, schema, OCC, and crash recovery.
+2. `tests/test_rv0_reality_gate.py`: 8 comprehensive reality gate tests covering RV0-A through RV0-F.
+
+#### Modified:
+1. `AGENTS.md`: Permanent cumulative engineering record invariant for `END_TO_END_EXECUTION_LOG.md`; System 1 latency reality (<35ms on CUDA, ~15.4s on host CPU); English-only policy.
+2. `omni_engine/developer/workspace.py`: Implemented `capture_baseline_state()` and updated `safe_revert()` with dirty worktree protection.
+3. `omni_engine/developer/engine.py`: Baseline state captured at task start and passed to all 6 `safe_revert()` call sites.
+4. `tasks/DECISIONS.md`: Registered ADR-013.
+5. `tasks/DEFERRED.md`: Activated DEF-009 (L10–L14) and added DEF-010 (L15–L16 deferred post-L14).
+6. `tasks/ACTIVE_PLAN.md`: Synchronized active checkpoint from RV0 to L10.
+7. `LAYA_BUILD_STATE.md`: Synchronized test totals (372 passed, 419 checks) and active milestone.
+8. `HANDOFF.md`: Updated continuation instructions for L10.
+9. `END_TO_END_EXECUTION_LOG.md`: Top health dashboard, flowchart, and complete RV0 engineering entry.
+
+#### Deleted:
+- None.
+
+---
+
+### 8.4 Reality Matrix Verification Evidence
+
+| Matrix Test | Component Tested | Verification Performed | Outcome |
+| :--- | :--- | :--- | :--- |
+| **RV0-A** | System 1 Broker | Live ModernBERT inference + sovereignty hierarchy (`USER_LOCKED`, `USER_PREFERRED` fallback to LAYA when Jev is unconfigured, `AUTO`, English-only rejection). | **PASS** |
+| **RV0-B** | Deep Research | Cryptographic SHA-256 evidence item hashing, passage extraction, relevance ranking, unverified citation quarantining to `[UNVERIFIED_CITATION: <id>]`. | **PASS** |
+| **RV0-C** | Browser Engine | Headless Playwright session, `@1..@N` dynamic index stamps, DOM mutation detection, physical input value verification, financial gating. | **PASS** |
+| **RV0-D** | Windows Desktop & Service | Process window enumeration, dual-stack loopback socket health probe with proxy bypass, Rule-0 critical OS process defense (`csrss`, `lsass`, PID 0, PID 4). | **PASS** |
+| **RV0-E** | n8n Automation | Workflow creation forced into draft mode, Gate Triad blocking unverified activation, test execution receipt caching, SecretScrubber redacting sensitive credentials while preserving `$json.*` expressions. | **PASS** |
+| **RV0-F** | Developer Agent & Dirty Worktree | AST syntax check catches syntax errors before running tests and safely reverts corrupted code without modifying baseline files. **MANDATORY DIRTY WORKTREE SURVIVAL**: Pre-existing uncommitted user files (`user_scratchpad.txt` untracked, `existing_draft.py` modified) survive rollback byte-for-byte when task changes fail! | **PASS** |
+
+---
+
+### 8.5 Test Results & Execution Metrics
+
+- **RV0 Reality Gate Suite (`tests/test_rv0_reality_gate.py`)**:
+  - `python -m unittest tests/test_rv0_reality_gate.py`
+  - Output: `Ran 8 tests in 513.821s, OK` (8 passed, 0 failed, 100% pass rate).
+- **Full Repository Test Suite (L0–L9 + Foundation Gate + R1–R5 + RV0)**:
+  - `python -m unittest discover tests`
+  - Output: `Ran 372 tests in 820.298s, OK` (372 passed + 47 subtests = 419 total checks, 0 failures, 0 errors, 2 benign upstream warnings).
+- **Non-Switching Boundary**:
+  - `git diff HEAD omni_agent.py omni_engine/planner.py` = **0 diffs**.
+- **Working Tree Cleanliness**:
+  - Zero uncommitted test artifacts, zero dangling files.
+
+---
+
+### 8.6 Checkpoint Completion & Next Phase
+- **RV0 Reality Gate & Documentation Audit is Officially PASSED and COMPLETED**.
+- **Next Active Checkpoint**: **L10 — Persisted SQLite Quest Runtime**.

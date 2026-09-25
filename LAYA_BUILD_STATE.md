@@ -1,10 +1,11 @@
 # LAYA_BUILD_STATE.md — Current Ground Truth State
 
-**Last Updated**: 2026-09-24T22:30:00+05:30  
+**Last Updated**: 2026-09-25T06:15:00+05:30  
 **Current Branch**: `laya-autonomous-v2`  
-**Active Milestone Goal**: `Real Capability Engines: Foundation Gate (COMPLETE) → Phase R1: Deep Research Engine (COMPLETE & VERIFIED) → Phase R2: Real Browser Engine (COMPLETE & VERIFIED) → Phase R3: Windows Desktop, App & Local Service Engine (COMPLETE & VERIFIED) → Phase R4: n8n Automation Engine (COMPLETE & VERIFIED) → Phase R5: Developer Agent / Antigravity Engine (COMPLETE & VERIFIED) — MILESTONE COMPLETE`  
-**Last Passing Test Suite**: All 19 test files across L0–L9 + Foundation Gate + R1 + R2 + R3 + R4 + R5:
-`tests/test_l0_baselines.py`, `tests/test_l1_repairs.py`, `tests/test_l2_contracts.py`, `tests/test_l2_1_reconciliation.py`, `tests/test_l3_capabilities.py`, `tests/test_l4_providers.py`, `tests/test_l5_decision_fabric.py`, `tests/test_l6a_routing.py`, `tests/test_l7_skills.py`, `tests/test_l6b_skill_routing.py`, `tests/test_l7_5_calibration.py`, `tests/test_l8_arguments.py`, `tests/test_l9_policy.py`, `tests/test_foundation_broker.py`, `tests/test_r1_research.py`, `tests/test_r2_browser.py`, `tests/test_r3_desktop.py`, `tests/test_r4_n8n.py`, `tests/test_r5_developer.py` (**364/364 passed in 233.91s, 47 subtests passed = 411 total (100% pass rate)**)  
+**Active Milestone Goal**: `L10: Persisted Quest Runtime (ACTIVE) → L11: Operation Ledger & Exactly-Once Semantics → L12: Structured DAG Planner → L13: Deterministic Plan Validator → L14: Deterministic DAG Executor (HARD STOP AFTER L14)`  
+**Baseline Verified Commit**: `48f10b5` (RV0 Reality Gate Verified)  
+**Last Passing Test Suite**: All 21 test files across L0–L9 + Foundation Gate + R1 + R2 + R3 + R4 + R5 + RV0:
+`tests/test_l0_baselines.py`, `tests/test_l1_repairs.py`, `tests/test_l2_contracts.py`, `tests/test_l2_1_reconciliation.py`, `tests/test_l3_capabilities.py`, `tests/test_l4_providers.py`, `tests/test_l5_decision_fabric.py`, `tests/test_l6a_routing.py`, `tests/test_l7_skills.py`, `tests/test_l6b_skill_routing.py`, `tests/test_l7_5_calibration.py`, `tests/test_l8_arguments.py`, `tests/test_l9_policy.py`, `tests/test_foundation_broker.py`, `tests/test_r1_research.py`, `tests/test_r2_browser.py`, `tests/test_r3_desktop.py`, `tests/test_r4_n8n.py`, `tests/test_r5_developer.py`, `tests/test_rv0_reality_gate.py` (**372/372 passed in 820.30s, 47 subtests passed = 419 total checks (100% pass rate)**)  
 **Mission Role**: Complete Standalone Autonomous Operating Agent.
 
 ---
@@ -151,6 +152,12 @@ The repository contains a standalone prototype CLI (`laya_agent.py` / `omni_engi
     - **Capability Substrate Integration**: Registered 4 developer capability specs (`developer.run_task`, `developer.run_tests`, `developer.git_diff`, `developer.inspect_code`) and dotless aliases in `build_real_capability_registry()`, preserving 23-tool canonical registry. Mapped in `ArgumentResolver` and `PolicyEngine`.
     - **Adversarial Diff Review**: **PASS (100% compliant with all 7 blocking requirements and repository operating invariants)** (Subagent `fb7ba688-2887-47fa-811d-d25dbe922f53`).
     - **Comprehensive Test Suite**: Created `tests/test_r5_developer.py` (25 unit and integration tests, 100% pass rate in 17.33s). Full repository suite: **364/364 passed in 233.91s (+ 47 subtests = 411 total checks)**.
+21. **Checkpoint RV0 Milestone Reached (Live Reality Gate & Documentation Audit)**:
+    - **Documentation Invariants Hardened**: `END_TO_END_EXECUTION_LOG.md` made permanent mandatory cumulative engineering record in `AGENTS.md`; System 1 latency reality documented (<35ms on CUDA, ~15.4s on host CPU); strict English-only policy (`DEF-008`).
+    - **External Research & ADR-013**: Python 3.12 SQLite PRAGMA dynamics (WAL mode, `autocommit=True` connection initialization prior to PRAGMAs, then `autocommit=False` for explicit transactions); Atomic durable workflow reference analysis; authored `docs/research/ADR_L10_QUEST_RUNTIME.md` (ADR-013) registered in `tasks/DECISIONS.md`.
+    - **Rule-0 Dirty Worktree Flaw Remediated**: Identified that `WorkspaceConfiner.safe_revert()` previously destroyed pre-existing uncommitted user work outside task scope. Implemented `capture_baseline_state()` and updated `safe_revert()` to protect user untracked files and uncommitted edits byte-for-byte.
+    - **Reality Matrix Verified**: All 6 capability engines verified live (`tests/test_rv0_reality_gate.py`): RV0-A (System 1 Broker sovereignty + English-only rejection), RV0-B (Deep Research SHA-256 evidence hashing & quarantine), RV0-C (Playwright browser session, DOM mutation, physical receipts, financial gate), RV0-D (Desktop window enumeration, loopback probing, Rule-0 OS process defense), RV0-E (n8n draft creation, Gate Triad blocking, secret scrubber), RV0-F (Developer Foreman loop, AST syntax gate, and byte-for-byte mandatory dirty worktree preservation).
+    - **Comprehensive Test Suite**: Created `tests/test_rv0_reality_gate.py` (8 tests, 100% pass rate in 513.82s). Full repository suite: **372/372 passed in 820.30s (+ 47 subtests = 419 total checks)**.
 
 ---
 

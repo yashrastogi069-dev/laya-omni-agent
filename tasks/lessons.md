@@ -76,3 +76,11 @@
 - **Observation**: In real-world developer repositories, users frequently have uncommitted exploratory work, scratch files, or unrelated modified files in the working tree. Running `git reset --hard` or `git clean -fd` irrevocably wipes user files outside the task scope, violating safety invariants.
 - **Principle**: Rollbacks must operate file-by-file: inspect tracked files via `git ls-files` and restore them individually with `git checkout -- <rel_path>`, and remove untracked files individually via `os.remove()` only after verifying containment within repository boundaries.
 
+## Lesson 20: Pre-Existing Uncommitted User Work Must Be Excluded from Safe Reverts (Dirty Worktree Invariant)
+- **Observation**: Even a file-by-file `safe_revert` can wipe user data if it unconditionally reverts every dirty file reported by `git status --porcelain`. If the user had uncommitted files or dirty modifications before the task began, reverting all dirty files upon task failure wipes the user's pre-existing work.
+- **Principle**: Always capture a baseline snapshot of the working tree (`capture_baseline_state()`) before touching any repository files. Untracked files present in baseline state must never be deleted on rollback, and modified files present in baseline state must be restored to their pre-task baseline byte content rather than checked out to git HEAD.
+
+## Lesson 21: Python 3.12 SQLite PRAGMA Dynamics (WAL and autocommit)
+- **Observation**: In Python 3.12, `sqlite3.connect(..., autocommit=False)` automatically starts an implicit transaction on the first statement. Executing `PRAGMA journal_mode = WAL;` or `PRAGMA synchronous = NORMAL;` inside an active transaction raises `sqlite3.OperationalError: cannot change into wal mode from within a transaction` or `Safety level may not be changed inside a transaction`.
+- **Principle**: SQLite connection factories in Python 3.12 must initialize the connection with `autocommit=True`, execute all configuration PRAGMAs (`journal_mode = WAL`, `synchronous = NORMAL`, `busy_timeout = 5000`, `foreign_keys = ON`), and only then switch `conn.autocommit = False` to enable explicit PEP 249 transaction demarcation (`conn.commit()` / `conn.rollback()`).
+

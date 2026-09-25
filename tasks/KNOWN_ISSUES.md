@@ -57,3 +57,13 @@
 - **Status**: **RESOLVED (Phase R2: Real Browser Engine)**
 - **Resolution**: Implemented persistent session-backed Playwright engine (`omni_engine/browser/`) exposing atomic indexed action space (`@1..@N`), semantic fingerprinting, pre-execution staleness verification, evidence-based physical receipts (`dom_mutated`, `input_value`, `url_changed`), and registered capabilities `browser.interact` and `browser.perform_task`.
 - **Regression Test**: `tests/test_r2_browser.py` (15 unit and integration tests passing offline).
+
+---
+
+### ISSUE-07: `WorkspaceConfiner.safe_revert` Wiping Pre-Existing Uncommitted User Work (Dirty Worktree Invariant)
+- **Severity**: CRITICAL
+- **Status**: **RESOLVED (Checkpoint RV0 Reality Gate)**
+- **Description**: `WorkspaceConfiner.safe_revert()` inspected `git status --porcelain` and removed any untracked file (`??`) and checked out any modified file (`M`), which would destroy user work that existed in the working tree prior to task execution.
+- **Resolution**: Implemented `WorkspaceConfiner.capture_baseline_state()` and updated `safe_revert(..., baseline_state=baseline_state)` to capture pre-existing dirty files and content byte-for-byte. Untracked baseline files are never deleted, and modified baseline files are restored to their exact baseline contents rather than clean git commit baseline.
+- **Regression Test**: `tests/test_rv0_reality_gate.py::test_rv0_f_mandatory_dirty_worktree_survival` (passes 100%).
+

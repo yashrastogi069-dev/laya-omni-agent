@@ -1,11 +1,11 @@
 # ACTIVE_PLAN.md — Active Milestone: RV0 Reality Gate → L10–L14 Autonomous Runtime
 
-## Current Active Checkpoint: L14 — Deterministic DAG Executor
+## Current Active Checkpoint: L14.1 — Runtime Integrity, Durability & Failure Accountability Hardening (COMPLETED)
 
-- **Milestone Scope**: RV0 → L10 Quest → L11 Operation Ledger → L12 Planner → L13 Validator → L14 Executor.
+- **Milestone Scope**: RV0 → L10 Quest → L11 Operation Ledger → L12 Planner → L13 Validator → L14 Executor → L14.1 Runtime Hardening.
 - **Target Branch**: `laya-autonomous-v2`
-- **Baseline Verified Commit**: `aae7de8` (419 automated tests + 47 subtests = 466 checks passing, 0 failures).
-- **Hard Stop Boundary**: **HARD STOP IMMEDIATELY AFTER L14**. Do NOT begin L15 Completion Verifier, L16 Replanner, Memory V2, automation scheduling, MCP expansion, canary promotion, or legacy retirement.
+- **Baseline Verified Commit**: `214d33a` (481 automated tests + 47 subtests = 528 checks passing, 0 failures).
+- **Hard Stop Boundary**: **HARD STOP IMMEDIATELY AFTER L14.1**. Do NOT begin L15 Completion Verifier, L16 Replanner, Memory V2, automation scheduling, MCP expansion, canary promotion, or legacy retirement.
 - **Permanent Invariants**:
   1. `END_TO_END_EXECUTION_LOG.md` is the master cumulative engineering record (must record research, plans, diffs, tests, reviews, repairs, decisions, and documentation updates).
   2. Legacy non-switching boundary: `omni_agent.py` and `omni_engine/planner.py` remain 100% untouched (0 diffs).

@@ -6,19 +6,19 @@
 
 ## Quick Reference & Repository Health Dashboard
 
-| Metric | Status / Value |
+| **Metric** | **Status / Value** |
 | :--- | :--- |
 | **System Role** | Standalone Autonomous Operating Agent (Independent from Jarvis Core V2) |
 | **Active Architecture Branch** | `laya-autonomous-v2` |
 | **Public GitHub Remote** | `https://github.com/yashrastogi069-dev/laya-omni-agent.git` |
-| **Latest Branch Commit** | `2a03bc3` (L11 Verified & Committed) |
-| **Total Automated Tests** | **399 / 399 Passing (100%)** (+ 47 subtests = 446 total checks) |
-| **Test Categorization** | **397 Feature Acceptance Tests** + **2 Known Defect Reproduction Tests** |
-| **Known Warnings Classification** | **2 Warnings Emitted**: `RuntimeWarning` from `laya/router.py:187` (Upstream library temperature outside [0.5, 5] clamping — BENIGN/UPSTREAM); 0 unhandled warnings in test suite |
+| **Latest Branch Commit** | `548a968` (L11 Verified & Committed) |
+| **Total Automated Tests** | **419 / 419 Passing (100%)** (+ 47 subtests = 466 total checks) |
+| **Test Categorization** | **417 Feature Acceptance Tests** + **2 Known Defect Reproduction Tests** |
+| **Known Warnings Classification** | **4 Warnings Emitted**: `RuntimeWarning` from `laya/router.py:187` (Upstream library temperature outside [0.5, 5] clamping — BENIGN/UPSTREAM); 0 unhandled warnings in test suite |
 | **Calibration Status** | **Intent Signal**: Calibrated (ECE 0.1192, 72/31 stratified corpus split); **Domain Signal**: Uncalibrated (Deterministic fail-open fallback, cross-domain pooling, and escalation) |
 | **Hardware Operating Baseline** | Windows 10 Host, 4 CPU Cores, 7.81 GB RAM, PyTorch 2.13.0+cpu, NO CUDA GPU (CPU DecisionFrame latency ~15.4s; SystemOneBroker enforces user sovereignty, RAM threshold debouncing, and quality floor) |
-| **Checkpoints Completed** | **L0–L11, Foundation Gate, R1, R2, R3, R4, R5, RV0** |
-| **Active Milestone & Checkpoint** | **L12 — Structured DAG Planner** (Milestone: L10 Quest → L11 Operation Ledger → L12 Planner → L13 Validator → L14 Executor) |
+| **Checkpoints Completed** | **L0–L12, Foundation Gate, R1, R2, R3, R4, R5, RV0** |
+| **Active Milestone & Checkpoint** | **L13 — Deterministic Plan Validator** (Milestone: L10 Quest → L11 Operation Ledger → L12 Planner → L13 Validator → L14 Executor) |
 
 ---
 
@@ -98,12 +98,15 @@
        │ ── 385/385 Tests Passing (+47 subtests = 432 checks)
        ▼
 [L11: OPERATION LEDGER & EXACTLY-ONCE MUTATION SEMANTICS]
-       │ ── 14/14 Tests Passing (Commit on laya-autonomous-v2)
+       │ ── 14/14 Tests Passing (Commit: 548a968 on laya-autonomous-v2)
        ▼
-[L12: STRUCTURED DAG PLANNER] ◀── ACTIVE
+[L12: STRUCTURED DAG PLANNER]
+       │ ── 20/20 Tests Passing (Commit on laya-autonomous-v2)
+       ▼
+[L13: DETERMINISTIC PLAN VALIDATOR] ◀── ACTIVE
        │
        ▼
-[L13 → L14: VALIDATOR, EXECUTOR]
+[L14: DETERMINISTIC DAG EXECUTOR]
 ```
 
 ---
@@ -1944,5 +1947,131 @@ With the successful completion and verification of Phase R5, the entire **Real C
 ### 10.5 Checkpoint Completion & Next Phase
 - **Checkpoint L11 is Officially PASSED and COMPLETED**.
 - **Next Active Checkpoint**: **L12 — Structured DAG Planner**.
+
+---
+
+## 11. Checkpoint L12: Structured DAG Planner & Template-First Precedence
+
+### 11.1 Objectives & Architectural Decisions (ADR-015)
+
+In autonomous multi-step execution, objectives can vary from well-understood routine workflows (e.g. Git feature branching, workspace setup, web research synthesis) to novel, open-ended requests.
+Allowing general generative LLMs to produce unconstrained, arbitrary prose plans violates:
+1. **Invariant 1 (Deterministic Control)**: Models must propose or plan, but DAG validation, dependency checking, and execution orchestration must be deterministic.
+2. **Invariant 3 (Minimize Generative Invocations)**: Known Skill workflow templates must be prioritized before calling slow, costly generative LLMs.
+3. **Invariant 5 (Persisted Quest + Validated DAG Execution)**: Plans must be strongly typed DAG structures attached to a persisted `Quest` entity with strict acyclicity and topological dependency ordering.
+
+**Adopted Decisions (ADR-015)**:
+- **Two-Tier Planning Pipeline**:
+  - **Tier 1 (Template Planner)**: High-speed (<1ms) deterministic DAG instantiation from canonical `SkillManifest.workflow_template` with dynamic `$inputs.<arg>` parameter substitution.
+  - **Tier 2 (Generative Planner)**: Bounded JSON-schema fallback for novel/unmatched objectives with automatic markdown code fence stripping and capability existence verification.
+- **DAG Topological Algorithms (`DAGTopology`)**:
+  - 3-color DFS cycle detector (WHITE=unvisited, GRAY=active path, BLACK=settled).
+  - Kahn's algorithm topological sorting.
+  - In-degree evaluation and ready step discovery (`in_degree == 0`).
+  - Critical-path plan depth calculation.
+- **Plan Bounds Verification**:
+  - Strict step limit: `len(plan.steps) <= max_steps` (default 20).
+  - Strict graph depth limit: `depth <= max_depth` (default 6).
+- **Quest State-Machine Integration**:
+  - `attach_to_quest`: Maps `PlanStep` to `QuestStep`, resolves capability `ActionClass`, and transitions Quest `CREATED -> PLANNED`.
+- **Non-Switching Boundary**:
+  - Protected legacy files `omni_agent.py` and `omni_engine/planner.py` remain untouched (0 diffs). New planning components are encapsulated in `omni_engine/planning/`.
+
+---
+
+### 11.2 Planning Pipeline & Components
+
+```
+                       User Objective / Request
+                                  │
+                                  ▼
+                     StructuredDAGPlanner (engine.py)
+                                  │
+                   ┌──────────────┴──────────────┐
+                   │ Skill has workflow_template?│
+                   └──────────────┬──────────────┘
+                         YES      │      NO
+          ┌───────────────────────┘      └────────────────────────┐
+          ▼                                                       ▼
+SkillTemplatePlanner (<1ms)                            GenerativePlanner (LLM Fallback)
+  - Instantiates SkillStepTemplates                      - Strict JSON Schema
+  - Dynamic $inputs.<arg> substitution                   - Strips Markdown fences
+  - Preserves declared dependencies                      - Validates against CapabilityRegistry
+          │                                                       │
+          └───────────────────────┬───────────────────────────────┘
+                                  │
+                                  ▼
+                         DAGTopology (dag.py)
+                           - 3-Color DFS Cycle Detection
+                           - Kahn's Algorithm Topological Sort
+                           - In-degree & Ready Steps
+                           - Plan Depth Calculation
+                                  │
+                                  ▼
+                         Plan Bounds Verification
+                           - steps <= max_steps (20)
+                           - depth <= max_depth (6)
+                                  │
+                                  ▼
+                           attach_to_quest()
+                           - Transforms PlanStep -> QuestStep
+                           - Maps CapabilitySpec.action_class
+                           - Transitions Quest: CREATED -> PLANNED
+```
+
+---
+
+### 11.3 Code Files Created and Modified
+
+#### Created:
+1. `omni_engine/contracts/plan.py`: Strongly typed Pydantic contracts (`Plan`, `PlanStep`, `PlanType`, `PlanError`, `PlanValidationError`, `PlanGenerationError`) with `extra="forbid"`, self-dependency rejection, duplicate step rejection, and dangling dependency checks.
+2. `omni_engine/planning/__init__.py`: Package initialization exporting `DAGTopology`, `SkillTemplatePlanner`, `GenerativePlanner`, and `StructuredDAGPlanner`.
+3. `omni_engine/planning/dag.py`: Deterministic DAG topology algorithms: 3-color DFS cycle detector, Kahn's topological sort, plan depth calculation, in-degree evaluation, ready step resolution.
+4. `omni_engine/planning/template_planner.py`: Instant (<1ms) DAG instantiation from canonical `SkillManifest.workflow_template` with dynamic `$inputs.<arg>` parameter substitution.
+5. `omni_engine/planning/generative_planner.py`: Generative planning engine with strict JSON schema instructions, markdown code fence stripping, and capability validation.
+6. `omni_engine/planning/engine.py`: Structured DAG planner orchestrator with template-first precedence, bound enforcement, and Quest attachment (`attach_to_quest`).
+7. `docs/research/ADR_L12_STRUCTURED_DAG_PLANNER.md`: Architecture Decision Record ADR-015.
+8. `tests/test_l12_planner.py`: 20 comprehensive unit and integration tests.
+
+#### Modified:
+1. `omni_engine/contracts/__init__.py`: Re-exported all plan contracts and exception types.
+2. `omni_engine/capabilities/registry.py`: Added `has_capability()` alias method for capability lookup parity.
+3. `tasks/ACTIVE_PLAN.md`: Marked L12 complete, set L13 active.
+4. `LAYA_BUILD_STATE.md`: Updated ground truth to 419 passing tests (+ 47 subtests = 466 checks) and recorded L11/L12 milestones.
+5. `HANDOFF.md`: Updated operational continuation guide for L13.
+6. `END_TO_END_EXECUTION_LOG.md`: Updated top dashboard, flowchart, and added Section 11.
+
+---
+
+### 11.4 Verification & Test Evidence
+
+- **L12 Targeted Test Suite (`tests/test_l12_planner.py`)**:
+  - `python -m pytest tests/test_l12_planner.py -v`
+  - Output: `20 passed in 6.10s` (20/20 passed, 100% pass rate).
+  - Verified:
+    1. Contract safety: `Plan` and `PlanStep` forbid unauthorized extra fields (`extra="forbid"`).
+    2. Duplicate rejection: Multiple steps sharing an identical `step_id` are rejected immediately.
+    3. Self-dependency rejection: Steps referencing themselves as dependencies are rejected.
+    4. Dangling dependency rejection: Steps referencing non-existent step IDs are rejected.
+    5. Cycle detection: 2-node and 3-node cyclic dependency graphs are detected and rejected via 3-color DFS.
+    6. Topological sort: Kahn's algorithm correctly orders diamond and linear DAG dependency structures.
+    7. In-degree and ready steps: Accurate in-degree evaluation identifying executable steps.
+    8. Critical-path depth: Accurate topological DAG depth calculation.
+    9. Template-first precedence (Invariant 3): Canonical skills with workflow templates instantiate valid DAGs in <1ms with dynamic `$inputs.<arg>` substitution.
+    10. Generative schema conformance: Fallback generates valid plans adhering to JSON schema with markdown fence stripping.
+    11. Capability verification: Generative plans referencing unregistered capabilities are rejected.
+    12. Plan bounds enforcement: Plans exceeding step bounds (20) or depth bounds (6) are rejected with `PlanValidationError`.
+    13. Non-switching boundary: `omni_agent.py` and `omni_engine/planner.py` have 0 diffs.
+
+- **Full Regression Test Suite**:
+  - `python -m pytest tests/ -q`
+  - Output: `419 passed, 4 warnings, 47 subtests passed in 964.49s (0:16:04)` (466 total checks passing, 0 failures, 100% pass rate).
+
+---
+
+### 11.5 Checkpoint Completion & Next Phase
+- **Checkpoint L12 is Officially PASSED and COMPLETED**.
+- **Next Active Checkpoint**: **L13 — Deterministic Plan Validator**.
+
 
 

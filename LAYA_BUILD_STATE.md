@@ -1,11 +1,11 @@
 # LAYA_BUILD_STATE.md — Current Ground Truth State
 
-**Last Updated**: 2026-09-25T08:35:00+05:30  
+**Last Updated**: 2026-09-25T09:15:00+05:30  
 **Current Branch**: `laya-autonomous-v2`  
-**Active Milestone Goal**: `L12: Structured DAG Planner (ACTIVE) → L13: Deterministic Plan Validator → L14: Deterministic DAG Executor (HARD STOP AFTER L14)`  
-**Baseline Verified Commit**: `2a03bc3` (L11 Operation Ledger Verified & Committed)  
-**Last Passing Test Suite**: All 23 test files across L0–L11 + Foundation Gate + R1 + R2 + R3 + R4 + R5 + RV0:
-`tests/test_l0_baselines.py`, `tests/test_l1_repairs.py`, `tests/test_l2_contracts.py`, `tests/test_l2_1_reconciliation.py`, `tests/test_l3_capabilities.py`, `tests/test_l4_providers.py`, `tests/test_l5_decision_fabric.py`, `tests/test_l6a_routing.py`, `tests/test_l7_skills.py`, `tests/test_l6b_skill_routing.py`, `tests/test_l7_5_calibration.py`, `tests/test_l8_arguments.py`, `tests/test_l9_policy.py`, `tests/test_foundation_broker.py`, `tests/test_r1_research.py`, `tests/test_r2_browser.py`, `tests/test_r3_desktop.py`, `tests/test_r4_n8n.py`, `tests/test_r5_developer.py`, `tests/test_rv0_reality_gate.py`, `tests/test_l10_quest.py`, `tests/test_l11_operation_ledger.py` (**399/399 passed, 47 subtests passed = 446 total checks (100% pass rate)**)  
+**Active Milestone Goal**: `L13: Deterministic Plan Validator (ACTIVE) → L14: Deterministic DAG Executor (HARD STOP AFTER L14)`  
+**Baseline Verified Commit**: `548a968` (L11 Operation Ledger Verified & Committed)  
+**Last Passing Test Suite**: All 24 test files across L0–L12 + Foundation Gate + R1 + R2 + R3 + R4 + R5 + RV0:
+`tests/test_l0_baselines.py`, `tests/test_l1_repairs.py`, `tests/test_l2_contracts.py`, `tests/test_l2_1_reconciliation.py`, `tests/test_l3_capabilities.py`, `tests/test_l4_providers.py`, `tests/test_l5_decision_fabric.py`, `tests/test_l6a_routing.py`, `tests/test_l7_skills.py`, `tests/test_l6b_skill_routing.py`, `tests/test_l7_5_calibration.py`, `tests/test_l8_arguments.py`, `tests/test_l9_policy.py`, `tests/test_foundation_broker.py`, `tests/test_r1_research.py`, `tests/test_r2_browser.py`, `tests/test_r3_desktop.py`, `tests/test_r4_n8n.py`, `tests/test_r5_developer.py`, `tests/test_rv0_reality_gate.py`, `tests/test_l10_quest.py`, `tests/test_l11_operation_ledger.py`, `tests/test_l12_planner.py` (**419/419 passed, 47 subtests passed = 466 total checks (100% pass rate)**)  
 **Mission Role**: Complete Standalone Autonomous Operating Agent.
 
 ---
@@ -165,6 +165,19 @@ The repository contains a standalone prototype CLI (`laya_agent.py` / `omni_engi
     - **Optimistic Concurrency Control (OCC)**: Version-based updates (`WHERE quest_id = ? AND version = ?`) on quests and steps detecting stale concurrent writes and raising `OptimisticLockError`.
     - **Crash & Restart Recovery**: Simulated process crash mid-quest with disk-backed SQLite database; reopened in clean process; verified 100% state recovery and active quest discovery (`recover_active_quests()`).
     - **Comprehensive Test Suite**: Created `tests/test_l10_quest.py` (13 unit and integration tests, 100% pass rate in 8.45s). Full repository suite: **385/385 passed in 571.88s (+ 47 subtests = 432 total checks)**.
+23. **Checkpoint L11 Milestone Reached (Operation Ledger & Exactly-Once Mutation Semantics)**:
+    - **Strongly Typed Operation Contracts**: Implemented `OperationRecord`, `AttemptRecord`, `OperationStatus`, `AttemptStatus` in `omni_engine/contracts/operation.py` using Pydantic v2 (`extra="forbid"`).
+    - **Deterministic Deduplication**: Enforced exactly-once mutation semantics via `OperationStore` and `OperationLedger` returning cached physical receipts for re-submitted mutations with identical idempotency keys.
+    - **Strict UNKNOWN_COMMIT Protection**: Blocked blind retries upon uncertain timeouts (`OperationCommitUncertainError`) and bounded retry attempts (`MaxAttemptsExceededError`). Enabled real physical evidence reconciliation (`reconcile_operation`).
+    - **Python 3.12 Concurrency Resilience**: Eliminated SQLite read lock retention trap by wrapping queries in `try ... finally: conn.rollback()`.
+    - **Comprehensive Test Suite**: Created `tests/test_l11_operation_ledger.py` (14 unit/integration tests, 100% pass rate in 0.367s). Full repository suite: **399/399 passed (+ 47 subtests = 446 total checks)**.
+24. **Checkpoint L12 Milestone Reached (Structured DAG Planner & Template-First Precedence)**:
+    - **Strongly Typed Plan Contracts**: Implemented `Plan`, `PlanStep`, `PlanType` in `omni_engine/contracts/plan.py` enforcing duplicate step rejection, self-dependency rejection, and dangling dependency checks.
+    - **Template-First Precedence (Invariant 3)**: Implemented `SkillTemplatePlanner` in `omni_engine/planning/template_planner.py` instantiating DAGs in `<1ms` from canonical `SkillManifest.workflow_template` with dynamic `$inputs.<arg>` parameter substitution.
+    - **Generative Fallback with Strict Schema**: Implemented `GenerativePlanner` in `omni_engine/planning/generative_planner.py` parsing structured JSON, stripping markdown code fences, and verifying capability registration.
+    - **DAG Topology & Cycle Detection**: Implemented `DAGTopology` in `omni_engine/planning/dag.py` with 3-color DFS cycle detector, Kahn's topological sort, in-degree evaluation, and critical-path depth calculation.
+    - **Persisted Quest Integration**: Implemented `attach_to_quest` in `StructuredDAGPlanner` transforming `PlanStep` into `QuestStep`, mapping `ActionClass`, and transitioning Quest from `CREATED` to `PLANNED`.
+    - **Comprehensive Test Suite**: Created `tests/test_l12_planner.py` (20 unit tests, 100% pass rate in 6.10s). Full repository suite: **419/419 passed in 964.49s (+ 47 subtests = 466 total checks)**.
 
 ---
 

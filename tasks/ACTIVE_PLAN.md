@@ -1,10 +1,10 @@
 # ACTIVE_PLAN.md — Active Milestone: RV0 Reality Gate → L10–L14 Autonomous Runtime
 
-## Current Active Checkpoint: L12 — Structured DAG Planner
+## Current Active Checkpoint: L13 — Deterministic Plan Validator
 
 - **Milestone Scope**: RV0 → L10 Quest → L11 Operation Ledger → L12 Planner → L13 Validator → L14 Executor.
 - **Target Branch**: `laya-autonomous-v2`
-- **Baseline Verified Commit**: `72bc3fc` (385 automated tests + 47 subtests = 432 checks passing, 0 failures, 2 benign upstream warnings).
+- **Baseline Verified Commit**: `548a968` (399 automated tests + 47 subtests = 446 checks passing, 0 failures).
 - **Hard Stop Boundary**: **HARD STOP IMMEDIATELY AFTER L14**. Do NOT begin L15 Completion Verifier, L16 Replanner, Memory V2, automation scheduling, MCP expansion, canary promotion, or legacy retirement.
 - **Permanent Invariants**:
   1. `END_TO_END_EXECUTION_LOG.md` is the master cumulative engineering record (must record research, plans, diffs, tests, reviews, repairs, decisions, and documentation updates).
@@ -57,14 +57,16 @@
 - [x] Authored ADR-014 (`docs/research/ADR_L11_OPERATION_LEDGER.md`).
 - [x] Full test suite (14 unit/integration tests passing in 0.37s) and verified commit for L11.
 
-### Step 6: L12 — Structured DAG Planner (ACTIVE)
-- [ ] Strongly typed contracts: `Plan`, `PlanStep`, dependency IDs, argument intent, timeout budget.
-- [ ] Template-first precedence: Skill workflow templates prioritized before invoking generative planning.
-- [ ] Generative planner fallback using strict JSON schema output.
-- [ ] Bounded graph depth and step limits.
-- [ ] Full test suite and separate git commit for L12.
+### Step 6: L12 — Structured DAG Planner (COMPLETED)
+- [x] Strongly typed contracts: `Plan`, `PlanStep`, dependency IDs, argument intent, timeout budget.
+- [x] Template-first precedence: Skill workflow templates prioritized before invoking generative planning (<1ms execution).
+- [x] Generative planner fallback using strict JSON schema output and markdown fence stripping.
+- [x] Bounded graph depth (max 6) and step limits (max 20).
+- [x] 3-color DFS cycle detector, Kahn's topological sort, in-degree evaluation, plan depth calculation (`DAGTopology`).
+- [x] Authored ADR-015 (`docs/research/ADR_L12_STRUCTURED_DAG_PLANNER.md`).
+- [x] Full test suite (20 unit tests in `tests/test_l12_planner.py` passing in 6.10s).
 
-### Step 7: L13 — Deterministic Plan Validator
+### Step 7: L13 — Deterministic Plan Validator (ACTIVE)
 - [ ] Plan Validator Firewall: 10 validation passes:
   1. DAG acyclicity (topological sort / 3-color DFS).
   2. Dependency existence (no dangling step IDs).

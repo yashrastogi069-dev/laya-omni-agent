@@ -143,6 +143,14 @@ from .operation import (
     OperationAttempt,
     OperationRecord,
 )
+from .plan import (
+    PlanType,
+    PlanError,
+    PlanValidationError,
+    PlanGenerationError,
+    PlanStep,
+    Plan,
+)
 
 __all__ = [
     # Base
@@ -267,6 +275,13 @@ __all__ = [
     "InvalidMutationStateTransitionError",
     "OperationAttempt",
     "OperationRecord",
+    # Structured DAG Planner (L12)
+    "PlanType",
+    "PlanError",
+    "PlanValidationError",
+    "PlanGenerationError",
+    "PlanStep",
+    "Plan",
 ]
 
 

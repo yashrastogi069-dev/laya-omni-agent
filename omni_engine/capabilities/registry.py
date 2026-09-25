@@ -92,6 +92,10 @@ class CapabilityRegistry:
         with self._lock:
             return capability_id in self._capabilities
 
+    def has_capability(self, capability_id: str) -> bool:
+        """Returns True if capability is registered (alias for has)."""
+        return self.has(capability_id)
+
     def get(self, capability_id: str) -> Optional[ExecutableCapability]:
         """Retrieves runtime executable capability binding by ID."""
         with self._lock:

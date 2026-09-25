@@ -7,7 +7,7 @@ enforcing topological validation, step bounds, and seamless attachment to persis
 from typing import Any, Dict, List, Optional
 
 from ..capabilities.registry import CapabilityRegistry
-from ..contracts.enums import ActionClass
+from ..contracts.enums import ActionClass, AutonomyProfile
 from ..contracts.plan import Plan, PlanError, PlanStep, PlanType, PlanValidationError
 from ..contracts.quest import Quest, QuestStep, StepStatus
 from ..contracts.routing import RouteDecision
@@ -176,3 +176,23 @@ class StructuredDAGPlanner:
             steps=quest_steps,
         )
         return updated_quest
+
+    def validate_plan(
+        self,
+        plan: Plan,
+        autonomy_profile: Optional[AutonomyProfile] = None,
+        max_steps: int = 20,
+        max_depth: int = 6,
+    ) -> Any:
+        """Validates a planned DAG through the 10-pass DeterministicPlanValidator firewall."""
+        from .validator import DeterministicPlanValidator
+        validator = DeterministicPlanValidator(
+            capability_registry=self.capability_registry,
+        )
+        return validator.validate(
+            plan=plan,
+            autonomy_profile=autonomy_profile,
+            max_steps=max_steps,
+            max_depth=max_depth,
+        )
+

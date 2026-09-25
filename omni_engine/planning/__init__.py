@@ -11,10 +11,12 @@ from .dag import DAGTopology
 from .engine import StructuredDAGPlanner
 from .generative_planner import GenerativePlanner
 from .template_planner import SkillTemplatePlanner
+from .validator import DeterministicPlanValidator
 
 __all__ = [
     "DAGTopology",
     "SkillTemplatePlanner",
     "GenerativePlanner",
     "StructuredDAGPlanner",
+    "DeterministicPlanValidator",
 ]

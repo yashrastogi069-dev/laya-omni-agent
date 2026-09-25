@@ -11,14 +11,14 @@
 | **System Role** | Standalone Autonomous Operating Agent (Independent from Jarvis Core V2) |
 | **Active Architecture Branch** | `laya-autonomous-v2` |
 | **Public GitHub Remote** | `https://github.com/yashrastogi069-dev/laya-omni-agent.git` |
-| **Latest Branch Commit** | `548a968` (L11 Verified & Committed) |
-| **Total Automated Tests** | **419 / 419 Passing (100%)** (+ 47 subtests = 466 total checks) |
-| **Test Categorization** | **417 Feature Acceptance Tests** + **2 Known Defect Reproduction Tests** |
+| **Latest Branch Commit** | `aae7de8` (L12 Verified & Committed) |
+| **Total Automated Tests** | **448 / 448 Passing (100%)** (+ 47 subtests = 495 total checks) |
+| **Test Categorization** | **446 Feature Acceptance Tests** + **2 Known Defect Reproduction Tests** |
 | **Known Warnings Classification** | **4 Warnings Emitted**: `RuntimeWarning` from `laya/router.py:187` (Upstream library temperature outside [0.5, 5] clamping — BENIGN/UPSTREAM); 0 unhandled warnings in test suite |
 | **Calibration Status** | **Intent Signal**: Calibrated (ECE 0.1192, 72/31 stratified corpus split); **Domain Signal**: Uncalibrated (Deterministic fail-open fallback, cross-domain pooling, and escalation) |
 | **Hardware Operating Baseline** | Windows 10 Host, 4 CPU Cores, 7.81 GB RAM, PyTorch 2.13.0+cpu, NO CUDA GPU (CPU DecisionFrame latency ~15.4s; SystemOneBroker enforces user sovereignty, RAM threshold debouncing, and quality floor) |
-| **Checkpoints Completed** | **L0–L12, Foundation Gate, R1, R2, R3, R4, R5, RV0** |
-| **Active Milestone & Checkpoint** | **L13 — Deterministic Plan Validator** (Milestone: L10 Quest → L11 Operation Ledger → L12 Planner → L13 Validator → L14 Executor) |
+| **Checkpoints Completed** | **L0–L13, Foundation Gate, R1, R2, R3, R4, R5, RV0** |
+| **Active Milestone & Checkpoint** | **L14 — Deterministic DAG Executor** (Milestone: L10 Quest → L11 Operation Ledger → L12 Planner → L13 Validator → L14 Executor) |
 
 ---
 
@@ -101,12 +101,12 @@
        │ ── 14/14 Tests Passing (Commit: 548a968 on laya-autonomous-v2)
        ▼
 [L12: STRUCTURED DAG PLANNER]
-       │ ── 20/20 Tests Passing (Commit on laya-autonomous-v2)
+       │ ── 20/20 Tests Passing (Commit: aae7de8 on laya-autonomous-v2)
        ▼
-[L13: DETERMINISTIC PLAN VALIDATOR] ◀── ACTIVE
-       │
+[L13: DETERMINISTIC PLAN VALIDATOR]
+       │ ── 29/29 Tests Passing (Commit on laya-autonomous-v2)
        ▼
-[L14: DETERMINISTIC DAG EXECUTOR]
+[L14: DETERMINISTIC DAG EXECUTOR] ◀── ACTIVE
 ```
 
 ---
@@ -2072,6 +2072,143 @@ SkillTemplatePlanner (<1ms)                            GenerativePlanner (LLM Fa
 ### 11.5 Checkpoint Completion & Next Phase
 - **Checkpoint L12 is Officially PASSED and COMPLETED**.
 - **Next Active Checkpoint**: **L13 — Deterministic Plan Validator**.
+
+---
+
+## 12. Checkpoint L13: Deterministic Plan Validator Firewall
+
+### 12.1 Objectives & Problem Statement
+- **Core Mission**: Establish an impenetrable pre-execution validation firewall between the planning layer (L12) and the execution runtime (L14).
+- **Prime Directive Invariants Enforced**:
+  - **Invariant 1 (Deterministic Control)**: Language models or template generators may propose multi-step plans; the deterministic runtime strictly validates all structural properties, schema constraints, dependencies, policies, and autonomy floors before any step can be scheduled.
+  - **Invariant 4 (Strongly Typed Contracts)**: All validation contracts (`ValidationPassName`, `ValidationPassResult`, `PlanValidationReport`) enforce strict Pydantic v2 validation with `extra="forbid"`.
+  - **Hard Invariant Inviolability**: Unconditionally block destructive operations (`git reset --hard`, destructive drive wipes, protected OS directories) during pre-flight validation.
+
+---
+
+### 12.2 Adversarial Plan Review Findings & Architectural Resolutions
+Prior to implementation, an adversarial review was conducted (Subagent `121edbf1-3609-4e88-b833-58e89cda8d6c`). The review identified 4 critical failure modes:
+
+1. **BLK-01: Model Constructor Bypass for Adversarial Plan Testing**:
+   - *Problem*: `Plan`'s internal Pydantic `@model_validator` in `contracts/plan.py` rejects invalid step IDs and cycles on object construction, making it impossible for tests to instantiate malformed plans directly to test the validator firewall.
+   - *Resolution*: Adversarial tests construct test fixture plans via `Plan.model_construct(steps=..., ...)` to bypass pre-model validation and test the validator's 10 passes in isolation.
+
+2. **BLK-02: Two-Phase Schema Conformance & Dynamic Reference Masking**:
+   - *Problem*: Naive JSON Schema validation fails on dynamic string references (`$steps.step_1.output.id` or `$inputs.user_id`) when the target property schema expects an integer, array, or enum.
+   - *Resolution*: Implemented Two-Phase Schema Validation:
+     - **Phase A (Causal Dependency Verification)**: Parse all `$steps.<ref_id>` tokens in step arguments and verify that `<ref_id>` is declared in `step.dependencies`.
+     - **Phase B (Type-Compliant Dummy Masking)**: Replace dynamic expressions with type-compliant dummy values matching the JSON schema property types prior to invoking `jsonschema.validate()`.
+
+3. **BLK-03: False-Positive Policy Denial Prevention**:
+   - *Problem*: Unresolved dynamic expressions (e.g. `filepath="$steps.step_1.output.key"`) match `.key` in `is_protected_path()`, causing false-positive policy rejections at plan validation time.
+   - *Resolution*: Dynamic string expressions are masked with `"DYNAMIC_SAFE_ARG"` for pre-flight static policy evaluation. The validator records a warning that dynamic policy enforcement will be verified at execution time by L14, while strictly intercepting literal hard invariant violations (`git reset --hard`, `C:\Windows\System32`).
+
+4. **BLK-04: Cycle-Immune Depth Evaluation**:
+   - *Problem*: `DAGTopology.compute_plan_depth()` raises `PlanValidationError` when called on cyclical graphs, causing unexpected crashes during depth evaluation.
+   - *Resolution*: If Pass 1 (`DAG_ACYCLICITY`) detects cycles, Pass 8 (`GRAPH_DEPTH_BOUNDS`) cleanly records a warning and skips depth evaluation rather than raising an unhandled exception.
+
+5. **Cumulative Diagnostic Reporting (Zero Fail-Fast Truncation)**:
+   - *Design*: The validator executes all 10 passes unconditionally, accumulating all errors, warnings, and pass results in `PlanValidationReport.passes`, giving planners full diagnostic visibility in a single evaluation round.
+
+---
+
+### 12.3 The 10 Deterministic Validation Passes
+
+```
+                          ┌────────────────────────┐
+                          │       Input Plan       │
+                          └───────────┬────────────┘
+                                      │
+                                      ▼
+                      DeterministicPlanValidator.validate()
+                                      │
+        ┌─────────────────────────────┼─────────────────────────────┐
+        │                             │                             │
+        ▼                             ▼                             ▼
+  Pass 1: DAG_ACYCLICITY        Pass 2: DEPENDENCY_EXISTENCE  Pass 3: CAPABILITY_REGISTRATION
+  - 3-Color DFS Cycle Detector   - All dependencies exist in    - Verified in CapabilityRegistry
+  - Self-dependency check        plan.steps                     (canonical 23 + real engines)
+  - Duplicate step ID check
+        │                             │                             │
+        ▼                             ▼                             ▼
+  Pass 4: SCHEMA_CONFORMANCE    Pass 5: POLICY_FEASIBILITY    Pass 6: AUTONOMY_COMPLIANCE
+  - Two-Phase JSON Schema check  - Pre-flight PolicyEngine     - Autonomy rank floor
+  - Causal dependency check      - Blocks git reset --hard     - Rejects mutations under
+  - Dynamic placeholder masking  - Dynamic argument masking    ADVISOR autonomy
+        │                             │                             │
+        ▼                             ▼                             ▼
+  Pass 7: STEP_COUNT_BOUNDS     Pass 8: GRAPH_DEPTH_BOUNDS    Pass 9: MUTATION_SAFETY
+  - 1 <= steps <= max_steps (20) - 1 <= depth <= max_depth (6) - max_attempts <= 1 on
+  - Rejects empty plans          - Cycle-immune execution      NON_IDEMPOTENT / NEVER
+        │                             │                             │
+        └─────────────────────────────┼─────────────────────────────┘
+                                      │
+                                      ▼
+                          Pass 10: RESOURCE_BUDGET
+                          - 0 < timeout_budget_s <= 3600s
+                          - step.timeout_s <= plan.timeout_budget_s
+                                      │
+                                      ▼
+                          ┌────────────────────────┐
+                          │  PlanValidationReport  │
+                          │  - is_valid: bool      │
+                          │  - passes: List[10]    │
+                          │  - errors: List[str]   │
+                          │  - latency_ms: float   │
+                          └────────────────────────┘
+```
+
+---
+
+### 12.4 Code Files Created and Modified
+
+#### Created:
+1. `omni_engine/contracts/validation.py`: Strongly typed validation contracts (`ValidationPassName`, `ValidationPassResult`, `PlanValidationReport`) with `extra="forbid"`.
+2. `omni_engine/planning/validator.py`: `DeterministicPlanValidator` executing the 10 passes with two-phase schema validation, dynamic placeholder masking, causal dependency checking, and cumulative diagnostic reporting.
+3. `docs/research/ADR_L13_PLAN_VALIDATOR.md`: Architecture Decision Record ADR-016.
+4. `tests/test_l13_validator.py`: 29 comprehensive unit and adversarial tests.
+
+#### Modified:
+1. `omni_engine/contracts/__init__.py`: Re-exported validation contracts (`ValidationPassName`, `ValidationPassResult`, `PlanValidationReport`).
+2. `omni_engine/planning/__init__.py`: Re-exported `DeterministicPlanValidator`.
+3. `omni_engine/planning/engine.py`: Added `validate_plan()` convenience method to `StructuredDAGPlanner`.
+4. `tasks/ACTIVE_PLAN.md`: Marked L13 complete, set L14 active.
+5. `tasks/DECISIONS.md`: Appended ADR-014, ADR-015, and ADR-016.
+6. `LAYA_BUILD_STATE.md`: Updated ground truth to 448 passing tests (+ 47 subtests = 495 checks) and recorded L13 completion.
+7. `HANDOFF.md`: Updated operational continuation guide for L14.
+8. `END_TO_END_EXECUTION_LOG.md`: Updated top dashboard, ASCII diagram, and appended Section 12.
+
+---
+
+### 12.5 Verification & Test Evidence
+
+- **L13 Targeted Test Suite (`tests/test_l13_validator.py`)**:
+  - `python -m pytest tests/test_l13_validator.py`
+  - Output: `29 passed in 5.94s` (29/29 passed, 100% pass rate).
+  - Verified:
+    1. Contract safety: `ValidationPassResult` and `PlanValidationReport` enforce `extra="forbid"`.
+    2. Pass 1 (Acyclicity): Direct 2-node cycles, 3-node cycles, self-loops, and duplicate step IDs detected.
+    3. Pass 2 (Dependencies): Dangling dependencies referencing missing steps rejected.
+    4. Pass 3 (Capabilities): Unregistered capability IDs rejected; canonical 23 tools + real engines accepted.
+    5. Pass 4 (Schema Conformance): Missing required properties rejected; type mismatches rejected; dynamic references verified for causal dependency; valid placeholders accepted via two-phase masking.
+    6. Pass 5 (Policy Feasibility): Hard invariants (`git reset --hard`, protected OS directories) rejected; valid commands accepted; dynamic arguments safely masked without false denials.
+    7. Pass 6 (Autonomy Compliance): Mutations under `ADVISOR` autonomy rejected; valid autonomy levels accepted.
+    8. Pass 7 (Step Count Bounds): Empty plans rejected; plans exceeding `max_steps` (20) rejected; valid step counts accepted.
+    9. Pass 8 (Graph Depth Bounds): Plans exceeding `max_depth` (6) rejected; cycle-immune depth calculation verified.
+    10. Pass 9 (Mutation Safety): Non-idempotent capabilities with `RetryPolicy.NEVER` declaring `max_attempts > 1` rejected; idempotent retries accepted.
+    11. Pass 10 (Resource Budget): Negative or excessive (>3600s) timeout budgets rejected; step timeouts exceeding plan budget rejected.
+    12. Cumulative Reporting: All 10 passes reported with full error diagnostics without premature fail-fast truncation.
+    13. End-to-End Golden Plans: Perfectly valid plans pass all 10 passes with `is_valid=True`.
+    14. Sub-5ms Performance: Validator executes all 10 passes in under 5ms.
+
+- **Full Regression Test Suite**:
+  - Total tests across 25 test modules: **448 passed, 4 warnings, 47 subtests passed** (495 total checks passing, 0 failures, 100% pass rate).
+
+---
+
+### 12.6 Checkpoint Completion & Next Phase
+- **Checkpoint L13 is Officially PASSED and COMPLETED**.
+- **Next Active Checkpoint**: **L14 — Deterministic DAG Executor** (Final Milestone of this track).
 
 
 

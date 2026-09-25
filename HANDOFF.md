@@ -1,7 +1,21 @@
-# HANDOFF.md — Operational Continuation Guide (L12 Structured DAG Planner Completed; L13 Deterministic Plan Validator Active)
+# HANDOFF.md — Operational Continuation Guide (L13 Deterministic Plan Validator Completed; L14 Deterministic DAG Executor Active)
 
 ## What We Have Built (Current State)
-A **trustworthy pre-execution control plane, provider broker, five complete real capability execution engines, persisted SQLite Quest runtime, Operation Ledger with exactly-once mutation semantics, and Structured DAG Planner with template-first precedence** powered by:
+A **trustworthy pre-execution control plane, provider broker, five complete real capability execution engines, persisted SQLite Quest runtime, Operation Ledger with exactly-once mutation semantics, Structured DAG Planner with template-first precedence, and 10-Pass Deterministic Plan Validator Firewall** powered by:
+- **Checkpoint L13: Deterministic Plan Validator Firewall**:
+  - `ValidationPassName`, `ValidationPassResult`, `PlanValidationReport`: Strongly typed contracts with `extra="forbid"` providing full diagnostic reporting without premature fail-fast truncation.
+  - `DeterministicPlanValidator`: 10 comprehensive deterministic passes:
+    1. `DAG_ACYCLICITY`: 3-color DFS cycle detection, self-dependency rejection, duplicate step ID detection.
+    2. `DEPENDENCY_EXISTENCE`: Verifies all dependency IDs exist within `plan.steps`.
+    3. `CAPABILITY_REGISTRATION`: Verifies all capabilities are registered in `CapabilityRegistry` (including real engines).
+    4. `SCHEMA_CONFORMANCE`: Two-phase schema validation; causal dependency verification for dynamic `$steps.<id>` references; placeholder masking.
+    5. `POLICY_FEASIBILITY`: Pre-flight `PolicyEngine` evaluation; blocks hard invariants (`git reset --hard`, protected OS paths); masks dynamic references to prevent false denials.
+    6. `AUTONOMY_COMPLIANCE`: Rank floor enforcement; strict rejection of mutating actions under `ADVISOR` autonomy.
+    7. `STEP_COUNT_BOUNDS`: `1 <= len(plan.steps) <= max_steps` enforcement.
+    8. `GRAPH_DEPTH_BOUNDS`: `1 <= depth <= max_depth` enforcement; cycle-immune depth evaluation.
+    9. `MUTATION_SAFETY`: Enforces `max_attempts <= 1` on `NON_IDEMPOTENT` capabilities with `RetryPolicy.NEVER`.
+    10. `RESOURCE_BUDGET`: Timeout budget bounds and step-level consistency checks.
+  - Unit test suite `tests/test_l13_validator.py` (29/29 passed in 5.94s).
 - **Checkpoint L12: Structured DAG Planner**:
   - `Plan`, `PlanStep`, `PlanType`: Strongly typed Pydantic contracts with `extra="forbid"`, self-dependency rejection, duplicate step rejection, and dangling dependency checks.
   - `SkillTemplatePlanner`: Deterministic, instant (<1ms) DAG instantiation from canonical `SkillManifest.workflow_template` with dynamic `$inputs.<arg>` parameter substitution (Invariant 3).
@@ -67,8 +81,8 @@ A **trustworthy pre-execution control plane, provider broker, five complete real
 
 ## Current Architecture & State
 - Repository: Public GitHub `https://github.com/yashrastogi069-dev/laya-omni-agent` on branch `laya-autonomous-v2`.
-- Active Milestone Goal: **L13: Deterministic Plan Validator (ACTIVE) → L14: Deterministic DAG Executor (HARD STOP AFTER L14)**.
-- Full Test Suite: **419/419 tests passing (+ 47 subtests = 466 total checks, 100% pass rate)** across 24 test modules:
+- Active Milestone Goal: **L14: Deterministic DAG Executor (ACTIVE) (HARD STOP AFTER L14)**.
+- Full Test Suite: **448/448 tests passing (+ 47 subtests = 495 total checks, 100% pass rate)** across 25 test modules:
   - `tests/test_l0_baselines.py` (10 tests)
   - `tests/test_l1_repairs.py` (12 tests)
   - `tests/test_l2_contracts.py` (18 tests)
@@ -92,6 +106,7 @@ A **trustworthy pre-execution control plane, provider broker, five complete real
   - `tests/test_l10_quest.py` (13 tests)
   - `tests/test_l11_operation_ledger.py` (14 tests)
   - `tests/test_l12_planner.py` (20 tests)
+  - `tests/test_l13_validator.py` (29 tests)
 - Governance: All canonical documents synchronized with verified implementation truth.
 - Non-Switching Boundary: `omni_agent.py` and `omni_engine/planner.py` have **0 diffs**.
 
@@ -104,13 +119,14 @@ A **trustworthy pre-execution control plane, provider broker, five complete real
   - L10: Persisted SQLite Quest Engine (`Quest`, `QuestStep`, `QuestEvent`) — **PASSED**.
   - L11: Operation Ledger & Exactly-Once Mutation Semantics (`OperationStore`, `OperationLedger`) — **PASSED**.
   - L12: Structured DAG Planner (`Plan`, `PlanStep`, `DAGTopology`, `SkillTemplatePlanner`, `GenerativePlanner`, `StructuredDAGPlanner`) — **PASSED**.
-- **Active Step**: **L13 — Deterministic Plan Validator**.
+  - L13: Deterministic Plan Validator (10 validation passes) — **PASSED**.
+- **Active Step**: **L14 — Deterministic DAG Executor**.
 - **Hard Stop Boundary**: **STRICTLY ENFORCED AFTER L14**. 0 diffs in `omni_agent.py` and `omni_engine/planner.py`. Zero implementation of L15/L16 or post-L14 subsystems.
 - **Milestone Sequence**:
   - RV0: Live Reality Gate across capability engines — **PASSED**.
   - L10: Persisted SQLite Quest Engine (`Quest`, `QuestStep`, `QuestEvent`) — **PASSED**.
   - L11: Operation Ledger & Exactly-Once Mutation Semantics — **PASSED**.
   - L12: Structured DAG Planner — **PASSED**.
-  - L13: Deterministic Plan Validator (10 validation passes) — **ACTIVE**.
-  - L14: Deterministic DAG Executor (scheduling firewall, ready-step calculation, concurrency & resource locks).
+  - L13: Deterministic Plan Validator (10 validation passes) — **PASSED**.
+  - L14: Deterministic DAG Executor (scheduling firewall, ready-step calculation, concurrency & resource locks) — **ACTIVE**.
 

@@ -151,6 +151,11 @@ from .plan import (
     PlanStep,
     Plan,
 )
+from .validation import (
+    ValidationPassName,
+    ValidationPassResult,
+    PlanValidationReport,
+)
 
 __all__ = [
     # Base
@@ -282,6 +287,10 @@ __all__ = [
     "PlanGenerationError",
     "PlanStep",
     "Plan",
+    # Deterministic Plan Validator (L13)
+    "ValidationPassName",
+    "ValidationPassResult",
+    "PlanValidationReport",
 ]
 
 

@@ -1,10 +1,10 @@
 # ACTIVE_PLAN.md — Active Milestone: RV0 Reality Gate → L10–L14 Autonomous Runtime
 
-## Current Active Checkpoint: L13 — Deterministic Plan Validator
+## Current Active Checkpoint: L14 — Deterministic DAG Executor
 
 - **Milestone Scope**: RV0 → L10 Quest → L11 Operation Ledger → L12 Planner → L13 Validator → L14 Executor.
 - **Target Branch**: `laya-autonomous-v2`
-- **Baseline Verified Commit**: `548a968` (399 automated tests + 47 subtests = 446 checks passing, 0 failures).
+- **Baseline Verified Commit**: `aae7de8` (419 automated tests + 47 subtests = 466 checks passing, 0 failures).
 - **Hard Stop Boundary**: **HARD STOP IMMEDIATELY AFTER L14**. Do NOT begin L15 Completion Verifier, L16 Replanner, Memory V2, automation scheduling, MCP expansion, canary promotion, or legacy retirement.
 - **Permanent Invariants**:
   1. `END_TO_END_EXECUTION_LOG.md` is the master cumulative engineering record (must record research, plans, diffs, tests, reviews, repairs, decisions, and documentation updates).
@@ -66,22 +66,24 @@
 - [x] Authored ADR-015 (`docs/research/ADR_L12_STRUCTURED_DAG_PLANNER.md`).
 - [x] Full test suite (20 unit tests in `tests/test_l12_planner.py` passing in 6.10s).
 
-### Step 7: L13 — Deterministic Plan Validator (ACTIVE)
-- [ ] Plan Validator Firewall: 10 validation passes:
-  1. DAG acyclicity (topological sort / 3-color DFS).
-  2. Dependency existence (no dangling step IDs).
-  3. Capability registration (all referenced capabilities exist in registry).
-  4. Capability schema conformance (arguments match CapabilitySpec).
-  5. Policy feasibility (no hard-denied operations or protected paths).
-  6. Autonomy profile compliance.
-  7. Step limit bounds ([1, max_steps]).
-  8. Graph depth bounds ([1, max_depth]).
-  9. Idempotency and mutation safety verification.
-  10. Resource & budget constraint checks.
-- [ ] Adversarial invalid plan test corpus (cycles, self-loops, dangling refs, unauthorized mutations, schema mismatches).
-- [ ] Full test suite and separate git commit for L13.
+### Step 7: L13 — Deterministic Plan Validator (COMPLETED)
+- [x] Strongly typed contracts: `ValidationPassName`, `ValidationPassResult`, `PlanValidationReport` (`extra="forbid"`).
+- [x] Plan Validator Firewall: 10 validation passes:
+  1. `DAG_ACYCLICITY`: 3-color DFS cycle detector, self-dependency rejection, duplicate step ID detection.
+  2. `DEPENDENCY_EXISTENCE`: Zero dangling dependencies across all step definitions.
+  3. `CAPABILITY_REGISTRATION`: Verified against canonical 23 tools + real capability engines in `CapabilityRegistry`.
+  4. `SCHEMA_CONFORMANCE`: Two-phase schema conformance; causal dependency checking for dynamic references (`$steps.<id>`); type-safe placeholder masking.
+  5. `POLICY_FEASIBILITY`: Pre-flight `PolicyEngine` evaluation; blocks hard invariants (`git reset --hard`, protected OS paths); masks dynamic references to prevent false denials.
+  6. `AUTONOMY_COMPLIANCE`: Rank floor enforcement; strict rejection of mutating actions under `ADVISOR` autonomy.
+  7. `STEP_COUNT_BOUNDS`: `1 <= len(plan.steps) <= max_steps` enforcement.
+  8. `GRAPH_DEPTH_BOUNDS`: `1 <= depth <= max_depth` enforcement; cycle-immune depth evaluation.
+  9. `MUTATION_SAFETY`: Enforces `max_attempts <= 1` on `NON_IDEMPOTENT` capabilities with `RetryPolicy.NEVER`.
+  10. `RESOURCE_BUDGET`: Timeout budget bounds and step-level consistency checks.
+- [x] Cumulative diagnostic reporting: reports all 10 passes with zero fail-fast premature truncation.
+- [x] Authored ADR-016 (`docs/research/ADR_L13_PLAN_VALIDATOR.md`).
+- [x] Full test suite (29 unit tests in `tests/test_l13_validator.py` passing in 6.81s).
 
-### Step 8: L14 — Deterministic DAG Executor
+### Step 8: L14 — Deterministic DAG Executor (ACTIVE)
 - [ ] Execution runtime: scheduling firewall, ready-step computation (in-degree == 0 among uncompleted steps).
 - [ ] Parallel execution of independent read-only steps; serialized execution of mutation steps.
 - [ ] Resource locking & concurrency limits.

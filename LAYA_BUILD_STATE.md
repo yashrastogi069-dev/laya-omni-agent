@@ -1,11 +1,11 @@
 # LAYA_BUILD_STATE.md — Current Ground Truth State
 
-**Last Updated**: 2026-09-25T09:15:00+05:30  
+**Last Updated**: 2026-09-25T09:37:00+05:30  
 **Current Branch**: `laya-autonomous-v2`  
-**Active Milestone Goal**: `L13: Deterministic Plan Validator (ACTIVE) → L14: Deterministic DAG Executor (HARD STOP AFTER L14)`  
-**Baseline Verified Commit**: `548a968` (L11 Operation Ledger Verified & Committed)  
-**Last Passing Test Suite**: All 24 test files across L0–L12 + Foundation Gate + R1 + R2 + R3 + R4 + R5 + RV0:
-`tests/test_l0_baselines.py`, `tests/test_l1_repairs.py`, `tests/test_l2_contracts.py`, `tests/test_l2_1_reconciliation.py`, `tests/test_l3_capabilities.py`, `tests/test_l4_providers.py`, `tests/test_l5_decision_fabric.py`, `tests/test_l6a_routing.py`, `tests/test_l7_skills.py`, `tests/test_l6b_skill_routing.py`, `tests/test_l7_5_calibration.py`, `tests/test_l8_arguments.py`, `tests/test_l9_policy.py`, `tests/test_foundation_broker.py`, `tests/test_r1_research.py`, `tests/test_r2_browser.py`, `tests/test_r3_desktop.py`, `tests/test_r4_n8n.py`, `tests/test_r5_developer.py`, `tests/test_rv0_reality_gate.py`, `tests/test_l10_quest.py`, `tests/test_l11_operation_ledger.py`, `tests/test_l12_planner.py` (**419/419 passed, 47 subtests passed = 466 total checks (100% pass rate)**)  
+**Active Milestone Goal**: `L14: Deterministic DAG Executor (ACTIVE) (HARD STOP AFTER L14)`  
+**Baseline Verified Commit**: `aae7de8` (L12 Structured DAG Planner Verified & Committed)  
+**Last Passing Test Suite**: All 25 test files across L0–L13 + Foundation Gate + R1 + R2 + R3 + R4 + R5 + RV0:
+`tests/test_l0_baselines.py`, `tests/test_l1_repairs.py`, `tests/test_l2_contracts.py`, `tests/test_l2_1_reconciliation.py`, `tests/test_l3_capabilities.py`, `tests/test_l4_providers.py`, `tests/test_l5_decision_fabric.py`, `tests/test_l6a_routing.py`, `tests/test_l7_skills.py`, `tests/test_l6b_skill_routing.py`, `tests/test_l7_5_calibration.py`, `tests/test_l8_arguments.py`, `tests/test_l9_policy.py`, `tests/test_foundation_broker.py`, `tests/test_r1_research.py`, `tests/test_r2_browser.py`, `tests/test_r3_desktop.py`, `tests/test_r4_n8n.py`, `tests/test_r5_developer.py`, `tests/test_rv0_reality_gate.py`, `tests/test_l10_quest.py`, `tests/test_l11_operation_ledger.py`, `tests/test_l12_planner.py`, `tests/test_l13_validator.py` (**448/448 passed, 47 subtests passed = 495 total checks (100% pass rate)**)  
 **Mission Role**: Complete Standalone Autonomous Operating Agent.
 
 ---
@@ -178,6 +178,12 @@ The repository contains a standalone prototype CLI (`laya_agent.py` / `omni_engi
     - **DAG Topology & Cycle Detection**: Implemented `DAGTopology` in `omni_engine/planning/dag.py` with 3-color DFS cycle detector, Kahn's topological sort, in-degree evaluation, and critical-path depth calculation.
     - **Persisted Quest Integration**: Implemented `attach_to_quest` in `StructuredDAGPlanner` transforming `PlanStep` into `QuestStep`, mapping `ActionClass`, and transitioning Quest from `CREATED` to `PLANNED`.
     - **Comprehensive Test Suite**: Created `tests/test_l12_planner.py` (20 unit tests, 100% pass rate in 6.10s). Full repository suite: **419/419 passed in 964.49s (+ 47 subtests = 466 total checks)**.
+25. **Checkpoint L13 Milestone Reached (Deterministic Plan Validator Firewall)**:
+    - **Strongly Typed Validation Contracts**: Implemented `ValidationPassName`, `ValidationPassResult`, `PlanValidationReport` in `omni_engine/contracts/validation.py` using Pydantic v2 (`extra="forbid"`).
+    - **10-Pass Deterministic Firewall**: Implemented `DeterministicPlanValidator` in `omni_engine/planning/validator.py` executing 10 deterministic passes: (1) DAG Acyclicity, (2) Dependency Existence, (3) Capability Registration, (4) Schema Conformance with two-phase dynamic placeholder checking and causal dependency enforcement, (5) Policy Feasibility blocking hard invariants and deferring dynamic paths, (6) Autonomy Compliance with ADVISOR mutation rejection and rank floor enforcement, (7) Step Count Bounds, (8) Graph Depth Bounds with cycle immunity, (9) Mutation Safety with non-idempotent retry bounding, (10) Resource Budget bounds and step timeout consistency.
+    - **Cumulative Diagnostic Reporting**: Full diagnostic reporting evaluating all passes without premature fail-fast truncation.
+    - **Authored ADR-016**: `docs/research/ADR_L13_PLAN_VALIDATOR.md` registered in system records.
+    - **Comprehensive Test Suite**: Created `tests/test_l13_validator.py` (29 unit tests, 100% pass rate in 6.81s). Full repository suite: **448/448 passed (+ 47 subtests = 495 total checks)**.
 
 ---
 

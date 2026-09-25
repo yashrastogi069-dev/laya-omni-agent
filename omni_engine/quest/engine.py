@@ -260,12 +260,15 @@ class QuestEngine:
         updated_step = step.model_copy(update=updates)
         saved = self.store.update_step(updated_step)
 
-        # Update quest current_step_id if running
+        # Update quest current_step_id if running (safe against concurrent worker OCC collisions)
         if target_status == StepStatus.RUNNING:
             quest = self.store.get_quest(quest_id)
             if quest and quest.current_step_id != step_id:
                 quest_update = quest.model_copy(update={"current_step_id": step_id})
-                self.store.update_quest(quest_update)
+                try:
+                    self.store.update_quest(quest_update)
+                except OptimisticLockError:
+                    pass
 
         # Record step audit event
         step_event_type = self._map_step_status_to_event(target_status)

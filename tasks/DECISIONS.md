@@ -179,3 +179,19 @@
   3. **False-Positive Policy Denial Prevention**: Mask dynamic string references during pre-flight policy evaluation to prevent premature denials on unresolved parameters, deferring dynamic policy enforcement to execution runtime.
   4. **Cumulative Diagnostic Reporting**: Return complete diagnostic reports of all detected issues across all passes without premature fail-fast truncation.
 
+---
+
+## ADR-017: Deterministic DAG Executor Architecture
+- **Date**: 2026-09-25
+- **Status**: ACCEPTED
+- **Problem**: Autonomous plan execution must execute multi-step DAG plans deterministically, handling dynamic argument propagation, concurrent read-only steps without database contention, strict serialized barriers for mutations, policy-driven confirmation gates, and exactly-once mutation semantics without premature completion claims.
+- **Decision**:
+  1. **Single Coordinator Dispatch Loop (BLK-1)**: Kahn-style topological ready-step resolution executes on a dedicated coordinator thread. Worker threads only execute capability invocations and return execution receipts; only the coordinator thread mutates SQLite `QuestStore` and advances state machine transitions, eliminating SQLite optimistic concurrency control (OCC) collisions on the `quests` table.
+  2. **Strict Mutation Barrier Lock (BLK-4)**: Read-only steps execute concurrently up to `max_parallel_workers=4` via `ThreadPoolExecutor`. Before any mutation step begins, the coordinator drains all active read workers and acquires an exclusive `_mutation_lock`, ensuring no mutations run concurrently with reads or other mutations.
+  3. **Exactly-Once Mutation Integration with OperationLedger (BLK-4)**: All mutating steps register with `OperationLedger.register_mutation()`. Replays return cached physical receipts (`is_deduplicated=True`). In-flight errors transition to `UNKNOWN_COMMIT` to block blind retries.
+  4. **Dynamic Argument Resolution & Multi-Path Navigation (BLK-3)**: `DynamicResolver` evaluates `$inputs.<param>` against quest inputs and `$steps.<step_id>.<path>` against previous step receipts. Supports multi-path fallback (`.data` vs `.output`), stringified JSON deserialization, and string template interpolation.
+  5. **Policy Confirmation Gating & Safe Resumption (BLK-2)**: Runtime policy checks evaluate resolved arguments. If `REQUIRE_CONFIRMATION` is triggered and unconfirmed, the step and quest transition to `PAUSED_FOR_CONFIRMATION` with prompt details. Resuming with `user_confirmation=True` elevates and continues traversal; resuming with `False` fails the quest cleanly.
+  6. **Process Lease Registry (BLK-5)**: In-memory `_active_leases` set protected by `_lease_lock` ensures that duplicate execution attempts on an already active quest raise `QuestAlreadyRunningError`.
+  7. **Invariant 6 Evidence Boundary**: Reaching the completion of all DAG steps transitions the quest strictly from `RUNNING` to `AWAITING_VERIFICATION`. The executor does not mark itself `COMPLETED` (L15 Completion Verifier is future work).
+
+

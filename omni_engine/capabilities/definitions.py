@@ -30,6 +30,7 @@ from .adapters import (
     make_kill_process_adapter,
     make_list_processes_adapter,
     make_run_python_adapter,
+    make_safe_math_adapter,
     make_search_code_adapter,
     make_sqlite_exec_adapter,
     make_visual_browse_adapter,
@@ -552,6 +553,7 @@ def build_canonical_registry() -> CapabilityRegistry:
         "directory_tree": make_directory_tree_adapter,
         "run_python": make_run_python_adapter,
         "sqlite_exec": make_sqlite_exec_adapter,
+        "safe_math": make_safe_math_adapter,
     }
 
     for cap_id, spec in CANONICAL_SPECS.items():

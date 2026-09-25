@@ -120,19 +120,19 @@ This guarantees that future multi-agent coordination or supervisor routing can b
   - Foreman 5-stage bounded supervision lifecycle, composite SHA-256 state fingerprinting for thrashing/oscillation cycle detection, `DeterministicSubprocessRunner` with Windows `CREATE_NEW_PROCESS_GROUP`, `taskkill /F /T /PID` process-tree cleanup, 50k char output truncation, `WorkspaceConfiner` validating `.git` and preventing path traversal, anti-tampering on test suites (`allow_test_edits=False`), fail-fast AST syntax gate, safe reversion primitive (never `git reset --hard` / `git clean -fd`), decoupled `AgyRunner` ABC (`SubprocessAgyRunner`, `MockAgyRunner`). 25/25 unit tests passing in 17.33s. Full repository suite: **364 passed (+ 47 subtests = 411 total checks)**.
   - Hard Stop Boundary: STOPPED AFTER R5. Ready for Phase IV (L10–L14) in next session.
 
-### Phase IV: Persistent Quest Engine & DAG Execution (L10 – L16) (NEXT MILESTONE)
-- [ ] **L10 — Persisted SQLite Quest Engine**:
-  - Relational SQLite schema for `Quest`, `QuestStep`, and `OperationExecution`.
-  - State survival across restarts, crashes, and provider timeouts.
-- [ ] **L11 — Operation Ledger & Idempotency**:
-  - Logical mutation identity (`questId:stepId:capabilityId`).
-  - Exactly-once execution semantics; deduplicate side effects and prevent re-executing completed operations.
-- [ ] **L12 — Structured DAG Planner**:
-  - Multi-step goal decomposition generating validated acyclic dependency graphs (`Plan` / `PlanStep`).
-- [ ] **L13 — Plan Validator**:
-  - Graph acyclicity verification, schema checks, capability availability, budget, and depth limits.
-- [ ] **L14 — Deterministic DAG Executor**:
-  - Parallel execution of independent read-only steps; serialized mutation barriers; step lifecycle state transitions.
+### Phase IV: Persistent Quest Engine & DAG Execution (L10 – L16) (L10–L14 COMPLETED)
+- [x] **L10 — Persisted SQLite Quest Engine (COMPLETED & VERIFIED)**:
+  - Relational SQLite schema for `quests`, `quest_steps`, and `quest_events`.
+  - State survival across restarts, crashes, and provider timeouts. 13/13 tests passing. Total suite: **385 passed (+ 47 subtests = 432 checks)**.
+- [x] **L11 — Operation Ledger & Idempotency (COMPLETED & VERIFIED)**:
+  - Logical mutation identity (`quest_id:step_id:capability_id`).
+  - Exactly-once execution semantics; deduplicate side effects and prevent re-executing completed operations. 14/14 tests passing. Total suite: **399 passed (+ 47 subtests = 446 checks)**.
+- [x] **L12 — Structured DAG Planner (COMPLETED & VERIFIED)**:
+  - Multi-step goal decomposition generating validated acyclic dependency graphs (`Plan` / `PlanStep`). 20/20 tests passing. Total suite: **419 passed (+ 47 subtests = 466 checks)**.
+- [x] **L13 — Plan Validator (COMPLETED & VERIFIED)**:
+  - 10 deterministic validation passes: graph acyclicity verification, schema checks, capability availability, budget, autonomy, mutation safety, and depth limits. 29/29 tests passing. Total suite: **448 passed (+ 47 subtests = 495 checks)**.
+- [x] **L14 — Deterministic DAG Executor (COMPLETED & VERIFIED)**:
+  - Parallel execution of independent read-only steps; serialized mutation barriers; dynamic argument resolution; OperationLedger integration; policy confirmation pauses; step lifecycle state transitions. 17/17 tests passing. Total suite: **465 passed (+ 47 subtests = 512 checks)**.
 - [ ] **L15 — Evidence-Based Verifier & Completion Engine**:
   - Deterministic outcome checks first (file existence, process checks, DOM state, exit codes) + cheap semantic completion validation.
   - Never report task completion without physical receipts.

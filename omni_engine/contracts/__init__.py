@@ -156,6 +156,15 @@ from .validation import (
     ValidationPassResult,
     PlanValidationReport,
 )
+from .execution import (
+    ExecutionError,
+    UnresolvedArgumentError,
+    QuestAlreadyRunningError,
+    ExecutionFirewallError,
+    PolicyBlockedExecutionError,
+    StepExecutionReceipt,
+    QuestExecutionSummary,
+)
 
 __all__ = [
     # Base
@@ -291,6 +300,14 @@ __all__ = [
     "ValidationPassName",
     "ValidationPassResult",
     "PlanValidationReport",
+    # Deterministic DAG Executor (L14)
+    "ExecutionError",
+    "UnresolvedArgumentError",
+    "QuestAlreadyRunningError",
+    "ExecutionFirewallError",
+    "PolicyBlockedExecutionError",
+    "StepExecutionReceipt",
+    "QuestExecutionSummary",
 ]
 
 

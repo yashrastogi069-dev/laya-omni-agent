@@ -19,7 +19,7 @@ import threading
 import time
 import urllib.error
 import uuid
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from pydantic import ValidationError
 
@@ -143,7 +143,13 @@ class CapabilityRegistry:
     # Structured Invocation Dispatch Boundary
     # -----------------------------------------------------------------------
 
-    def invoke(self, invocation: CapabilityInvocation) -> ToolResult:
+    def invoke(
+        self,
+        invocation: Union[CapabilityInvocation, str],
+        arguments: Optional[Dict[str, Any]] = None,
+        operation_id: Optional[str] = None,
+        **kwargs: Any,
+    ) -> ToolResult:
         """Executes a capability through its structured boundary contract.
         
         Guarantees:
@@ -152,6 +158,15 @@ class CapabilityRegistry:
         - Routine operational exceptions are translated to structured ToolError envelopes.
         - ExecutionReceipt is automatically populated.
         """
+        if isinstance(invocation, str):
+            invocation = CapabilityInvocation(
+                invocation_id=f"inv_{uuid.uuid4().hex[:12]}",
+                capability_id=invocation,
+                arguments=arguments or {},
+                operation_id=operation_id,
+                **kwargs,
+            )
+
         cap_id = invocation.capability_id
         op_id = invocation.operation_id or f"op_{uuid.uuid4().hex[:8]}"
 

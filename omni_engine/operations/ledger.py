@@ -87,6 +87,9 @@ class OperationLedger:
         arguments: Dict[str, Any],
         max_attempts: int = 3,
         custom_idempotency_key: Optional[str] = None,
+        operation_id: Optional[str] = None,
+        idempotency_class: Optional[Any] = None,
+        **kwargs: Any,
     ) -> Tuple[OperationRecord, bool]:
         """Registers a mutation operation in the ledger before execution.
         
@@ -142,7 +145,7 @@ class OperationLedger:
 
         # Create new operation record in PENDING state
         now = time.time()
-        op_id = f"op_{quest_id}_{step_id}_{capability_id}"
+        op_id = operation_id or f"op_{quest_id}_{step_id}_{capability_id}"
         new_op = OperationRecord(
             operation_id=op_id,
             quest_id=quest_id,
@@ -311,6 +314,37 @@ class OperationLedger:
             }
         )
         return self.store.update_operation(updated_op)
+
+    def commit_operation(
+        self,
+        operation_id: str,
+        execution_receipt: Dict[str, Any],
+        attempt_id: Optional[str] = None,
+    ) -> OperationRecord:
+        """Marks the active attempt and operation as COMMITTED."""
+        if not attempt_id:
+            attempts = self.store.get_attempts(operation_id)
+            if not attempts:
+                raise LedgerError(f"No attempts found for operation '{operation_id}' to commit")
+            attempt_id = attempts[-1].attempt_id
+        return self.commit_attempt(operation_id, attempt_id, execution_receipt)
+
+    def fail_operation(
+        self,
+        operation_id: str,
+        error: str,
+        is_uncertain: bool = False,
+        attempt_id: Optional[str] = None,
+    ) -> OperationRecord:
+        """Marks the active attempt and operation as failed or UNKNOWN_COMMIT."""
+        if not attempt_id:
+            attempts = self.store.get_attempts(operation_id)
+            if not attempts:
+                attempt = self.begin_attempt(operation_id)
+                attempt_id = attempt.attempt_id
+            else:
+                attempt_id = attempts[-1].attempt_id
+        return self.fail_attempt(operation_id, attempt_id, error, is_uncertain=is_uncertain)
 
     def reconcile_operation(
         self,

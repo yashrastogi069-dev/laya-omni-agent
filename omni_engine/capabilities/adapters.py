@@ -354,3 +354,30 @@ def make_inspect_data_adapter(raw_func: Callable[..., Any], capability_id: str) 
             return False, err
         return True, {"output": raw_output, "file_path": file_path}
     return adapted_callable
+
+
+def make_safe_math_adapter(raw_func: Callable[..., Any], capability_id: str) -> Callable[..., Tuple[bool, Any]]:
+    """Maps schema 'expression' -> tool_safe_math(expression) and extracts numeric result."""
+    import re
+
+    def adapted_callable(**kwargs: Any) -> Tuple[bool, Any]:
+        expr = kwargs.get("expression") or ""
+        if not expr:
+            return False, build_error(ErrorCode.INVALID_ARGUMENT, "Parameter 'expression' is required.")
+        raw_output = raw_func(expression=expr)
+        err = intercept_legacy_error_string(raw_output, capability_id)
+        if err is not None:
+            return False, err
+        result = None
+        m = re.search(r"\*\*(.+?)\*\*", raw_output)
+        if m:
+            val_str = m.group(1).strip()
+            try:
+                if "." in val_str:
+                    result = float(val_str)
+                else:
+                    result = int(val_str)
+            except ValueError:
+                result = val_str
+        return True, {"output": raw_output, "result": result, "expression": expr}
+    return adapted_callable

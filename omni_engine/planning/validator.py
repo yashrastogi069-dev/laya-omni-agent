@@ -64,8 +64,9 @@ class DeterministicPlanValidator:
         self,
         capability_registry: Optional[CapabilityRegistry] = None,
         policy_engine: Optional[PolicyEngine] = None,
+        registry: Optional[CapabilityRegistry] = None,
     ) -> None:
-        self.capability_registry = capability_registry or build_real_capability_registry()
+        self.capability_registry = capability_registry or registry or build_real_capability_registry()
         self.policy_engine = policy_engine or PolicyEngine()
 
     def validate(

@@ -123,3 +123,8 @@ class OperationRecord(BaseContractModel):
     attempts: List[OperationAttempt] = Field(default_factory=list)
     created_at: float = Field(default_factory=time.time)
     updated_at: float = Field(default_factory=time.time)
+
+    @property
+    def total_attempts(self) -> int:
+        """Alias for current_attempt reflecting total executed attempts."""
+        return self.current_attempt

@@ -1,11 +1,11 @@
 # LAYA_BUILD_STATE.md — Current Ground Truth State
 
-**Last Updated**: 2026-09-25T09:37:00+05:30  
+**Last Updated**: 2026-09-25T10:28:00+05:30  
 **Current Branch**: `laya-autonomous-v2`  
-**Active Milestone Goal**: `L14: Deterministic DAG Executor (ACTIVE) (HARD STOP AFTER L14)`  
-**Baseline Verified Commit**: `aae7de8` (L12 Structured DAG Planner Verified & Committed)  
-**Last Passing Test Suite**: All 25 test files across L0–L13 + Foundation Gate + R1 + R2 + R3 + R4 + R5 + RV0:
-`tests/test_l0_baselines.py`, `tests/test_l1_repairs.py`, `tests/test_l2_contracts.py`, `tests/test_l2_1_reconciliation.py`, `tests/test_l3_capabilities.py`, `tests/test_l4_providers.py`, `tests/test_l5_decision_fabric.py`, `tests/test_l6a_routing.py`, `tests/test_l7_skills.py`, `tests/test_l6b_skill_routing.py`, `tests/test_l7_5_calibration.py`, `tests/test_l8_arguments.py`, `tests/test_l9_policy.py`, `tests/test_foundation_broker.py`, `tests/test_r1_research.py`, `tests/test_r2_browser.py`, `tests/test_r3_desktop.py`, `tests/test_r4_n8n.py`, `tests/test_r5_developer.py`, `tests/test_rv0_reality_gate.py`, `tests/test_l10_quest.py`, `tests/test_l11_operation_ledger.py`, `tests/test_l12_planner.py`, `tests/test_l13_validator.py` (**448/448 passed, 47 subtests passed = 495 total checks (100% pass rate)**)  
+**Active Milestone Goal**: `RV0 → L10 QUEST → L11 OPERATION LEDGER → L12 PLANNER → L13 VALIDATOR → L14 EXECUTOR (COMPLETED & VERIFIED) — HARD STOP ENFORCED`  
+**Baseline Verified Commit**: L14 Checkpoint on `laya-autonomous-v2`  
+**Last Passing Test Suite**: All 27 test files across L0–L14 + Foundation Gate + R1 + R2 + R3 + R4 + R5 + RV0:
+`tests/test_l0_baselines.py`, `tests/test_l1_repairs.py`, `tests/test_l2_contracts.py`, `tests/test_l2_1_reconciliation.py`, `tests/test_l3_capabilities.py`, `tests/test_l4_providers.py`, `tests/test_l5_decision_fabric.py`, `tests/test_l6a_routing.py`, `tests/test_l7_skills.py`, `tests/test_l6b_skill_routing.py`, `tests/test_l7_5_calibration.py`, `tests/test_l8_arguments.py`, `tests/test_l9_policy.py`, `tests/test_foundation_broker.py`, `tests/test_r1_research.py`, `tests/test_r2_browser.py`, `tests/test_r3_desktop.py`, `tests/test_r4_n8n.py`, `tests/test_r5_developer.py`, `tests/test_rv0_reality_gate.py`, `tests/test_l10_quest.py`, `tests/test_l11_operation_ledger.py`, `tests/test_l12_planner.py`, `tests/test_l13_validator.py`, `tests/test_l14_executor.py` (**465/465 passed, 47 subtests passed = 512 total checks (100% pass rate)**)  
 **Mission Role**: Complete Standalone Autonomous Operating Agent.
 
 ---
@@ -238,7 +238,7 @@ The repository contains a standalone prototype CLI (`laya_agent.py` / `omni_engi
 
 ## 3. Test Suite & Health Metrics Breakdown
 
-- **Total Automated Tests**: 364 tests (+ 47 subtests = 411 total checks)
+- **Total Automated Tests**: 465 tests (+ 47 subtests = 512 total checks)
   - **L0 Baseline Tests**: 10 passed
   - **L1 & L1.1 Memory and Math Tests**: 12 passed
   - **L2 Contracts Tests**: 18 passed
@@ -258,21 +258,33 @@ The repository contains a standalone prototype CLI (`laya_agent.py` / `omni_engi
   - **Phase R3 Desktop Engine Tests**: 21 passed
   - **Phase R4 n8n Automation Engine Tests**: 25 passed
   - **Phase R5 Developer Agent Tests**: 25 passed
-- **Pass Rate**: 100% (364 passed, 0 failed, 0 errors, 47 subtests passed).
-- **Runtime**: ~233s across full test suite.
+  - **RV0 Reality Gate Tests**: 8 passed
+  - **L10 Persisted Quest Runtime Tests**: 13 passed
+  - **L11 Operation Ledger Tests**: 14 passed
+  - **L12 Structured DAG Planner Tests**: 20 passed
+  - **L13 Deterministic Plan Validator Tests**: 29 passed
+  - **L14 Deterministic DAG Executor Tests**: 17 passed
+- **Pass Rate**: 100% (465 passed, 0 failed, 0 errors, 47 subtests passed).
+- **Runtime**: ~696s across full repository test suite.
 
 ---
 
 ## 4. Current Blockers
 
-- **None**. All Real Capability Engines (Foundation Gate + R1–R5) are complete, verified, and passing 100% of automated tests.
+- **None**. The milestone track `RV0 REALITY GATE → L10 QUEST → L11 OPERATION LEDGER → L12 PLANNER → L13 VALIDATOR → L14 EXECUTOR` is complete, verified, and passing 100% of automated tests.
 
 ---
 
-## 5. Completed Milestone & Next Phase Scope
+## 5. Completed Milestone & Hard Stop Enforcement
 
-Within roadmap `Real Capability Engines: R1 → R5`:
+Within roadmap `RV0 REALITY GATE → L10 QUEST → L11 OPERATION LEDGER → L12 PLANNER → L13 VALIDATOR → L14 EXECUTOR`:
 - **Status**: **COMPLETE & FULLY VERIFIED**
-- **Hard Stop Boundary**: **STRICTLY ENFORCED**. 0 diffs in `omni_agent.py` and `omni_engine/planner.py`. Zero advance code for L10–L14.
-- **Next Milestone**: **Phase IV — Persistent Quest Engine & Structured DAG Planning (Checkpoints L10–L16)**.
+- **Hard Stop Boundary**: **STRICTLY ENFORCED**. 0 diffs in `omni_agent.py` and `omni_engine/planner.py`.
+- **Invariants Upheld**:
+  1. Deterministic Control (Invariant 1): Runtime strictly owns state transitions, dependency execution, confirmation enforcement, mutation identity, and lifecycle state.
+  2. Exactly-Once Mutation Semantics (ADR-014): Deduplicated operations return cached physical receipts; blind retries on `UNKNOWN_COMMIT` strictly prohibited.
+  3. Pre-Execution Firewall (ADR-016): 10 deterministic validation passes verify every plan before execution begins.
+  4. Dynamic Argument Resolution (ADR-017): `$inputs.<param>` and `$steps.<step_id>.<path>` resolved deterministically with multi-path navigation and stringified JSON support.
+  5. Evidence-Based Completion (Invariant 6): Upon completing all steps, Quest transitions strictly to `AWAITING_VERIFICATION`. It does NOT mark itself `COMPLETED` (L15 Verifier is future work).
+- **Next Milestone**: **L15 Completion Verifier & L16 Controlled Replanner** (scheduled for future phase; zero advance code implemented).
 

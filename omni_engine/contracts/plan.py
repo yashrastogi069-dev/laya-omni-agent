@@ -87,7 +87,10 @@ class Plan(BaseContractModel):
     )
     quest_id: str = Field(..., description="Parent Quest ID to which this plan attaches")
     goal: str = Field(..., description="High-level user objective or goal")
-    plan_type: PlanType = Field(..., description="Origin of plan: TEMPLATE_DERIVED, GENERATIVE_SYNTHESIZED, or COMPOSITE")
+    plan_type: PlanType = Field(
+        default=PlanType.TEMPLATE_DERIVED,
+        description="Origin of plan: TEMPLATE_DERIVED, GENERATIVE_SYNTHESIZED, or COMPOSITE"
+    )
     steps: List[PlanStep] = Field(
         default_factory=list,
         description="Topological or ordered steps in the DAG"

@@ -83,16 +83,22 @@
 - [x] Authored ADR-016 (`docs/research/ADR_L13_PLAN_VALIDATOR.md`).
 - [x] Full test suite (29 unit tests in `tests/test_l13_validator.py` passing in 6.81s).
 
-### Step 8: L14 — Deterministic DAG Executor (ACTIVE)
-- [ ] Execution runtime: scheduling firewall, ready-step computation (in-degree == 0 among uncompleted steps).
-- [ ] Parallel execution of independent read-only steps; serialized execution of mutation steps.
-- [ ] Resource locking & concurrency limits.
-- [ ] Explicit pauses for user confirmation (`PAUSED_FOR_CONFIRMATION`) and clarifying input (`PAUSED_FOR_INPUT`).
-- [ ] Safe resumption from persistent SQLite state.
-- [ ] Full test suite and separate git commit for L14.
+### Step 8: L14 — Deterministic DAG Executor (COMPLETED)
+- [x] Execution runtime: Pre-execution firewall (`DeterministicPlanValidator`), Kahn-style ready-step computation (in-degree == 0 among uncompleted steps).
+- [x] Parallel execution of independent read-only steps via `ThreadPoolExecutor` (`max_parallel_workers=4`).
+- [x] Serialized execution of mutation steps protected by strict mutation barrier lock (`_mutation_lock`).
+- [x] Exactly-once mutation deduplication via `OperationLedger.register_mutation()`, returning cached receipts on replay.
+- [x] In-memory lease registry (`_active_leases`) preventing duplicate concurrent execution of the same quest.
+- [x] Dynamic argument resolution (`DynamicResolver`) supporting `$inputs.<key>`, `$steps.<step_id>.<path>`, multi-path `data` vs `output` navigation, stringified JSON parsing, and string interpolation.
+- [x] Explicit pauses for user confirmation (`PAUSED_FOR_CONFIRMATION`) with policy confirmation prompts and safe resumption (`resume()`).
+- [x] Safe resumption from persistent SQLite state across crashes and process termination.
+- [x] Invariant 6 evidence completion boundary: upon step completion, quest transitions strictly to `AWAITING_VERIFICATION` (does not self-proclaim `COMPLETED`).
+- [x] Authored ADR-017 (`docs/research/ADR_L14_DETERMINISTIC_DAG_EXECUTOR.md`).
+- [x] Full test suite (17 unit and integration tests in `tests/test_l14_executor.py` passing in 7.06s).
 
-### Step 9: Final Multi-Step Milestone Audit & Hard Stop
-- [ ] Run full repository test suite (all checkpoints L0–L14).
-- [ ] Verify 0 diffs on non-switching boundary (`omni_agent.py`, `omni_engine/planner.py`).
-- [ ] Complete documentation audit and synchronize all canonical `.md` files.
-- [ ] **ENFORCE HARD STOP AFTER L14**.
+### Step 9: Final Multi-Step Milestone Audit & Hard Stop (COMPLETED)
+- [x] Run full repository test suite (all checkpoints L0–L14): 465 automated tests + 47 subtests passing across 27 test files.
+- [x] Verify 0 diffs on non-switching boundary (`omni_agent.py`, `omni_engine/planner.py` 100% untouched).
+- [x] Complete documentation audit and synchronize all canonical `.md` files (`AGENTS.md`, `LAYA_BUILD_STATE.md`, `HANDOFF.md`, `tasks/ACTIVE_PLAN.md`, `tasks/DECISIONS.md`, `END_TO_END_EXECUTION_LOG.md`).
+- [x] **ENFORCE HARD STOP AFTER L14**: Zero implementation of L15 (Completion Verifier), L16 (Replanner), Memory V2, or legacy retirement.
+

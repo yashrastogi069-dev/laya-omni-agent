@@ -1,7 +1,18 @@
-# HANDOFF.md — Operational Continuation Guide (L13 Deterministic Plan Validator Completed; L14 Deterministic DAG Executor Active)
+# HANDOFF.md — Operational Continuation Guide (Checkpoint L14 Deterministic DAG Executor Completed — Milestone Hard Stop Enforced)
 
 ## What We Have Built (Current State)
-A **trustworthy pre-execution control plane, provider broker, five complete real capability execution engines, persisted SQLite Quest runtime, Operation Ledger with exactly-once mutation semantics, Structured DAG Planner with template-first precedence, and 10-Pass Deterministic Plan Validator Firewall** powered by:
+A **trustworthy pre-execution control plane, provider broker, five complete real capability execution engines, persisted SQLite Quest runtime, Operation Ledger with exactly-once mutation semantics, Structured DAG Planner with template-first precedence, 10-Pass Deterministic Plan Validator Firewall, and Deterministic DAG Executor** powered by:
+- **Checkpoint L14: Deterministic DAG Executor**:
+  - `DeterministicDAGExecutor`: Central execution engine orchestrating Kahn-style DAG traversal on a single coordinator thread to prevent SQLite optimistic locking collisions.
+  - Pre-Execution Firewall: Enforces 10-pass validation via `DeterministicPlanValidator` prior to execution dispatch.
+  - Concurrency Control: Concurrent dispatch of independent `READ_ONLY` steps via `ThreadPoolExecutor` (`max_parallel_workers=4`).
+  - Strict Mutation Barrier: Coordinator drains active read workers and holds an exclusive `_mutation_lock` before executing mutating steps.
+  - Exactly-Once Mutation Semantics: Mutating steps register with `OperationLedger.register_mutation()`. Replays return cached physical receipts immediately (`is_deduplicated=True`).
+  - Dynamic Argument Resolution (`DynamicResolver`): Evaluates `$inputs.<param>` against quest inputs and `$steps.<step_id>.<path>` against previous step receipts, with multi-path fallback (`.data` vs `.output`), stringified JSON parsing, and string template interpolation.
+  - Policy Confirmation Gating: Intercepts `REQUIRE_CONFIRMATION` decisions, transitions step and quest to `PAUSED_FOR_CONFIRMATION`, and supports atomic resumption via `resume(quest_id, user_confirmation=...)`.
+  - Process Lease Registry: In-memory `_active_leases` set protected by `_lease_lock` ensures duplicate executions on active quests raise `QuestAlreadyRunningError`.
+  - Invariant 6 Evidence Boundary: Upon completing all DAG steps, quest transitions strictly to `AWAITING_VERIFICATION` (does not self-proclaim `COMPLETED`).
+  - Unit test suite `tests/test_l14_executor.py` (17/17 passed in 7.06s).
 - **Checkpoint L13: Deterministic Plan Validator Firewall**:
   - `ValidationPassName`, `ValidationPassResult`, `PlanValidationReport`: Strongly typed contracts with `extra="forbid"` providing full diagnostic reporting without premature fail-fast truncation.
   - `DeterministicPlanValidator`: 10 comprehensive deterministic passes:
@@ -107,26 +118,22 @@ A **trustworthy pre-execution control plane, provider broker, five complete real
   - `tests/test_l11_operation_ledger.py` (14 tests)
   - `tests/test_l12_planner.py` (20 tests)
   - `tests/test_l13_validator.py` (29 tests)
+  - `tests/test_l14_executor.py` (17 tests)
 - Governance: All canonical documents synchronized with verified implementation truth.
 - Non-Switching Boundary: `omni_agent.py` and `omni_engine/planner.py` have **0 diffs**.
 
 ---
 
 ## Operational Boundary & Next Phase
-- **Current Milestone**: RV0 Reality Gate → L10–L14 Autonomous Runtime.
-- **Completed Steps**:
+- **Completed Milestone Goal**: `RV0 Reality Gate → L10 Quest → L11 Operation Ledger → L12 Planner → L13 Validator → L14 Executor`.
+- **Status**: **COMPLETE & FULLY VERIFIED (100% Pass Rate across 465 automated tests + 47 subtests = 512 checks)**.
+- **Hard Stop Boundary**: **STRICTLY ENFORCED AFTER L14**. Zero implementation of L15 (Completion Verifier), L16 (Controlled Replanner), Memory V2, or legacy retirement.
+- **Milestone Sequence (All Completed)**:
   - RV0: Live Reality Gate across capability engines (System 1, Research, Browser, Windows Desktop, n8n, Antigravity with dirty worktree test) — **PASSED**.
   - L10: Persisted SQLite Quest Engine (`Quest`, `QuestStep`, `QuestEvent`) — **PASSED**.
   - L11: Operation Ledger & Exactly-Once Mutation Semantics (`OperationStore`, `OperationLedger`) — **PASSED**.
   - L12: Structured DAG Planner (`Plan`, `PlanStep`, `DAGTopology`, `SkillTemplatePlanner`, `GenerativePlanner`, `StructuredDAGPlanner`) — **PASSED**.
   - L13: Deterministic Plan Validator (10 validation passes) — **PASSED**.
-- **Active Step**: **L14 — Deterministic DAG Executor**.
-- **Hard Stop Boundary**: **STRICTLY ENFORCED AFTER L14**. 0 diffs in `omni_agent.py` and `omni_engine/planner.py`. Zero implementation of L15/L16 or post-L14 subsystems.
-- **Milestone Sequence**:
-  - RV0: Live Reality Gate across capability engines — **PASSED**.
-  - L10: Persisted SQLite Quest Engine (`Quest`, `QuestStep`, `QuestEvent`) — **PASSED**.
-  - L11: Operation Ledger & Exactly-Once Mutation Semantics — **PASSED**.
-  - L12: Structured DAG Planner — **PASSED**.
-  - L13: Deterministic Plan Validator (10 validation passes) — **PASSED**.
-  - L14: Deterministic DAG Executor (scheduling firewall, ready-step calculation, concurrency & resource locks) — **ACTIVE**.
+  - L14: Deterministic DAG Executor (scheduling firewall, ready-step calculation, concurrency & resource locks, dynamic resolution, policy confirmation gating) — **PASSED**.
+- **Next Milestone**: **L15 Completion Verifier & L16 Replanner** (scheduled for future phase; zero advance code implemented).
 

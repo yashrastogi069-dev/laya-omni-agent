@@ -3,7 +3,7 @@
 **Last Updated**: 2026-09-25T08:25:00+05:30  
 **Current Branch**: `laya-autonomous-v2`  
 **Active Milestone Goal**: `L11: Operation Ledger & Exactly-Once Semantics (ACTIVE) → L12: Structured DAG Planner → L13: Deterministic Plan Validator → L14: Deterministic DAG Executor (HARD STOP AFTER L14)`  
-**Baseline Verified Commit**: `0a6a392` (L10 Quest Runtime Verified)  
+**Baseline Verified Commit**: `72bc3fc` (L10 Quest Runtime Verified & Committed)  
 **Last Passing Test Suite**: All 22 test files across L0–L10 + Foundation Gate + R1 + R2 + R3 + R4 + R5 + RV0:
 `tests/test_l0_baselines.py`, `tests/test_l1_repairs.py`, `tests/test_l2_contracts.py`, `tests/test_l2_1_reconciliation.py`, `tests/test_l3_capabilities.py`, `tests/test_l4_providers.py`, `tests/test_l5_decision_fabric.py`, `tests/test_l6a_routing.py`, `tests/test_l7_skills.py`, `tests/test_l6b_skill_routing.py`, `tests/test_l7_5_calibration.py`, `tests/test_l8_arguments.py`, `tests/test_l9_policy.py`, `tests/test_foundation_broker.py`, `tests/test_r1_research.py`, `tests/test_r2_browser.py`, `tests/test_r3_desktop.py`, `tests/test_r4_n8n.py`, `tests/test_r5_developer.py`, `tests/test_rv0_reality_gate.py`, `tests/test_l10_quest.py` (**385/385 passed in 571.88s, 47 subtests passed = 432 total checks (100% pass rate)**)  
 **Mission Role**: Complete Standalone Autonomous Operating Agent.

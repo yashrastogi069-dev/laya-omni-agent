@@ -4,7 +4,7 @@
 
 - **Milestone Scope**: RV0 → L10 Quest → L11 Operation Ledger → L12 Planner → L13 Validator → L14 Executor.
 - **Target Branch**: `laya-autonomous-v2`
-- **Baseline Verified Commit**: `0a6a392` (385 automated tests + 47 subtests = 432 checks passing, 0 failures, 2 benign upstream warnings).
+- **Baseline Verified Commit**: `72bc3fc` (385 automated tests + 47 subtests = 432 checks passing, 0 failures, 2 benign upstream warnings).
 - **Hard Stop Boundary**: **HARD STOP IMMEDIATELY AFTER L14**. Do NOT begin L15 Completion Verifier, L16 Replanner, Memory V2, automation scheduling, MCP expansion, canary promotion, or legacy retirement.
 - **Permanent Invariants**:
   1. `END_TO_END_EXECUTION_LOG.md` is the master cumulative engineering record (must record research, plans, diffs, tests, reviews, repairs, decisions, and documentation updates).

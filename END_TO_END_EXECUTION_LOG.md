@@ -11,7 +11,7 @@
 | **System Role** | Standalone Autonomous Operating Agent (Independent from Jarvis Core V2) |
 | **Active Architecture Branch** | `laya-autonomous-v2` |
 | **Public GitHub Remote** | `https://github.com/yashrastogi069-dev/laya-omni-agent.git` |
-| **Latest Branch Commit** | `48f10b5` (R5 Verified; RV0 Reality Gate Verified) |
+| **Latest Branch Commit** | `a2b81b6` (RV0 Reality Gate Verified & Committed) |
 | **Total Automated Tests** | **372 / 372 Passing (100%)** (+ 47 subtests = 419 total checks) in ~820 seconds |
 | **Test Categorization** | **370 Feature Acceptance Tests** + **2 Known Defect Reproduction Tests** |
 | **Known Warnings Classification** | **2 Warnings Emitted**: `RuntimeWarning` from `laya/router.py:187` (Upstream library temperature outside [0.5, 5] clamping — BENIGN/UPSTREAM); 0 unhandled warnings in test suite |

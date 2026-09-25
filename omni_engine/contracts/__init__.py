@@ -129,6 +129,20 @@ from .quest import (
     QuestEvent,
     Quest,
 )
+from .operation import (
+    MutationState,
+    AttemptState,
+    TERMINAL_MUTATION_STATES,
+    VALID_MUTATION_TRANSITIONS,
+    LedgerError,
+    OperationNotFoundError,
+    DuplicateOperationError,
+    OperationCommitUncertainError,
+    MaxAttemptsExceededError,
+    InvalidMutationStateTransitionError,
+    OperationAttempt,
+    OperationRecord,
+)
 
 __all__ = [
     # Base
@@ -240,6 +254,20 @@ __all__ = [
     "QuestStep",
     "QuestEvent",
     "Quest",
+    # Operation Ledger (L11)
+    "MutationState",
+    "AttemptState",
+    "TERMINAL_MUTATION_STATES",
+    "VALID_MUTATION_TRANSITIONS",
+    "LedgerError",
+    "OperationNotFoundError",
+    "DuplicateOperationError",
+    "OperationCommitUncertainError",
+    "MaxAttemptsExceededError",
+    "InvalidMutationStateTransitionError",
+    "OperationAttempt",
+    "OperationRecord",
 ]
+
 
 

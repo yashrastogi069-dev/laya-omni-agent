@@ -11,14 +11,14 @@
 | **System Role** | Standalone Autonomous Operating Agent (Independent from Jarvis Core V2) |
 | **Active Architecture Branch** | `laya-autonomous-v2` |
 | **Public GitHub Remote** | `https://github.com/yashrastogi069-dev/laya-omni-agent.git` |
-| **Latest Branch Commit** | `72bc3fc` (L10 Verified & Committed) |
-| **Total Automated Tests** | **385 / 385 Passing (100%)** (+ 47 subtests = 432 total checks) in ~572 seconds |
-| **Test Categorization** | **383 Feature Acceptance Tests** + **2 Known Defect Reproduction Tests** |
+| **Latest Branch Commit** | `8ed111e` (L10 Verified & Committed) |
+| **Total Automated Tests** | **399 / 399 Passing (100%)** (+ 47 subtests = 446 total checks) |
+| **Test Categorization** | **397 Feature Acceptance Tests** + **2 Known Defect Reproduction Tests** |
 | **Known Warnings Classification** | **2 Warnings Emitted**: `RuntimeWarning` from `laya/router.py:187` (Upstream library temperature outside [0.5, 5] clamping — BENIGN/UPSTREAM); 0 unhandled warnings in test suite |
 | **Calibration Status** | **Intent Signal**: Calibrated (ECE 0.1192, 72/31 stratified corpus split); **Domain Signal**: Uncalibrated (Deterministic fail-open fallback, cross-domain pooling, and escalation) |
 | **Hardware Operating Baseline** | Windows 10 Host, 4 CPU Cores, 7.81 GB RAM, PyTorch 2.13.0+cpu, NO CUDA GPU (CPU DecisionFrame latency ~15.4s; SystemOneBroker enforces user sovereignty, RAM threshold debouncing, and quality floor) |
-| **Checkpoints Completed** | **L0–L10, Foundation Gate, R1, R2, R3, R4, R5, RV0** |
-| **Active Milestone & Checkpoint** | **L11 — Operation Ledger & Exactly-Once Mutation Semantics** (Milestone: L10 Quest → L11 Operation Ledger → L12 Planner → L13 Validator → L14 Executor) |
+| **Checkpoints Completed** | **L0–L11, Foundation Gate, R1, R2, R3, R4, R5, RV0** |
+| **Active Milestone & Checkpoint** | **L12 — Structured DAG Planner** (Milestone: L10 Quest → L11 Operation Ledger → L12 Planner → L13 Validator → L14 Executor) |
 
 ---
 
@@ -97,10 +97,13 @@
 [L10: PERSISTED SQLITE QUEST RUNTIME]
        │ ── 385/385 Tests Passing (+47 subtests = 432 checks)
        ▼
-[L11: OPERATION LEDGER & EXACTLY-ONCE MUTATION SEMANTICS] ◀── ACTIVE
+[L11: OPERATION LEDGER & EXACTLY-ONCE MUTATION SEMANTICS]
+       │ ── 14/14 Tests Passing (Commit on laya-autonomous-v2)
+       ▼
+[L12: STRUCTURED DAG PLANNER] ◀── ACTIVE
        │
        ▼
-[L12 → L14: PLANNER, VALIDATOR, EXECUTOR]
+[L13 → L14: VALIDATOR, EXECUTOR]
 ```
 
 ---
@@ -1848,4 +1851,98 @@ With the successful completion and verification of Phase R5, the entire **Real C
 ### 9.5 Checkpoint Completion & Next Phase
 - **Checkpoint L10 is Officially PASSED and COMPLETED**.
 - **Next Active Checkpoint**: **L11 — Operation Ledger & Exactly-Once Mutation Semantics**.
+
+---
+
+## 10. Checkpoint L11 — Operation Ledger & Exactly-Once Mutation Semantics
+
+### 10.1 Objectives & Operating Invariants
+1. **Deterministic Control (Invariant 1)**:
+   - Mutation states, external idempotency keys, execution attempts, and attempt bounding are strictly owned by deterministic runtime code (`OperationLedger` and `OperationStore`).
+   - Generative models must never independently decide whether a mutation has already executed or whether to retry an uncertain outcome.
+2. **Exactly-Once Mutation Semantics**:
+   - Re-registering or invoking a mutation whose idempotency key matches an already `COMMITTED` operation record immediately returns the cached physical execution receipt without re-executing (`is_deduplicated=True`).
+3. **Strict UNKNOWN_COMMIT Defense (Invariant 6 - Evidence-Based Completion)**:
+   - When an attempt encounters a timeout, network disconnect, or crash where the real-world effect is unconfirmed, the operation transitions to `UNKNOWN_COMMIT`.
+   - Blind retries on `UNKNOWN_COMMIT` operations are strictly forbidden (`OperationCommitUncertainError`).
+   - Resolution requires physical evidence reconciliation (`reconcile_operation`) via external status probing, DOM inspection, file hashing, or database queries.
+4. **Bounded Execution Attempts**:
+   - Every mutation has an explicit `max_attempts` budget (default: 3). Once exhausted, retries are blocked with `MaxAttemptsExceededError`.
+5. **Python 3.12 PEP 249 Hygiene & Lock Inversion Elimination**:
+   - In Python 3.12 with `autocommit=False`, any `SELECT` implicitly opens a deferred transaction. If left open across multi-threaded operations, this holds a shared read lock, blocking write lock upgrades and causing `database is locked` deadlocks.
+   - Solved cleanly by wrapping all store read queries in `try: ... finally: conn.rollback()`.
+
+---
+
+### 10.2 Architectural Implementation
+
+#### 1. Operation Contracts (`omni_engine/contracts/operation.py`)
+- `MutationState` (Enum: `PENDING`, `IN_PROGRESS`, `COMMITTED`, `FAILED`, `UNKNOWN_COMMIT`).
+- `AttemptState` (Enum: `STARTED`, `COMPLETED`, `FAILED`, `TIMED_OUT`, `UNCERTAIN`).
+- `TERMINAL_MUTATION_STATES`: `{MutationState.COMMITTED}` (strictly absorbing).
+- `VALID_MUTATION_TRANSITIONS`: Strict transition matrix enforcing valid lifecycles.
+- Domain exceptions: `LedgerError`, `OperationNotFoundError`, `DuplicateOperationError`, `OperationCommitUncertainError`, `MaxAttemptsExceededError`, `InvalidMutationStateTransitionError`.
+- Pydantic v2 models: `OperationAttempt` (attempt ID, operation ID, attempt number, state, timestamps, receipt, error), `OperationRecord` (operation ID, quest ID, step ID, capability ID, idempotency key, argument hash, state, attempts list, receipt, timestamps). All enforce `extra="forbid"`.
+
+#### 2. Relational Persistence Store (`omni_engine/operations/store.py`)
+- SQLite tables: `operations` (with unique index on `idempotency_key`, indices on `(quest_id, step_id)` and `state`) and `operation_attempts` (with cascade foreign key).
+- Initialized with Python 3.12 PRAGMAs: WAL mode, `PRAGMA synchronous = NORMAL`, `busy_timeout = 5000`, `foreign_keys = ON`.
+- Thread-local connection pool with serialized write lock (`RLock`).
+- Read connection hygiene: all read methods (`get_operation`, `get_by_idempotency_key`, `get_by_quest_step`, `get_attempts`, `list_uncertain_operations`) cleanly roll back read snapshots in `finally:`, preventing lock inversion deadlocks.
+
+#### 3. Operation Ledger Engine (`omni_engine/operations/ledger.py`)
+- `compute_argument_hash`: Canonical SHA-256 fingerprint from key-sorted JSON arguments, invariant to dictionary key order.
+- `compute_idempotency_key`: Generates deterministic external idempotency keys (`idem_{capability_id}_{arg_hash[:16]}`).
+- `register_mutation`: Registers mutation before execution. If already `COMMITTED`, immediately returns `(op, True)` with cached receipt. If in `UNKNOWN_COMMIT`, strictly raises `OperationCommitUncertainError`. If max attempts exceeded, raises `MaxAttemptsExceededError`.
+- `begin_attempt`: Atomically transitions operation to `IN_PROGRESS`, creates new `OperationAttempt` in `STARTED` state, increments `current_attempt`.
+- `commit_attempt`: Transitions attempt to `COMPLETED` and operation to terminal `COMMITTED` state with physical execution receipt.
+- `fail_attempt`: Transitions attempt and operation to `FAILED` (normal) or `UNKNOWN_COMMIT` (when `is_uncertain=True`).
+- `reconcile_operation`: Reconciles `UNKNOWN_COMMIT` operations to `COMMITTED` (with verified receipt) or `FAILED` (allowing bounded retry) based on physical evidence.
+
+---
+
+### 10.3 Code Files Created and Modified
+
+#### Created:
+1. `omni_engine/contracts/operation.py`: Strongly typed Pydantic v2 models, mutation states, attempt states, transition matrices, and exceptions.
+2. `omni_engine/operations/__init__.py`: Package initialization exporting `OperationStore` and `OperationLedger`.
+3. `omni_engine/operations/store.py`: Thread-safe SQLite persistence store with WAL mode, foreign keys, and read transaction hygiene.
+4. `omni_engine/operations/ledger.py`: Operation Ledger engine with exactly-once deduplication, UNKNOWN_COMMIT blocking, attempt bounding, and reconciliation.
+5. `docs/research/ADR_L11_OPERATION_LEDGER.md`: Architecture Decision Record ADR-014.
+6. `tests/test_l11_operation_ledger.py`: 14 comprehensive unit and integration tests.
+
+#### Modified:
+1. `omni_engine/contracts/__init__.py`: Re-exported all Operation Ledger contracts, enums, transition maps, and exceptions.
+2. `omni_engine/quest/store.py`: Added `try: ... finally: conn.rollback()` to read methods for PEP 249 SQLite hygiene.
+3. `tasks/ACTIVE_PLAN.md`: Marked L11 complete, set L12 active.
+4. `LAYA_BUILD_STATE.md`: Synchronized ground truth to 399 tests passing (+ 47 subtests = 446 checks).
+5. `HANDOFF.md`: Updated continuation guide for L12.
+6. `END_TO_END_EXECUTION_LOG.md`: Updated top dashboard, flowchart, and added Section 10.
+
+---
+
+### 10.4 Verification & Test Evidence
+
+- **L11 Targeted Test Suite (`tests/test_l11_operation_ledger.py`)**:
+  - `python -m unittest tests/test_l11_operation_ledger.py -v`
+  - Output: `Ran 14 tests in 0.367s, OK` (14 passed, 0 failed, 100% pass rate).
+  - Verified:
+    1. Strongly typed contracts: `OperationAttempt` and `OperationRecord` forbid unauthorized extra fields.
+    2. Transition matrix: `COMMITTED` is strictly absorbing; all transitions adhere to matrix.
+    3. Argument hashing: Deterministic, invariant to dict key ordering, sensitive to value changes.
+    4. Idempotency key format: Deterministic prefix + capability + hash prefix; custom key override supported.
+    5. Exactly-Once Deduplication: Re-registering identical mutation returns cached physical receipt immediately (`is_deduplicated=True`) without re-execution.
+    6. UNKNOWN_COMMIT Protection: Blind retry on uncertain outcome strictly raises `OperationCommitUncertainError`.
+    7. Physical Evidence Reconciliation: Resolving `UNKNOWN_COMMIT` to `COMMITTED` returns verified receipt; resolving to `FAILED` allows clean retry.
+    8. Attempt Bounding: Exceeding `max_attempts` strictly raises `MaxAttemptsExceededError`.
+    9. Crash Recovery: Process exit simulation mid-lifecycle preserves all operations, attempts, states, and receipts across restarts.
+    10. Multi-Threaded Concurrency: 8 worker threads with 40 interleaved mutation operations run concurrently under WAL mode with zero lock errors or deadlocks.
+    11. Non-switching boundary: `omni_agent.py` and `omni_engine/planner.py` have 0 diffs.
+
+---
+
+### 10.5 Checkpoint Completion & Next Phase
+- **Checkpoint L11 is Officially PASSED and COMPLETED**.
+- **Next Active Checkpoint**: **L12 — Structured DAG Planner**.
+
 

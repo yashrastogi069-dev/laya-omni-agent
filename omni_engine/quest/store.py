@@ -268,50 +268,56 @@ class QuestStore:
             The populated Quest model, or None if not found.
         """
         conn = self._get_connection()
-        cur = conn.execute("SELECT * FROM quests WHERE quest_id = ?", (quest_id,))
-        row = cur.fetchone()
-        if not row:
-            return None
+        try:
+            cur = conn.execute("SELECT * FROM quests WHERE quest_id = ?", (quest_id,))
+            row = cur.fetchone()
+            if not row:
+                return None
 
-        # Fetch steps
-        step_cur = conn.execute(
-            "SELECT * FROM quest_steps WHERE quest_id = ? ORDER BY created_at ASC, step_id ASC",
-            (quest_id,)
-        )
-        steps: List[QuestStep] = []
-        for s_row in step_cur.fetchall():
-            steps.append(
-                QuestStep(
-                    step_id=s_row["step_id"],
-                    quest_id=s_row["quest_id"],
-                    capability_id=s_row["capability_id"],
-                    action_class=ActionClass(s_row["action_class"]),
-                    intent=s_row["intent"],
-                    arguments=json.loads(s_row["arguments"]),
-                    dependencies=json.loads(s_row["dependencies"]),
-                    status=StepStatus(s_row["status"]),
-                    version=s_row["version"],
-                    execution_receipt=json.loads(s_row["execution_receipt"]) if s_row["execution_receipt"] else None,
-                    verification_receipt=json.loads(s_row["verification_receipt"]) if s_row["verification_receipt"] else None,
-                    error=s_row["error"],
-                    created_at=s_row["created_at"],
-                    updated_at=s_row["updated_at"],
-                )
+            # Fetch steps
+            step_cur = conn.execute(
+                "SELECT * FROM quest_steps WHERE quest_id = ? ORDER BY created_at ASC, step_id ASC",
+                (quest_id,)
             )
+            steps: List[QuestStep] = []
+            for s_row in step_cur.fetchall():
+                steps.append(
+                    QuestStep(
+                        step_id=s_row["step_id"],
+                        quest_id=s_row["quest_id"],
+                        capability_id=s_row["capability_id"],
+                        action_class=ActionClass(s_row["action_class"]),
+                        intent=s_row["intent"],
+                        arguments=json.loads(s_row["arguments"]),
+                        dependencies=json.loads(s_row["dependencies"]),
+                        status=StepStatus(s_row["status"]),
+                        version=s_row["version"],
+                        execution_receipt=json.loads(s_row["execution_receipt"]) if s_row["execution_receipt"] else None,
+                        verification_receipt=json.loads(s_row["verification_receipt"]) if s_row["verification_receipt"] else None,
+                        error=s_row["error"],
+                        created_at=s_row["created_at"],
+                        updated_at=s_row["updated_at"],
+                    )
+                )
 
-        return Quest(
-            quest_id=row["quest_id"],
-            title=row["title"],
-            goal=row["goal"],
-            status=QuestStatus(row["status"]),
-            version=row["version"],
-            autonomy_profile=AutonomyProfile(row["autonomy_profile"]),
-            current_step_id=row["current_step_id"],
-            steps=steps,
-            metadata=json.loads(row["metadata"]),
-            created_at=row["created_at"],
-            updated_at=row["updated_at"],
-        )
+            return Quest(
+                quest_id=row["quest_id"],
+                title=row["title"],
+                goal=row["goal"],
+                status=QuestStatus(row["status"]),
+                version=row["version"],
+                autonomy_profile=AutonomyProfile(row["autonomy_profile"]),
+                current_step_id=row["current_step_id"],
+                steps=steps,
+                metadata=json.loads(row["metadata"]),
+                created_at=row["created_at"],
+                updated_at=row["updated_at"],
+            )
+        finally:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
 
     def update_quest(self, quest: Quest) -> Quest:
         """Updates Quest attributes using Optimistic Concurrency Control (OCC).
@@ -375,13 +381,21 @@ class QuestStore:
     def list_active_quests(self) -> List[Quest]:
         """Lists all quests currently in a non-terminal state."""
         conn = self._get_connection()
-        terminal_values = tuple(s.value for s in TERMINAL_QUEST_STATES)
-        placeholders = ",".join("?" for _ in terminal_values)
-        cur = conn.execute(
-            f"SELECT quest_id FROM quests WHERE status NOT IN ({placeholders}) ORDER BY created_at ASC",
-            terminal_values
-        )
-        quest_ids = [row["quest_id"] for row in cur.fetchall()]
+        quest_ids = []
+        try:
+            terminal_values = tuple(s.value for s in TERMINAL_QUEST_STATES)
+            placeholders = ",".join("?" for _ in terminal_values)
+            cur = conn.execute(
+                f"SELECT quest_id FROM quests WHERE status NOT IN ({placeholders}) ORDER BY created_at ASC",
+                terminal_values
+            )
+            quest_ids = [row["quest_id"] for row in cur.fetchall()]
+        finally:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+
         results: List[Quest] = []
         for q_id in quest_ids:
             q = self.get_quest(q_id)
@@ -439,30 +453,36 @@ class QuestStore:
     def get_step(self, quest_id: str, step_id: str) -> Optional[QuestStep]:
         """Retrieves an individual step by quest_id and step_id."""
         conn = self._get_connection()
-        cur = conn.execute(
-            "SELECT * FROM quest_steps WHERE quest_id = ? AND step_id = ?",
-            (quest_id, step_id)
-        )
-        row = cur.fetchone()
-        if not row:
-            return None
+        try:
+            cur = conn.execute(
+                "SELECT * FROM quest_steps WHERE quest_id = ? AND step_id = ?",
+                (quest_id, step_id)
+            )
+            row = cur.fetchone()
+            if not row:
+                return None
 
-        return QuestStep(
-            step_id=row["step_id"],
-            quest_id=row["quest_id"],
-            capability_id=row["capability_id"],
-            action_class=ActionClass(row["action_class"]),
-            intent=row["intent"],
-            arguments=json.loads(row["arguments"]),
-            dependencies=json.loads(row["dependencies"]),
-            status=StepStatus(row["status"]),
-            version=row["version"],
-            execution_receipt=json.loads(row["execution_receipt"]) if row["execution_receipt"] else None,
-            verification_receipt=json.loads(row["verification_receipt"]) if row["verification_receipt"] else None,
-            error=row["error"],
-            created_at=row["created_at"],
-            updated_at=row["updated_at"],
-        )
+            return QuestStep(
+                step_id=row["step_id"],
+                quest_id=row["quest_id"],
+                capability_id=row["capability_id"],
+                action_class=ActionClass(row["action_class"]),
+                intent=row["intent"],
+                arguments=json.loads(row["arguments"]),
+                dependencies=json.loads(row["dependencies"]),
+                status=StepStatus(row["status"]),
+                version=row["version"],
+                execution_receipt=json.loads(row["execution_receipt"]) if row["execution_receipt"] else None,
+                verification_receipt=json.loads(row["verification_receipt"]) if row["verification_receipt"] else None,
+                error=row["error"],
+                created_at=row["created_at"],
+                updated_at=row["updated_at"],
+            )
+        finally:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
 
     def update_step(self, step: QuestStep) -> QuestStep:
         """Updates a QuestStep using Optimistic Concurrency Control (OCC).
@@ -570,23 +590,29 @@ class QuestStore:
     def get_events(self, quest_id: str) -> List[QuestEvent]:
         """Retrieves all chronological events for a given Quest."""
         conn = self._get_connection()
-        cur = conn.execute(
-            "SELECT * FROM quest_events WHERE quest_id = ? ORDER BY timestamp ASC, rowid ASC",
-            (quest_id,)
-        )
-        events: List[QuestEvent] = []
-        for row in cur.fetchall():
-            events.append(
-                QuestEvent(
-                    event_id=row["event_id"],
-                    quest_id=row["quest_id"],
-                    step_id=row["step_id"],
-                    event_type=QuestEventEnum(row["event_type"]),
-                    payload=json.loads(row["payload"]),
-                    timestamp=row["timestamp"],
-                )
+        try:
+            cur = conn.execute(
+                "SELECT * FROM quest_events WHERE quest_id = ? ORDER BY timestamp ASC, rowid ASC",
+                (quest_id,)
             )
-        return events
+            events: List[QuestEvent] = []
+            for row in cur.fetchall():
+                events.append(
+                    QuestEvent(
+                        event_id=row["event_id"],
+                        quest_id=row["quest_id"],
+                        step_id=row["step_id"],
+                        event_type=QuestEventEnum(row["event_type"]),
+                        payload=json.loads(row["payload"]),
+                        timestamp=row["timestamp"],
+                    )
+                )
+            return events
+        finally:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
 
     # =========================================================================
     # Lifecycle Management

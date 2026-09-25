@@ -1,7 +1,15 @@
-# HANDOFF.md — Operational Continuation Guide (L10 Quest Runtime Completed; L11 Operation Ledger Active)
+# HANDOFF.md — Operational Continuation Guide (L11 Operation Ledger Completed; L12 Structured DAG Planner Active)
 
 ## What We Have Built (Current State)
-A **trustworthy pre-execution control plane, provider broker, five complete real capability execution engines, and a persisted SQLite Quest runtime** powered by:
+A **trustworthy pre-execution control plane, provider broker, five complete real capability execution engines, persisted SQLite Quest runtime, and Operation Ledger with exactly-once mutation semantics** powered by:
+- **Checkpoint L11: Operation Ledger & Exactly-Once Mutation Semantics**:
+  - `OperationStore`: Thread-safe SQLite persistence for `operations` and `operation_attempts`. WAL mode, thread-local connections with `conn.rollback()` after reads to eliminate lock inversion deadlocks.
+  - `OperationLedger`: Manages mutation lifecycle (`PENDING -> IN_PROGRESS -> COMMITTED / FAILED / UNKNOWN_COMMIT`).
+  - Exactly-Once Deduplication: Matching idempotency key on COMMITTED operation immediately returns cached physical receipt without re-execution (`is_deduplicated=True`).
+  - UNKNOWN_COMMIT Defense: Blind retries strictly raise `OperationCommitUncertainError`. Physical evidence reconciliation (`reconcile_operation`) is required.
+  - Attempt Bounding: Bounded attempts (`max_attempts`) raising `MaxAttemptsExceededError`.
+  - Canonical Argument Hashing: SHA-256 over key-sorted JSON arguments.
+  - Unit test suite `tests/test_l11_operation_ledger.py` (14/14 passed in 0.37s).
 - **Checkpoint L10: Persisted SQLite Quest Runtime**:
   - `QuestStore`: Thread-safe SQLite relational persistence for `quests`, `quest_steps`, and `quest_events`. Configured with WAL mode, `PRAGMA synchronous = NORMAL`, `busy_timeout = 5000`, `foreign_keys = ON`, thread-local connections, and serialized write lock.
   - `QuestEngine`: Deterministic state machine controller enforcing `VALID_QUEST_TRANSITIONS` and `VALID_STEP_TRANSITIONS`. Invariant 6 strictly enforced (cannot skip from `RUNNING` to `COMPLETED`; progression through `AWAITING_VERIFICATION` required).
@@ -52,8 +60,8 @@ A **trustworthy pre-execution control plane, provider broker, five complete real
 
 ## Current Architecture & State
 - Repository: Public GitHub `https://github.com/yashrastogi069-dev/laya-omni-agent` on branch `laya-autonomous-v2`.
-- Active Milestone Goal: **L11: Operation Ledger & Exactly-Once Semantics (ACTIVE) → L12: Structured DAG Planner → L13: Deterministic Plan Validator → L14: Deterministic DAG Executor (HARD STOP AFTER L14)**.
-- Full Test Suite: **385/385 tests passing (+ 47 subtests = 432 total checks, 100% pass rate)** in 571.88s across 22 test modules:
+- Active Milestone Goal: **L12: Structured DAG Planner (ACTIVE) → L13: Deterministic Plan Validator → L14: Deterministic DAG Executor (HARD STOP AFTER L14)**.
+- Full Test Suite: **399/399 tests passing (+ 47 subtests = 446 total checks, 100% pass rate)** across 23 test modules:
   - `tests/test_l0_baselines.py` (10 tests)
   - `tests/test_l1_repairs.py` (12 tests)
   - `tests/test_l2_contracts.py` (18 tests)
@@ -75,6 +83,7 @@ A **trustworthy pre-execution control plane, provider broker, five complete real
   - `tests/test_r5_developer.py` (25 tests)
   - `tests/test_rv0_reality_gate.py` (8 tests)
   - `tests/test_l10_quest.py` (13 tests)
+  - `tests/test_l11_operation_ledger.py` (14 tests)
 - Governance: All canonical documents synchronized with verified implementation truth.
 - Non-Switching Boundary: `omni_agent.py` and `omni_engine/planner.py` have **0 diffs**.
 

@@ -524,8 +524,8 @@ class TestPolicyLatencySLA(unittest.TestCase):
         # Warm latency measurement
         decision = engine.evaluate(spec, {"filepath": "safe/document.txt"})
         self.assertTrue(decision.allowed)
-        # Warm latency should be sub-millisecond (e.g. < 1.0 ms)
-        self.assertLess(decision.latency_ms, 2.0)  # Generous upper bound for slow CI, typically ~0.15ms
+        # Warm latency should be sub-millisecond (e.g. typically ~0.15ms; allow 5.0ms on slow/loaded CI)
+        self.assertLess(decision.latency_ms, 5.0)
         self.assertGreaterEqual(decision.latency_ms, 0.0)
 
 

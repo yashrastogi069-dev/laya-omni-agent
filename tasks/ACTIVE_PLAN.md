@@ -1,6 +1,6 @@
 # ACTIVE_PLAN.md — Active Milestone: RV0 Reality Gate → L10–L14 Autonomous Runtime
 
-## Current Active Checkpoint: L11 — Operation Ledger & Exactly-Once Mutation Semantics
+## Current Active Checkpoint: L12 — Structured DAG Planner
 
 - **Milestone Scope**: RV0 → L10 Quest → L11 Operation Ledger → L12 Planner → L13 Validator → L14 Executor.
 - **Target Branch**: `laya-autonomous-v2`
@@ -47,15 +47,17 @@
 - [x] Crash & recovery test harness (Tests A–E: restart mid-quest, foreign key enforcement, thread concurrency, OCC version conflict).
 - [x] Full test suite (13 unit/integration tests passing in 8.45s) and verified commit for L10.
 
-### Step 5: L11 — Operation Ledger & Exactly-Once Mutation Semantics (ACTIVE)
-- [ ] Operation Ledger schema: `operations`, `attempts`, `receipts`.
-- [ ] Strongly typed contracts: `OperationId` (`quest_id:step_id:capability_id`), `AttemptId`, `ExternalIdempotencyKey`, `ArgumentFingerprint`.
-- [ ] Mutation states: `PENDING -> IN_PROGRESS -> COMMITTED -> FAILED -> UNKNOWN_COMMIT`.
-- [ ] Protection against duplicate execution: deduplicate identical mutations; prevent blind retries on `UNKNOWN_COMMIT`.
-- [ ] Crash tests 1–6 (kill during mutation, restart with pending mutation, verify exactly-once execution).
-- [ ] Full test suite and separate git commit for L11.
+### Step 5: L11 — Operation Ledger & Exactly-Once Mutation Semantics (COMPLETED)
+- [x] Operation Ledger schema: `operations`, `attempts`, `receipts`.
+- [x] Strongly typed contracts: `OperationId` (`op_{quest_id}_{step_id}_{capability_id}`), `AttemptId`, `ExternalIdempotencyKey`, `ArgumentFingerprint`.
+- [x] Mutation states: `PENDING -> IN_PROGRESS -> COMMITTED -> FAILED -> UNKNOWN_COMMIT`.
+- [x] Protection against duplicate execution: deduplicate identical mutations; prevent blind retries on `UNKNOWN_COMMIT`.
+- [x] Crash & persistence tests (kill during mutation, restart with pending/uncertain mutation, verify exactly-once execution).
+- [x] Concurrency stability under WAL mode with lock inversion elimination (`conn.rollback()` in read `finally`).
+- [x] Authored ADR-014 (`docs/research/ADR_L11_OPERATION_LEDGER.md`).
+- [x] Full test suite (14 unit/integration tests passing in 0.37s) and verified commit for L11.
 
-### Step 6: L12 — Structured DAG Planner
+### Step 6: L12 — Structured DAG Planner (ACTIVE)
 - [ ] Strongly typed contracts: `Plan`, `PlanStep`, dependency IDs, argument intent, timeout budget.
 - [ ] Template-first precedence: Skill workflow templates prioritized before invoking generative planning.
 - [ ] Generative planner fallback using strict JSON schema output.

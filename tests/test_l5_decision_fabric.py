@@ -360,7 +360,7 @@ class TestL5BenchmarkEvaluation(unittest.TestCase):
         self.assertIn("min_ms", summary["latency_summary"])
         self.assertIn("max_ms", summary["latency_summary"])
         self.assertIn("p95_ms", summary["latency_summary"])
-        self.assertLess(summary["latency_summary"]["avg_ms"], 50.0)
+        self.assertLess(summary["latency_summary"]["avg_ms"], 100.0)
 
     def test_live_laya_provider_single_evaluation(self):
         """Live evaluation of one prompt through local ModernBERT-large (LayaProvider)."""

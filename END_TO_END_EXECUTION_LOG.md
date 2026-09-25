@@ -11,14 +11,14 @@
 | **System Role** | Standalone Autonomous Operating Agent (Independent from Jarvis Core V2) |
 | **Active Architecture Branch** | `laya-autonomous-v2` |
 | **Public GitHub Remote** | `https://github.com/yashrastogi069-dev/laya-omni-agent.git` |
-| **Latest Branch Commit** | `a2b81b6` (RV0 Reality Gate Verified & Committed) |
-| **Total Automated Tests** | **372 / 372 Passing (100%)** (+ 47 subtests = 419 total checks) in ~820 seconds |
-| **Test Categorization** | **370 Feature Acceptance Tests** + **2 Known Defect Reproduction Tests** |
+| **Latest Branch Commit** | `0a6a392` (L10 Verified) |
+| **Total Automated Tests** | **385 / 385 Passing (100%)** (+ 47 subtests = 432 total checks) in ~572 seconds |
+| **Test Categorization** | **383 Feature Acceptance Tests** + **2 Known Defect Reproduction Tests** |
 | **Known Warnings Classification** | **2 Warnings Emitted**: `RuntimeWarning` from `laya/router.py:187` (Upstream library temperature outside [0.5, 5] clamping — BENIGN/UPSTREAM); 0 unhandled warnings in test suite |
 | **Calibration Status** | **Intent Signal**: Calibrated (ECE 0.1192, 72/31 stratified corpus split); **Domain Signal**: Uncalibrated (Deterministic fail-open fallback, cross-domain pooling, and escalation) |
 | **Hardware Operating Baseline** | Windows 10 Host, 4 CPU Cores, 7.81 GB RAM, PyTorch 2.13.0+cpu, NO CUDA GPU (CPU DecisionFrame latency ~15.4s; SystemOneBroker enforces user sovereignty, RAM threshold debouncing, and quality floor) |
-| **Checkpoints Completed** | **L0–L9, Foundation Gate, R1, R2, R3, R4, R5, RV0** |
-| **Active Milestone & Checkpoint** | **L10 — Persisted SQLite Quest Runtime** (Milestone: L10 Quest → L11 Operation Ledger → L12 Planner → L13 Validator → L14 Executor) |
+| **Checkpoints Completed** | **L0–L10, Foundation Gate, R1, R2, R3, R4, R5, RV0** |
+| **Active Milestone & Checkpoint** | **L11 — Operation Ledger & Exactly-Once Mutation Semantics** (Milestone: L10 Quest → L11 Operation Ledger → L12 Planner → L13 Validator → L14 Executor) |
 
 ---
 
@@ -94,10 +94,13 @@
 [RV0: LIVE REALITY GATE & DOCUMENTATION AUDIT]
        │ ── 372/372 Tests Passing (+47 subtests = 419 checks)
        ▼
-[L10: PERSISTED SQLITE QUEST RUNTIME] ◀── ACTIVE
+[L10: PERSISTED SQLITE QUEST RUNTIME]
+       │ ── 385/385 Tests Passing (+47 subtests = 432 checks)
+       ▼
+[L11: OPERATION LEDGER & EXACTLY-ONCE MUTATION SEMANTICS] ◀── ACTIVE
        │
        ▼
-[L11 → L14: OPERATION LEDGER, PLANNER, VALIDATOR, EXECUTOR]
+[L12 → L14: PLANNER, VALIDATOR, EXECUTOR]
 ```
 
 ---
@@ -1761,3 +1764,88 @@ With the successful completion and verification of Phase R5, the entire **Real C
 ### 8.6 Checkpoint Completion & Next Phase
 - **RV0 Reality Gate & Documentation Audit is Officially PASSED and COMPLETED**.
 - **Next Active Checkpoint**: **L10 — Persisted SQLite Quest Runtime**.
+
+---
+
+## 9. Checkpoint L10 — Persisted SQLite Quest Runtime (Completed)
+
+### 9.1 Objectives & Architectural Mandate
+- Implement the core durable Quest runtime as defined in ADR-013 (`docs/research/ADR_L10_QUEST_RUNTIME.md`).
+- Ensure all multi-step work executes via a strongly typed, persisted `Quest` entity backed by SQLite.
+- Guarantee strict Invariant 1 (Deterministic Control) and Invariant 6 (Evidence-Based Completion): state machine transitions cannot be bypassed, and a Quest cannot transition from `RUNNING` directly to `COMPLETED` without progressing through `AWAITING_VERIFICATION`.
+- Implement Optimistic Concurrency Control (OCC) with version incrementing on `Quest` and `QuestStep` to prevent lost updates and race conditions across concurrent workers.
+- Enforce Python 3.12 SQLite PRAGMA initialization dynamics (`autocommit=True` prior to WAL/synchronous PRAGMAs, then `autocommit=False` for explicit transactions).
+- Maintain 100% legacy isolation (0 diffs on `omni_agent.py` and `omni_engine/planner.py`).
+
+---
+
+### 9.2 Architecture & Design Decisions
+
+#### 1. Strongly Typed Contracts (`omni_engine/contracts/quest.py`)
+- `QuestStatus`: `CREATED`, `PLANNED`, `RUNNING`, `PAUSED_FOR_CONFIRMATION`, `PAUSED_FOR_INPUT`, `AWAITING_VERIFICATION`, `COMPLETED`, `FAILED`, `CANCELLED`.
+- `StepStatus`: `PENDING`, `READY`, `RUNNING`, `PAUSED`, `AWAITING_VERIFICATION`, `COMPLETED`, `FAILED`, `CANCELLED`, `SKIPPED`.
+- `QuestEventEnum`: `QUEST_CREATED`, `PLAN_ATTACHED`, `STEP_STARTED`, `STEP_COMPLETED`, `STEP_FAILED`, `STEP_PAUSED`, `STEP_RESUMED`, `QUEST_PAUSED`, `QUEST_RESUMED`, `QUEST_AWAITING_VERIFICATION`, `QUEST_COMPLETED`, `QUEST_FAILED`, `QUEST_CANCELLED`.
+- `TERMINAL_QUEST_STATES`: `{COMPLETED, FAILED, CANCELLED}` — strictly absorbing terminal states.
+- `VALID_QUEST_TRANSITIONS`: Explicit transition matrix preventing illegal state hops (e.g. `CREATED -> RUNNING` without plan attachment, or `RUNNING -> COMPLETED` without verification).
+- `VALID_STEP_TRANSITIONS`: Explicit transition matrix allowing `PENDING -> READY -> RUNNING` or direct `PENDING -> RUNNING`, `RUNNING -> AWAITING_VERIFICATION -> COMPLETED`.
+- Domain exceptions: `QuestError`, `QuestNotFoundError`, `StepNotFoundError`, `InvalidStateTransitionError`, `OptimisticLockError`.
+- Models: `QuestStep`, `QuestEvent`, `Quest` with strict Pydantic v2 validation (`BaseContractModel`, `extra="forbid"`).
+
+#### 2. SQLite Persistence Store (`omni_engine/quest/store.py`)
+- Three relational tables: `quests`, `quest_steps`, `quest_events`.
+- SQLite foreign key constraints: `ON DELETE CASCADE` from `quests` to `quest_steps` and `quest_events`.
+- Thread safety: `threading.local()` connection factory paired with a store-level `self._write_lock = threading.RLock()` guaranteeing that SQLite write statements are serialized across threads, eliminating `database is locked` race conditions while WAL mode serves concurrent readers.
+- In-memory URI support: Shared memory mode (`file:quest_memdb?mode=memory&cache=shared`) for multi-connection thread tests.
+- Optimistic Concurrency Control (OCC): `UPDATE quests ... WHERE quest_id = ? AND version = ?` and `UPDATE quest_steps ... WHERE quest_id = ? AND step_id = ? AND version = ?`. If `rowcount == 0`, raises `OptimisticLockError`.
+
+#### 3. State Machine Controller (`omni_engine/quest/engine.py`)
+- `QuestEngine`: High-level orchestrator managing Quest creation, plan attachment, state transitions, step status transitions, and audit event logging.
+- Automatically maps state transitions to immutable `QuestEvent` records.
+- Provides `recover_active_quests()` to reconstruct active in-flight quests after unexpected process terminations.
+
+---
+
+### 9.3 Code Files Created and Modified
+
+#### Created:
+1. `omni_engine/contracts/quest.py`: Pydantic v2 contracts, enums, transition matrices, and exceptions.
+2. `omni_engine/quest/__init__.py`: Package initialization exporting `QuestStore` and `QuestEngine`.
+3. `omni_engine/quest/store.py`: Thread-safe SQLite persistence store with WAL mode, OCC, and cascades.
+4. `omni_engine/quest/engine.py`: Quest state machine controller and audit event emitter.
+5. `tests/test_l10_quest.py`: 13 comprehensive unit and integration tests.
+
+#### Modified:
+1. `omni_engine/contracts/__init__.py`: Re-exported all Quest contracts, enums, transition maps, and exceptions.
+2. `tasks/ACTIVE_PLAN.md`: Marked L10 complete, set L11 active.
+3. `LAYA_BUILD_STATE.md`: Synchronized ground truth to 385 tests passing (+ 47 subtests = 432 checks).
+4. `HANDOFF.md`: Updated continuation instructions for L11.
+5. `END_TO_END_EXECUTION_LOG.md`: Top health dashboard, flowchart, and complete Section 9 engineering log.
+
+---
+
+### 9.4 Verification & Test Evidence
+
+- **L10 Targeted Test Suite (`tests/test_l10_quest.py`)**:
+  - `python -m unittest tests/test_l10_quest.py`
+  - Output: `Ran 13 tests in 8.452s, OK` (13 passed, 0 failed, 100% pass rate).
+  - Verified:
+    1. Contract schema validation and rejection of extra unauthorized fields.
+    2. Full happy-path lifecycle (`CREATED -> PLANNED -> RUNNING -> AWAITING_VERIFICATION -> COMPLETED`).
+    3. Terminal state absorption: attempting to transition out of `FAILED` or `COMPLETED` raises `InvalidStateTransitionError`.
+    4. Pause and resume states (`PAUSED_FOR_CONFIRMATION`, `PAUSED_FOR_INPUT`).
+    5. Quest OCC conflict detection: stale version update raises `OptimisticLockError`.
+    6. Step OCC conflict detection: concurrent step mutation raises `OptimisticLockError`.
+    7. Crash & restart recovery: SQLite file on disk closed abruptly mid-run; fresh engine instance reboots and recovers Quest, steps, and receipts with 100% fidelity.
+    8. Foreign key blocking of orphan steps and cascade deletion of steps/events on Quest removal.
+    9. Multi-threaded concurrent event logging under WAL mode (5 threads, 100 concurrent events, zero locks/deadlocks).
+    10. Non-switching boundary: `git diff HEAD omni_agent.py omni_engine/planner.py` = 0 diffs.
+- **Full Repository Test Suite (L0–L10 + Foundation Gate + R1–R5 + RV0)**:
+  - `python -m unittest discover tests`
+  - Output: `Ran 385 tests in 571.884s, OK` (385 passed + 47 subtests = 432 total checks, 0 failures, 0 errors, 2 benign upstream warnings).
+
+---
+
+### 9.5 Checkpoint Completion & Next Phase
+- **Checkpoint L10 is Officially PASSED and COMPLETED**.
+- **Next Active Checkpoint**: **L11 — Operation Ledger & Exactly-Once Mutation Semantics**.
+

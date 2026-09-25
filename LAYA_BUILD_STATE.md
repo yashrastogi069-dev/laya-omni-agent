@@ -1,11 +1,11 @@
 # LAYA_BUILD_STATE.md — Current Ground Truth State
 
-**Last Updated**: 2026-09-25T06:15:00+05:30  
+**Last Updated**: 2026-09-25T08:25:00+05:30  
 **Current Branch**: `laya-autonomous-v2`  
-**Active Milestone Goal**: `L10: Persisted Quest Runtime (ACTIVE) → L11: Operation Ledger & Exactly-Once Semantics → L12: Structured DAG Planner → L13: Deterministic Plan Validator → L14: Deterministic DAG Executor (HARD STOP AFTER L14)`  
-**Baseline Verified Commit**: `a2b81b6` (RV0 Reality Gate Verified & Committed)  
-**Last Passing Test Suite**: All 21 test files across L0–L9 + Foundation Gate + R1 + R2 + R3 + R4 + R5 + RV0:
-`tests/test_l0_baselines.py`, `tests/test_l1_repairs.py`, `tests/test_l2_contracts.py`, `tests/test_l2_1_reconciliation.py`, `tests/test_l3_capabilities.py`, `tests/test_l4_providers.py`, `tests/test_l5_decision_fabric.py`, `tests/test_l6a_routing.py`, `tests/test_l7_skills.py`, `tests/test_l6b_skill_routing.py`, `tests/test_l7_5_calibration.py`, `tests/test_l8_arguments.py`, `tests/test_l9_policy.py`, `tests/test_foundation_broker.py`, `tests/test_r1_research.py`, `tests/test_r2_browser.py`, `tests/test_r3_desktop.py`, `tests/test_r4_n8n.py`, `tests/test_r5_developer.py`, `tests/test_rv0_reality_gate.py` (**372/372 passed in 820.30s, 47 subtests passed = 419 total checks (100% pass rate)**)  
+**Active Milestone Goal**: `L11: Operation Ledger & Exactly-Once Semantics (ACTIVE) → L12: Structured DAG Planner → L13: Deterministic Plan Validator → L14: Deterministic DAG Executor (HARD STOP AFTER L14)`  
+**Baseline Verified Commit**: `0a6a392` (L10 Quest Runtime Verified)  
+**Last Passing Test Suite**: All 22 test files across L0–L10 + Foundation Gate + R1 + R2 + R3 + R4 + R5 + RV0:
+`tests/test_l0_baselines.py`, `tests/test_l1_repairs.py`, `tests/test_l2_contracts.py`, `tests/test_l2_1_reconciliation.py`, `tests/test_l3_capabilities.py`, `tests/test_l4_providers.py`, `tests/test_l5_decision_fabric.py`, `tests/test_l6a_routing.py`, `tests/test_l7_skills.py`, `tests/test_l6b_skill_routing.py`, `tests/test_l7_5_calibration.py`, `tests/test_l8_arguments.py`, `tests/test_l9_policy.py`, `tests/test_foundation_broker.py`, `tests/test_r1_research.py`, `tests/test_r2_browser.py`, `tests/test_r3_desktop.py`, `tests/test_r4_n8n.py`, `tests/test_r5_developer.py`, `tests/test_rv0_reality_gate.py`, `tests/test_l10_quest.py` (**385/385 passed in 571.88s, 47 subtests passed = 432 total checks (100% pass rate)**)  
 **Mission Role**: Complete Standalone Autonomous Operating Agent.
 
 ---
@@ -158,6 +158,13 @@ The repository contains a standalone prototype CLI (`laya_agent.py` / `omni_engi
     - **Rule-0 Dirty Worktree Flaw Remediated**: Identified that `WorkspaceConfiner.safe_revert()` previously destroyed pre-existing uncommitted user work outside task scope. Implemented `capture_baseline_state()` and updated `safe_revert()` to protect user untracked files and uncommitted edits byte-for-byte.
     - **Reality Matrix Verified**: All 6 capability engines verified live (`tests/test_rv0_reality_gate.py`): RV0-A (System 1 Broker sovereignty + English-only rejection), RV0-B (Deep Research SHA-256 evidence hashing & quarantine), RV0-C (Playwright browser session, DOM mutation, physical receipts, financial gate), RV0-D (Desktop window enumeration, loopback probing, Rule-0 OS process defense), RV0-E (n8n draft creation, Gate Triad blocking, secret scrubber), RV0-F (Developer Foreman loop, AST syntax gate, and byte-for-byte mandatory dirty worktree preservation).
     - **Comprehensive Test Suite**: Created `tests/test_rv0_reality_gate.py` (8 tests, 100% pass rate in 513.82s). Full repository suite: **372/372 passed in 820.30s (+ 47 subtests = 419 total checks)**.
+22. **Checkpoint L10 Milestone Reached (Persisted SQLite Quest Runtime)**:
+    - **Strongly Typed Contracts**: Implemented `QuestStatus`, `StepStatus`, `QuestEventEnum`, `QuestStep`, `QuestEvent`, `Quest` in `omni_engine/contracts/quest.py` using Pydantic v2 (`extra="forbid"`).
+    - **Deterministic State Machine & Invariant 6**: Implemented `QuestEngine` in `omni_engine/quest/engine.py` enforcing strict transition matrices (`VALID_QUEST_TRANSITIONS`, `VALID_STEP_TRANSITIONS`). Quests are prevented from skipping directly from `RUNNING` to `COMPLETED`; progression through `AWAITING_VERIFICATION` is strictly required. Terminal states (`COMPLETED`, `FAILED`, `CANCELLED`) are strictly absorbing.
+    - **SQLite Persistence & WAL Dynamics**: Implemented thread-safe `QuestStore` in `omni_engine/quest/store.py` with relational schema (`quests`, `quest_steps`, `quest_events`), foreign key cascading, thread-local connections, serialized write lock, and Python 3.12 PRAGMA initialization (`autocommit=True` prior to WAL/synchronous, then `autocommit=False` for explicit transactions).
+    - **Optimistic Concurrency Control (OCC)**: Version-based updates (`WHERE quest_id = ? AND version = ?`) on quests and steps detecting stale concurrent writes and raising `OptimisticLockError`.
+    - **Crash & Restart Recovery**: Simulated process crash mid-quest with disk-backed SQLite database; reopened in clean process; verified 100% state recovery and active quest discovery (`recover_active_quests()`).
+    - **Comprehensive Test Suite**: Created `tests/test_l10_quest.py` (13 unit and integration tests, 100% pass rate in 8.45s). Full repository suite: **385/385 passed in 571.88s (+ 47 subtests = 432 total checks)**.
 
 ---
 

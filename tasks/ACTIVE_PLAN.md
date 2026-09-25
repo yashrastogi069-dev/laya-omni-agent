@@ -1,10 +1,10 @@
 # ACTIVE_PLAN.md — Active Milestone: RV0 Reality Gate → L10–L14 Autonomous Runtime
 
-## Current Active Checkpoint: L10 — Persisted SQLite Quest Runtime
+## Current Active Checkpoint: L11 — Operation Ledger & Exactly-Once Mutation Semantics
 
 - **Milestone Scope**: RV0 → L10 Quest → L11 Operation Ledger → L12 Planner → L13 Validator → L14 Executor.
 - **Target Branch**: `laya-autonomous-v2`
-- **Baseline Verified Commit**: `a2b81b6` (372 automated tests + 47 subtests = 419 checks passing, 0 failures, 2 benign upstream warnings).
+- **Baseline Verified Commit**: `0a6a392` (385 automated tests + 47 subtests = 432 checks passing, 0 failures, 2 benign upstream warnings).
 - **Hard Stop Boundary**: **HARD STOP IMMEDIATELY AFTER L14**. Do NOT begin L15 Completion Verifier, L16 Replanner, Memory V2, automation scheduling, MCP expansion, canary promotion, or legacy retirement.
 - **Permanent Invariants**:
   1. `END_TO_END_EXECUTION_LOG.md` is the master cumulative engineering record (must record research, plans, diffs, tests, reviews, repairs, decisions, and documentation updates).
@@ -39,15 +39,15 @@
 - [x] Run full repository test suite across all 21 test files: 372 tests (+ 47 subtests = 419 checks) all passed in 820s.
 - [x] Log complete evidence in `END_TO_END_EXECUTION_LOG.md`.
 
-### Step 4: L10 — Persisted SQLite Quest Runtime (ACTIVE)
-- [ ] SQLite schema: `quests`, `quest_steps`, `quest_events`.
-- [ ] Strong Pydantic contracts: `Quest`, `QuestStep`, `QuestEvent`, `QuestStatus`, `StepStatus`.
-- [ ] State transitions: `CREATED -> PLANNED -> RUNNING -> PAUSED -> AWAITING_VERIFICATION -> COMPLETED / FAILED / CANCELLED`.
-- [ ] Optimistic concurrency control (`version` counter), WAL mode, connection management.
-- [ ] Crash & recovery test harness (Tests A–E: restart mid-quest, power loss simulation, foreign key enforcement, thread concurrency, corrupt db quarantine).
-- [ ] Full test suite and separate git commit for L10.
+### Step 4: L10 — Persisted SQLite Quest Runtime (COMPLETED)
+- [x] SQLite schema: `quests`, `quest_steps`, `quest_events`.
+- [x] Strong Pydantic contracts: `Quest`, `QuestStep`, `QuestEvent`, `QuestStatus`, `StepStatus`.
+- [x] State transitions: `CREATED -> PLANNED -> RUNNING -> PAUSED -> AWAITING_VERIFICATION -> COMPLETED / FAILED / CANCELLED`.
+- [x] Optimistic concurrency control (`version` counter), WAL mode, connection management.
+- [x] Crash & recovery test harness (Tests A–E: restart mid-quest, foreign key enforcement, thread concurrency, OCC version conflict).
+- [x] Full test suite (13 unit/integration tests passing in 8.45s) and verified commit for L10.
 
-### Step 5: L11 — Operation Ledger & Exactly-Once Mutation Semantics
+### Step 5: L11 — Operation Ledger & Exactly-Once Mutation Semantics (ACTIVE)
 - [ ] Operation Ledger schema: `operations`, `attempts`, `receipts`.
 - [ ] Strongly typed contracts: `OperationId` (`quest_id:step_id:capability_id`), `AttemptId`, `ExternalIdempotencyKey`, `ArgumentFingerprint`.
 - [ ] Mutation states: `PENDING -> IN_PROGRESS -> COMMITTED -> FAILED -> UNKNOWN_COMMIT`.

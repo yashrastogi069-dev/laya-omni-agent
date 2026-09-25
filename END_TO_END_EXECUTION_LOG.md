@@ -11,7 +11,7 @@
 | **System Role** | Standalone Autonomous Operating Agent (Independent from Jarvis Core V2) |
 | **Active Architecture Branch** | `laya-autonomous-v2` |
 | **Public GitHub Remote** | `https://github.com/yashrastogi069-dev/laya-omni-agent.git` |
-| **Latest Branch Commit** | `7f3ff0b` (L13 Verified & Committed; L14 Pending Final Commit) |
+| **Latest Branch Commit** | `b9a2dbe` (L14 Verified & Committed) |
 | **Total Automated Tests** | **465 / 465 Passing (100%)** (+ 47 subtests = 512 total checks) |
 | **Test Categorization** | **463 Feature Acceptance Tests** + **2 Known Defect Reproduction Tests** |
 | **Known Warnings Classification** | **4 Warnings Emitted**: `RuntimeWarning` from `laya/router.py:187` (Upstream library temperature outside [0.5, 5] clamping — BENIGN/UPSTREAM); 0 unhandled warnings in test suite |
@@ -107,7 +107,7 @@
        │ ── 29/29 Tests Passing (Commit: 7f3ff0b on laya-autonomous-v2)
        ▼
 [L14: DETERMINISTIC DAG EXECUTOR]
-       │ ── 17/17 Tests Passing (Commit: feat(l14) on laya-autonomous-v2)
+       │ ── 17/17 Tests Passing (Commit: b9a2dbe on laya-autonomous-v2)
        ▼
 [HARD STOP ENFORCED: L10–L14 MILESTONE COMPLETE]
 ```

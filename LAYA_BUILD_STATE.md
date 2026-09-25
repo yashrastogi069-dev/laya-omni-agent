@@ -3,7 +3,7 @@
 **Last Updated**: 2026-09-25T10:28:00+05:30  
 **Current Branch**: `laya-autonomous-v2`  
 **Active Milestone Goal**: `RV0 → L10 QUEST → L11 OPERATION LEDGER → L12 PLANNER → L13 VALIDATOR → L14 EXECUTOR (COMPLETED & VERIFIED) — HARD STOP ENFORCED`  
-**Baseline Verified Commit**: L14 Checkpoint on `laya-autonomous-v2`  
+**Baseline Verified Commit**: `b9a2dbe` (L14 Checkpoint on `laya-autonomous-v2`)  
 **Last Passing Test Suite**: All 27 test files across L0–L14 + Foundation Gate + R1 + R2 + R3 + R4 + R5 + RV0:
 `tests/test_l0_baselines.py`, `tests/test_l1_repairs.py`, `tests/test_l2_contracts.py`, `tests/test_l2_1_reconciliation.py`, `tests/test_l3_capabilities.py`, `tests/test_l4_providers.py`, `tests/test_l5_decision_fabric.py`, `tests/test_l6a_routing.py`, `tests/test_l7_skills.py`, `tests/test_l6b_skill_routing.py`, `tests/test_l7_5_calibration.py`, `tests/test_l8_arguments.py`, `tests/test_l9_policy.py`, `tests/test_foundation_broker.py`, `tests/test_r1_research.py`, `tests/test_r2_browser.py`, `tests/test_r3_desktop.py`, `tests/test_r4_n8n.py`, `tests/test_r5_developer.py`, `tests/test_rv0_reality_gate.py`, `tests/test_l10_quest.py`, `tests/test_l11_operation_ledger.py`, `tests/test_l12_planner.py`, `tests/test_l13_validator.py`, `tests/test_l14_executor.py` (**465/465 passed, 47 subtests passed = 512 total checks (100% pass rate)**)  
 **Mission Role**: Complete Standalone Autonomous Operating Agent.

@@ -125,4 +125,25 @@ Autonomous coding and subagent orchestration introduce severe risks of infinite 
    - `PolicyEngine` Stage 0 scans both `task_prompt` and `test_commands` lists using `scan_embedded_commands()`.
    - Forbidden commands (`git reset --hard`, `git clean -fd`, `Remove-Item C:\`, drive formatting) are unconditionally denied (`is_hard_invariant=True`), completely unyielding to `user_confirmed=True`.
 
+---
+
+## 8. Plan Tamper Firewall & Execution Durability Gates (L14.2)
+
+1. **Deterministic Plan Tamper Firewall**:
+   - When a DAG plan is attached to a Quest, a canonical SHA-256 hash is computed via `Plan.compute_hash()` (sorting step IDs, sorting dependencies, normalizing timeouts and floats, sorting JSON argument keys) and recorded in `quest.metadata["plan_hash"]` along with `plan_provenance`.
+   - Before executing the first step, `DeterministicDAGExecutor` reconstructs the plan from SQLite, recomputes the SHA-256 hash, and compares it against `quest.metadata["plan_hash"]`.
+   - If any step, dependency, or argument was tampered with in SQLite, the engine immediately halts with `ExecutionFirewallError`, transition the quest to `FAILED`, and dispatches **zero** capabilities.
+2. **Database-Level CAS Concurrency & Attempt Uniqueness**:
+   - Mutation attempt leases are guarded at the database level via conditional CAS `UPDATE operations SET state = 'in_progress', current_attempt = current_attempt + 1 ... WHERE state IN ('pending', 'failed') AND current_attempt = ? AND current_attempt < max_attempts`, checking `cur.rowcount == 1`.
+   - Enforced by a SQLite schema-level constraint: `UNIQUE(operation_id, attempt_number)`.
+3. **Truthful Mutation Timeout Quarantine (`UNKNOWN_COMMIT`)**:
+   - When a mutation capability times out after dispatch or experiences network uncertainty, its real-world outcome is unknown.
+   - The attempt is marked `AttemptState.UNCERTAIN`, the operation is quarantined in `MutationState.UNKNOWN_COMMIT`, and the Quest is paused in `QuestStatus.PAUSED_FOR_RECONCILIATION`.
+   - Automated blind retries are strictly blocked until physical evidence confirms remote state.
+4. **Append-Only Reconciliation Audit Trail**:
+   - All manual or evidence-based reconciliations are recorded in an append-only relational table `operation_reconciliations` capturing `reconciliation_id`, `operation_id`, `prior_state`, `reconciled_state`, `evidence`, `note`, `timestamp`, and `actor`.
+5. **Transactional Fault Rollback (D1–D6)**:
+   - Multi-statement mutations in `QuestStore` and `OperationStore` are wrapped in explicit database transactions. Fault injection during write operations triggers `conn.rollback()`, ensuring entity updates and audit events/attempts commit or roll back together, leaving zero orphaned rows on cold reopen.
+
+
 

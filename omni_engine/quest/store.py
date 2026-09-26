@@ -748,12 +748,18 @@ class QuestStore:
                 conn.rollback()
                 raise
 
-    def transition_step_atomic(self, step: QuestStep, event: QuestEvent) -> QuestStep:
+    def transition_step_atomic(
+        self,
+        step: QuestStep,
+        event: QuestEvent,
+        _fault_injection: Optional[str] = None,
+    ) -> QuestStep:
         """Atomically updates a step's execution state and records its audit event in a single transaction.
         
         Args:
             step: The QuestStep with target status (OCC version check applied).
             event: The corresponding QuestEvent to persist.
+            _fault_injection: Optional fault injection key for atomicity testing.
             
         Returns:
             Updated QuestStep with incremented version and updated timestamp.
@@ -812,6 +818,9 @@ class QuestStore:
                         f"Step {step.step_id} OCC conflict: expected version {step.version}, database has {actual_version}"
                     )
 
+                if _fault_injection == "after_step_update":
+                    raise sqlite3.OperationalError("Simulated fault after step update")
+
                 # Atomically append the event
                 conn.execute(
                     """
@@ -835,13 +844,20 @@ class QuestStore:
                 conn.rollback()
                 raise
 
-    def attach_plan_atomic(self, quest: Quest, steps: List[QuestStep], event: QuestEvent) -> Quest:
+    def attach_plan_atomic(
+        self,
+        quest: Quest,
+        steps: List[QuestStep],
+        event: QuestEvent,
+        _fault_injection: Optional[str] = None,
+    ) -> Quest:
         """Atomically updates Quest to PLANNED, inserts all steps, and appends the PLAN_ATTACHED event.
         
         Args:
             quest: The Quest model with status PLANNED and attached steps.
             steps: Collection of QuestStep objects to persist.
             event: The PLAN_ATTACHED event to append.
+            _fault_injection: Optional fault injection key for atomicity testing.
             
         Returns:
             Updated Quest with incremented version and updated timestamp.
@@ -884,6 +900,9 @@ class QuestStore:
                         f"Quest {quest.quest_id} OCC conflict: expected version {quest.version}, but database has {actual_version}"
                     )
 
+                if _fault_injection == "after_quest_update":
+                    raise sqlite3.OperationalError("Simulated fault after quest update")
+
                 # 2. Insert all steps
                 for step in steps:
                     conn.execute(
@@ -897,6 +916,9 @@ class QuestStore:
                         """,
                         self._step_to_insert_row(quest.quest_id, step, now)
                     )
+
+                if _fault_injection == "after_steps_insert":
+                    raise sqlite3.OperationalError("Simulated fault after steps insert")
 
                 # 3. Insert the PLAN_ATTACHED event
                 conn.execute(

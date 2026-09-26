@@ -4,7 +4,7 @@
 
 - **Milestone Scope**: RV0 → L10 Quest → L11 Operation Ledger → L12 Planner → L13 Validator → L14 Executor → L14.1 Runtime Hardening → L14.2 Adversarial Durability.
 - **Target Branch**: `laya-autonomous-v2`
-- **Baseline Verified Commit**: `214d33a` (506 automated tests + 47 subtests = 553 checks passing, 0 failures).
+- **Baseline Verified Commit**: Staged for L14.2 commit (509 automated tests + 47 subtests = 556 checks passing, 0 failures).
 - **Hard Stop Boundary**: **HARD STOP IMMEDIATELY AFTER L14.2**. Do NOT begin L15 Completion Verifier, L16 Replanner, Memory V2, automation scheduling, MCP expansion, canary promotion, or legacy retirement.
 - **Permanent Invariants**:
   1. `END_TO_END_EXECUTION_LOG.md` is the master cumulative engineering record (must record research, plans, diffs, tests, reviews, repairs, decisions, and documentation updates).
@@ -144,8 +144,14 @@
   - Defined `ConcurrentAttemptConflictError(LedgerError)`.
   - Multi-store concurrent race test with 50 iterations verifying exactly 1 winner and 1 typed conflict loser.
 - [x] **Transactional Fault Injection & Rollback (L14.2-D)**:
-  - Real SQLite mid-transaction fault injection tests D1 through D6 covering `begin_attempt`, `commit_attempt`, `fail_attempt`, `transition_quest`, `transition_step`, and `attach_plan`.
-  - Verified rollback and data consistency on cold database reopening.
+  - Real SQLite mid-transaction fault injection tests D1 through D6 covering `begin_attempt`, `commit_attempt`, `fail_attempt`, `transition_quest`, `transition_step`, and `attach_plan`:
+    - D1: `begin_attempt_atomic` fault after attempt insert rolls back; operation remains PENDING, 0 attempt rows survive.
+    - D2: `commit_attempt_atomic` fault before operation commit rolls back; attempt remains STARTED, operation remains IN_PROGRESS.
+    - D3: `fail_attempt_atomic` fault before operation commit rolls back; attempt remains STARTED, operation remains IN_PROGRESS.
+    - D4: `transition_quest_atomic` fault after quest update rolls back; quest status unchanged, OCC version unchanged, 0 orphaned events survive.
+    - D5: `transition_step_atomic` fault after step update rolls back; step status unchanged, OCC version unchanged, 0 orphaned events survive.
+    - D6: `attach_plan_atomic` faults after quest update (Mode A) and after steps insert (Mode B) roll back; quest remains CREATED, 0 steps exist, 0 PLAN_ATTACHED events survive.
+  - Verified rollback and data consistency on cold database reopening across all 6 fault operations.
 - [x] **Attempt & Operation State Consistency (L14.2-E)**:
   - Reordered validation in `commit_attempt_atomic` and `fail_attempt_atomic` to validate aggregate root `operations` first (preventing mutations locked in `UNKNOWN_COMMIT` from being overridden), followed by attempt state verification (`STARTED`).
   - Added `StaleAttemptError(LedgerError)`.
@@ -165,10 +171,10 @@
 - [x] **Append-Only Reconciliation History (L14.2-L)**:
   - SQLite table `operation_reconciliations`, `record_reconciliation_atomic()`, and `get_reconciliations()`.
 - [x] **Anti-Shallow-Test Rule & Failure Accountability**:
-  - Captured reproducible RED failure evidence in `tasks/FAILURE_LEDGER.md` (entries `FAIL-L14.2-001` through `FAIL-L14.2-014`).
-  - Created 25 adversarial tests in `tests/test_l14_2_durability.py`.
+  - Captured reproducible RED failure evidence in `tasks/FAILURE_LEDGER.md` (entries `FAIL-L14.2-001` through `FAIL-L14.2-016`).
+  - Created 28 adversarial tests in `tests/test_l14_2_durability.py`.
 - [x] **Final Test Suite & Hard Stop**:
-  - Full test suite: 506 automated tests + 47 subtests = 553 checks passing across all 27 test files (100% pass rate).
+  - Full test suite: 509 automated tests + 47 subtests = 556 checks passing across all 27 test files (100% pass rate).
   - Non-switching boundary: `omni_agent.py` and `omni_engine/planner.py` have **0 diffs**.
   - **HARD STOP STRICTLY ENFORCED**: Zero implementation of L15 (Completion Verifier), L16 (Controlled Replanner), Memory V2, or legacy retirement.
 

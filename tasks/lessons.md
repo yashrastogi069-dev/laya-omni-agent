@@ -107,3 +107,8 @@
 ## Lesson 27: Aggregate Root Validation Priority in State Machine Transitions
 - **Observation**: When validating attempt completion in a nested entity hierarchy (Operation -> Attempts), validating the child entity (`OperationAttempt.state == STARTED`) before the parent aggregate root (`OperationRecord.state`) causes operations locked in `UNKNOWN_COMMIT` to fail with child-level errors (`StaleAttemptError`) instead of the critical aggregate safety lock (`OperationCommitUncertainError`).
 - **Principle**: Always validate the aggregate root entity first. If the aggregate root is frozen, quarantined, or in an invalid state, reject the transaction immediately at the root level before inspecting child entity state.
+
+## Lesson 28: Host CPU Scheduling Jitter & Timing Threshold Bounds on Windows
+- **Observation**: Running comprehensive multi-pass validation or composite security checks (e.g. `DeterministicPlanValidator` running all 10 passes including JSON schema validation, AST evaluation, and policy checks) on Windows host CPU without GPU acceleration can experience occasional latency spikes (e.g. 50–60ms) if the Windows thread scheduler preempts the Python process during background load. An overly tight single-sample latency assertion (`assert latency_ms < 25.0`) causes intermittent test flakiness under CPU contention.
+- **Principle**: Performance benchmark assertions in unit test suites on host CPU must sample multiple executions (e.g. minimum or median of 5 warm iterations) to measure intrinsic algorithmic latency rather than OS scheduler quantum preemption jitter, and latency thresholds must account for CPU-bound execution environments without sacrificing regression detection.
+

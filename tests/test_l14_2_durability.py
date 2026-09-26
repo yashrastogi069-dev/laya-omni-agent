@@ -30,7 +30,7 @@ from omni_engine.contracts.operation import (
 )
 from omni_engine.contracts.plan import Plan, PlanStep, PlanType
 from omni_engine.contracts.policy import AutonomyProfile
-from omni_engine.contracts.quest import QuestEventEnum, QuestStatus, QuestStep, StepStatus
+from omni_engine.contracts.quest import Quest, QuestEvent, QuestEventEnum, QuestStatus, QuestStep, StepStatus
 from omni_engine.execution.executor import DeterministicDAGExecutor, QuestAlreadyRunningError
 from omni_engine.operations.ledger import OperationLedger
 from omni_engine.operations.store import OperationStore
@@ -439,6 +439,45 @@ class TestL14_2_TransactionalFaultInjection(unittest.TestCase):
         self.assertEqual(persisted_att.state, AttemptState.STARTED)
         reopened.close()
 
+    def test_d3_fail_attempt_fault_rollback(self):
+        """D3: Inject failure between attempt FAILED and operation FAILED; verify rollback."""
+        op = OperationRecord(
+            operation_id="op_d3",
+            quest_id="q_d3",
+            step_id="s1",
+            capability_id="file_write",
+            idempotency_key="idem_d3",
+            argument_hash="hash_d3",
+            state=MutationState.IN_PROGRESS,
+            current_attempt=1,
+            max_attempts=3,
+        )
+        self.op_store.create_operation(op)
+        attempt = OperationAttempt(
+            operation_id="op_d3",
+            attempt_number=1,
+            state=AttemptState.STARTED,
+            started_at=time.time(),
+        )
+        self.op_store.create_attempt(attempt)
+
+        # Inject fault during fail_attempt_atomic
+        with self.assertRaises(sqlite3.OperationalError):
+            self.op_store.fail_attempt_atomic(
+                attempt.model_copy(update={"state": AttemptState.FAILED, "finished_at": time.time(), "error": "simulated"}),
+                op.model_copy(update={"state": MutationState.FAILED, "error": "simulated"}),
+                _fault_injection="before_operation_commit",
+            )
+
+        # Reopen from disk
+        self.op_store.close()
+        reopened = OperationStore(self.ledger_db)
+        persisted_op = reopened.get_operation("op_d3")
+        self.assertEqual(persisted_op.state, MutationState.IN_PROGRESS, "Operation must remain IN_PROGRESS on rollback")
+        persisted_att = reopened.get_attempts("op_d3")[0]
+        self.assertEqual(persisted_att.state, AttemptState.STARTED, "Attempt must remain STARTED on rollback")
+        reopened.close()
+
     def test_d4_quest_transition_fault_rollback(self):
         """D4: Inject failure between Quest status UPDATE and QuestEvent INSERT; verify rollback."""
         quest_engine = QuestEngine(self.quest_store)
@@ -463,6 +502,122 @@ class TestL14_2_TransactionalFaultInjection(unittest.TestCase):
         self.assertEqual(len(events), 1)
         self.assertEqual(events[0].event_type, QuestEventEnum.QUEST_CREATED)
         reopened.close()
+
+    def test_d5_step_transition_fault_rollback(self):
+        """D5: Inject failure between Step status UPDATE and QuestEvent INSERT; verify rollback."""
+        quest_engine = QuestEngine(self.quest_store)
+        quest = quest_engine.create_quest(title="D5 Quest", goal="Test step transition rollback")
+        step = QuestStep(
+            step_id="step_d5",
+            quest_id=quest.quest_id,
+            capability_id="file_write",
+            action_class=ActionClass.LOCAL_UPDATE,
+            intent="Test step rollback",
+            arguments={"filepath": "out.txt"},
+            status=StepStatus.PENDING,
+            version=1,
+        )
+        self.quest_store.save_steps(quest.quest_id, [step])
+
+        target_step = step.model_copy(update={"status": StepStatus.RUNNING})
+        event = QuestEvent(
+            quest_id=quest.quest_id,
+            step_id="step_d5",
+            event_type=QuestEventEnum.STEP_STARTED,
+            payload={"status": "running"},
+        )
+
+        with self.assertRaises(sqlite3.OperationalError):
+            self.quest_store.transition_step_atomic(
+                target_step,
+                event,
+                _fault_injection="after_step_update",
+            )
+
+        # Reopen from disk
+        self.quest_store.close()
+        reopened = QuestStore(self.quest_db)
+        persisted_step = reopened.get_step(quest.quest_id, "step_d5")
+        self.assertIsNotNone(persisted_step)
+        self.assertEqual(persisted_step.status, StepStatus.PENDING, "Step status must remain PENDING on rollback")
+        self.assertEqual(persisted_step.version, 1, "Step OCC version must remain 1")
+        events = reopened.get_events(quest.quest_id)
+        # STEP_STARTED event must NOT exist
+        step_events = [e for e in events if e.event_type == QuestEventEnum.STEP_STARTED]
+        self.assertEqual(len(step_events), 0, "No step event should survive the rolled back transaction")
+        reopened.close()
+
+    def test_d6_attach_plan_fault_rollback(self):
+        """D6: Inject failure during attach_plan_atomic; verify quest status, steps, and events rollback."""
+        quest_engine = QuestEngine(self.quest_store)
+        quest = quest_engine.create_quest(title="D6 Quest", goal="Test attach plan rollback")
+        self.assertEqual(quest.status, QuestStatus.CREATED)
+
+        steps = [
+            QuestStep(
+                step_id="step_d6_1",
+                quest_id=quest.quest_id,
+                capability_id="file_write",
+                action_class=ActionClass.LOCAL_UPDATE,
+                intent="Step 1",
+                arguments={"content": "1"},
+            ),
+            QuestStep(
+                step_id="step_d6_2",
+                quest_id=quest.quest_id,
+                capability_id="file_write",
+                action_class=ActionClass.LOCAL_UPDATE,
+                intent="Step 2",
+                arguments={"content": "2"},
+            ),
+        ]
+        event = QuestEvent(
+            quest_id=quest.quest_id,
+            event_type=QuestEventEnum.PLAN_ATTACHED,
+            payload={"step_count": 2},
+        )
+
+        # Failure mode A: after quest update
+        with self.assertRaises(sqlite3.OperationalError):
+            self.quest_store.attach_plan_atomic(
+                quest.model_copy(update={"status": QuestStatus.PLANNED}),
+                steps,
+                event,
+                _fault_injection="after_quest_update",
+            )
+
+        # Verify cold restart after Failure mode A
+        self.quest_store.close()
+        reopened = QuestStore(self.quest_db)
+        persisted_quest = reopened.get_quest(quest.quest_id)
+        self.assertEqual(persisted_quest.status, QuestStatus.CREATED, "Quest must remain in CREATED status")
+        self.assertEqual(persisted_quest.version, 1, "Quest version must remain 1")
+        self.assertEqual(len(persisted_quest.steps), 0, "Zero steps must be persisted on rollback")
+        events = reopened.get_events(quest.quest_id)
+        plan_events = [e for e in events if e.event_type == QuestEventEnum.PLAN_ATTACHED]
+        self.assertEqual(len(plan_events), 0, "No PLAN_ATTACHED event must be persisted")
+        reopened.close()
+
+        # Failure mode B: after steps insert, before event insert
+        reopened2 = QuestStore(self.quest_db)
+        with self.assertRaises(sqlite3.OperationalError):
+            reopened2.attach_plan_atomic(
+                quest.model_copy(update={"status": QuestStatus.PLANNED}),
+                steps,
+                event,
+                _fault_injection="after_steps_insert",
+            )
+        reopened2.close()
+
+        # Verify cold restart after Failure mode B
+        reopened3 = QuestStore(self.quest_db)
+        persisted_quest3 = reopened3.get_quest(quest.quest_id)
+        self.assertEqual(persisted_quest3.status, QuestStatus.CREATED, "Quest must remain CREATED after mid-steps rollback")
+        self.assertEqual(len(persisted_quest3.steps), 0, "All inserted steps must be rolled back on mid-transaction fault")
+        events3 = reopened3.get_events(quest.quest_id)
+        plan_events3 = [e for e in events3 if e.event_type == QuestEventEnum.PLAN_ATTACHED]
+        self.assertEqual(len(plan_events3), 0)
+        reopened3.close()
 
 
 class TestL14_2_PlanProvenanceAndTamperFirewall(unittest.TestCase):

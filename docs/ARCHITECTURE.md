@@ -134,3 +134,30 @@ The capability layer provides five verified real-world execution substrates exec
    - Subprocess process-tree isolation on Windows (`CREATE_NEW_PROCESS_GROUP`, `taskkill /F /T /PID`, 50k char output truncation).
    - Git workspace confinement validating `.git` and blocking path traversal (`is_relative_to` & `commonpath`).
    - Inviolable safe reversion primitive (never `git reset --hard` or `git clean -fd`) and anti-tampering on test suites (`allow_test_edits=False`).
+
+---
+
+# SECTION 4: PERSISTED RUNTIME & DURABILITY GATES (L10 – L14.2)
+
+The execution runtime implements a multi-tier, crash-resilient control plane:
+
+1. **SQLite Quest State Machine (`omni_engine/quest/`)**:
+   - Persists `quests`, `quest_steps`, and `quest_events` with WAL mode, `PRAGMA synchronous = NORMAL`, and Optimistic Concurrency Control (`version` column).
+   - Invariant 6 lifecycle: `CREATED -> PLANNED -> RUNNING -> PAUSED -> AWAITING_VERIFICATION -> COMPLETED / FAILED / CANCELLED`. Cannot jump directly from `RUNNING` to `COMPLETED`.
+2. **Operation Ledger & Exactly-Once Idempotency (`omni_engine/operations/`)**:
+   - 4-component auto-derived idempotency key: `idem_{quest_id}_{step_id}_{capability_id}_{arg_hash[:16]}` prevents cross-step collisions within the same quest while caller custom keys bridge quests.
+   - Database-level conditional CAS lease updates: `UPDATE operations SET state = 'in_progress', current_attempt = current_attempt + 1 ... WHERE state IN ('pending', 'failed') AND current_attempt = ? AND current_attempt < max_attempts`, backed by `UNIQUE(operation_id, attempt_number)` schema constraint.
+   - Mutation uncertainty defense: post-dispatch timeouts quarantine into `UNKNOWN_COMMIT` and quest pauses in `PAUSED_FOR_RECONCILIATION`.
+   - Append-only audit history in `operation_reconciliations` table.
+3. **Structured DAG Planner & Plan Validator Firewall (`omni_engine/planning/`)**:
+   - Template-first precedence (<1ms) with generative JSON fallback.
+   - 10-pass deterministic validation firewall: acyclicity, dependencies, capabilities, schema, policy feasibility, autonomy compliance, step bounds, graph depth, mutation safety with transitive ancestor conflict detection, and resource budgets.
+   - Rejects unsupported decorative fields (`can_fail_silently=True`) at the validation gate.
+4. **Deterministic DAG Executor (`omni_engine/execution/`)**:
+   - Single-thread Kahn coordinator loop eliminating SQLite OCC collisions.
+   - Concurrency control: concurrent `READ_ONLY` worker threads (`ThreadPoolExecutor`) + exclusive `_mutation_lock` barrier draining read workers before dispatching mutations.
+   - Plan Tamper Firewall: Canonical SHA-256 `Plan.compute_hash()` recomputed prior to execution; halts with `ExecutionFirewallError` if SQLite plan steps were tampered with.
+   - Active cancellation via `_cancellation_events` cleanly draining workers without lease collisions.
+5. **Transactional Fault Injection Verification (D1–D6)**:
+   - Real SQLite mid-transaction fault injection proofs covering `begin_attempt` (D1), `commit_attempt` (D2), `fail_attempt` (D3), `transition_quest` (D4), `transition_step` (D5), and `attach_plan` (D6), verifying complete transaction rollback and internal consistency across cold database restarts.
+

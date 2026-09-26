@@ -44,6 +44,16 @@ class CapabilitySpec(BaseContractModel):
     timeout_seconds: float = Field(default=15.0, ge=0.1)
 ```
 
+### 2.1 Policy & Idempotency Invariants
+1. **End-to-End `max_attempts` Integrity Chain**:
+   - If `retry_policy == RetryPolicy.NEVER` or `idempotency_class == IdempotencyClass.NON_IDEMPOTENT`, planners and executors must strictly enforce `max_attempts = 1`.
+   - This value propagates through: `CapabilitySpec` -> `Planner` -> `PlanStep` -> `PlanValidator` -> `QuestStep` -> SQLite -> `Executor` -> `OperationLedger` -> `OperationRecord.max_attempts`.
+2. **Operation Identity & Deduplication**:
+   - Automatic idempotency key: `idem_{quest_id}_{step_id}_{capability_id}_{arg_hash[:16]}`.
+   - Logical operation ID: `op_{quest_id}_{step_id}_{capability_id}`.
+   - Distinct steps with identical capabilities and arguments within the same quest never collide or accidentally deduplicate.
+   - Caller-supplied custom idempotency keys are explicitly honored for intentional cross-quest bridging.
+
 ---
 
 ## 3. Standard Result Envelope (`ToolResult`)

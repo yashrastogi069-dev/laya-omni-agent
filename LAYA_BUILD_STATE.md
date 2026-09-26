@@ -1,11 +1,11 @@
 # LAYA_BUILD_STATE.md — Current Ground Truth State
 
-**Last Updated**: 2026-09-26T06:40:00+05:30  
+**Last Updated**: 2026-09-26T07:45:00+05:30  
 **Current Branch**: `laya-autonomous-v2`  
-**Active Milestone Goal**: `L14.2 RUNTIME CLOSURE, ADVERSARIAL DURABILITY & EVIDENCE INTEGRITY GATE (COMPLETED & VERIFIED) — HARD STOP ENFORCED`  
+**Active Milestone Goal**: `L14.2 RUNTIME CLOSURE, ADVERSARIAL DURABILITY & EVIDENCE INTEGRITY GATE (COMPLETED & FULLY VERIFIED) — HARD STOP ENFORCED`  
 **Baseline Verified Commit**: Staged for L14.2 commit (`feat(l14.2): runtime closure, adversarial durability and evidence integrity`) on `laya-autonomous-v2`  
 **Last Passing Test Suite**: All 27 test files across L0–L14.2:
-`tests/test_foundation_broker.py`, `tests/test_l0_baselines.py`, `tests/test_l10_quest.py`, `tests/test_l11_operation_ledger.py`, `tests/test_l12_planner.py`, `tests/test_l13_validator.py`, `tests/test_l14_1_runtime_integrity.py`, `tests/test_l14_2_durability.py`, `tests/test_l14_executor.py`, `tests/test_l1_repairs.py`, `tests/test_l2_1_reconciliation.py`, `tests/test_l2_contracts.py`, `tests/test_l3_capabilities.py`, `tests/test_l4_providers.py`, `tests/test_l5_decision_fabric.py`, `tests/test_l6a_routing.py`, `tests/test_l6b_skill_routing.py`, `tests/test_l7_5_calibration.py`, `tests/test_l7_skills.py`, `tests/test_l8_arguments.py`, `tests/test_l9_policy.py`, `tests/test_r1_research.py`, `tests/test_r2_browser.py`, `tests/test_r3_desktop.py`, `tests/test_r4_n8n.py`, `tests/test_r5_developer.py`, `tests/test_rv0_reality_gate.py` (**506 automated tests passing across 27 test files (100% pass rate)**)  
+`tests/test_foundation_broker.py`, `tests/test_l0_baselines.py`, `tests/test_l10_quest.py`, `tests/test_l11_operation_ledger.py`, `tests/test_l12_planner.py`, `tests/test_l13_validator.py`, `tests/test_l14_1_runtime_integrity.py`, `tests/test_l14_2_durability.py`, `tests/test_l14_executor.py`, `tests/test_l1_repairs.py`, `tests/test_l2_1_reconciliation.py`, `tests/test_l2_contracts.py`, `tests/test_l3_capabilities.py`, `tests/test_l4_providers.py`, `tests/test_l5_decision_fabric.py`, `tests/test_l6a_routing.py`, `tests/test_l6b_skill_routing.py`, `tests/test_l7_5_calibration.py`, `tests/test_l7_skills.py`, `tests/test_l8_arguments.py`, `tests/test_l9_policy.py`, `tests/test_r1_research.py`, `tests/test_r2_browser.py`, `tests/test_r3_desktop.py`, `tests/test_r4_n8n.py`, `tests/test_r5_developer.py`, `tests/test_rv0_reality_gate.py` (**509 automated tests passing across 27 test files (100% pass rate) (+ 47 subtests = 556 total checks)**)  
 **Mission Role**: Complete Standalone Autonomous Operating Agent.
 
 ---
@@ -198,6 +198,27 @@ The repository contains a standalone prototype CLI (`laya_agent.py` / `omni_engi
     - **Batch 3 (AUDIT-08, 09, 10, 11 — Plan Durability & Planner Boundaries)**: Computed deterministic SHA-256 `plan_hash` and `plan_provenance` persisted in `quest.metadata`; added `timeout_s`, `max_attempts`, `can_fail_silently`, and `metadata` to `QuestStep` contract, SQLite schema, and migrations; ensured planners derive `max_attempts=1` when `retry_policy == NEVER` or `idempotency_class == NON_IDEMPOTENT`; enforced `allowed_capabilities` containment boundary in `GenerativePlanner`.
     - **Batch 4 (AUDIT-12, 13, 14, 15, 16 — Resolvers, Resources & Lifecycle)**: Differentiated missing input arguments via `MissingInputError`, pausing steps as `PAUSED` and quest as `PAUSED_FOR_INPUT`, and cleanly resuming with merged user inputs; implemented concurrent resource conflict detection in Pass 9 (`MUTATION_SAFETY`) via transitive ancestor analysis; added canonical resource identity extraction (`DeterministicPlanValidator.extract_resource_identity`); enforced plan timeout budget in Kahn coordinator loop; added deterministic `cancel(quest_id)` transitioning uncompleted steps to `CANCELLED` and emitting `QUEST_CANCELLED`.
     - **Comprehensive Test Suite**: Created `tests/test_l14_1_runtime_integrity.py` (16 unit tests, 100% pass rate in 4.91s). Full repository suite: **481 passed (+ 47 subtests = 528 total checks)**.
+28. **Checkpoint L14.2 Milestone Reached (Runtime Closure, Adversarial Durability & Evidence Integrity Gate)**:
+    - **Logical Operation Identity & Idempotency Correctness (L14.2-A)**: Replaced defective 3-tuple idempotency key with canonical 4-component key: `idem_{quest_id}_{step_id}_{capability_id}_{arg_hash[:16]}` and logical operation ID `op_{quest_id}_{step_id}_{capability_id}`. Enforces strict zero-deduplication between different steps with identical arguments, while honoring explicit caller custom keys for cross-quest bridging.
+    - **End-to-End max_attempts Propagation (L14.2-B)**: Sealed the integrity chain (`CapabilitySpec` -> `Planner` -> `PlanStep` -> `PlanValidator` -> `QuestStep` -> SQLite -> `Executor` -> `OperationLedger` -> `OperationRecord.max_attempts`). Bounded retries strictly enforced and verified surviving cold database restarts.
+    - **Database-Level CAS Concurrency & Attempt Uniqueness (L14.2-C)**: Replaced Python-level in-memory lock reliance with atomic SQL conditional update: `UPDATE operations SET state = 'in_progress', current_attempt = current_attempt + 1, updated_at = ? WHERE operation_id = ? AND state IN ('pending', 'failed') AND current_attempt = ? AND current_attempt < max_attempts`, checking `cur.rowcount == 1`. Enforced `UNIQUE(operation_id, attempt_number)` schema constraint. Verified via 50-iteration multi-connection race test.
+    - **Transactional Fault Injection Rollback Matrix (L14.2-D, D1–D6)**: Real mid-transaction error injection testing covering all 6 transactional operations:
+      - **D1 (`begin_attempt_atomic`)**: Fault after attempt insert rolls back; operation remains `PENDING`, 0 attempt rows survive.
+      - **D2 (`commit_attempt_atomic`)**: Fault before operation commit rolls back; attempt remains `STARTED`, operation remains `IN_PROGRESS`.
+      - **D3 (`fail_attempt_atomic`)**: Fault before operation commit rolls back; attempt remains `STARTED`, operation remains `IN_PROGRESS`.
+      - **D4 (`transition_quest_atomic`)**: Fault after quest update rolls back; quest remains in prior state, OCC version unchanged, 0 orphaned events survive.
+      - **D5 (`transition_step_atomic`)**: Fault after step update rolls back; step remains `PENDING`, OCC version unchanged, 0 orphaned events survive.
+      - **D6 (`attach_plan_atomic`)**: Faults after quest update (Mode A) and after steps insert (Mode B) roll back; quest remains `CREATED`, 0 steps exist, 0 `PLAN_ATTACHED` events exist.
+      - Verified 100% clean consistency across all operations upon cold database reopen.
+    - **Attempt State Consistency & Zombie Mutation Defense (L14.2-E)**: `commit_attempt_atomic` and `fail_attempt_atomic` enforce aggregate root state validation (rejecting `UNKNOWN_COMMIT` and terminal states) and attempt state validation (must be `STARTED`).
+    - **Plan Provenance & Deterministic Tamper Firewall (L14.2-F & G)**: Canonical SHA-256 calculation via `Plan.compute_hash()` persisted in `quest.metadata["plan_hash"]`. Deterministic execution firewall in `_execute_internal` recomputes plan hash and blocks execution with `ExecutionFirewallError` if SQLite plan steps are tampered with (0 capabilities dispatched). Generative plan types faithfully survive reconstruction.
+    - **Anti-Decorative Field Invariant & Deferrals (L14.2-H)**: Validator Pass 9 strictly rejects `can_fail_silently=True` with explicit L16 deferral diagnostic; `timeout_s` bounded and enforced.
+    - **Read-Only Missing Input Pause & Resumption (L14.2-I)**: Eliminated duplicate `PAUSED` step transition; verified clean pause and restart/resume with user inputs.
+    - **Truthful Timeout Hierarchy & Quarantine (L14.2-J)**: ThreadPoolExecutor bounded execution per step. In-flight mutation timeouts quarantined into `UNKNOWN_COMMIT` and quest paused in `PAUSED_FOR_RECONCILIATION`.
+    - **Active Cancellation Protocol (L14.2-K)**: Supported cancelling active `RUNNING` quest via `_cancellation_events` signaling token, draining workers, cancelling uncompleted steps, and transitioning quest to `CANCELLED` without lease collision.
+    - **Append-Only Reconciliation History (L14.2-L)**: Immutable audit trail persisted in SQLite table `operation_reconciliations` with full provenance (`reconciliation_id`, `operation_id`, `prior_state`, `reconciled_state`, `evidence`, `note`, `timestamp`, `actor`).
+    - **LangGraph Architectural Research (Section 10)**: Rigorous architectural evaluation classifying 12 patterns (ADOPT/ADAPT/REFERENCE/REJECT). Strict rule upheld: LangGraph is NOT installed in LAYA core.
+    - **Comprehensive Test Suite**: Created `tests/test_l14_2_durability.py` (28 unit/adversarial tests, 100% pass rate in 30.74s). Full repository suite: **509 passed across 27 test files (100% pass rate) (+ 47 subtests = 556 total checks)**.
 
 ---
 
@@ -252,7 +273,7 @@ The repository contains a standalone prototype CLI (`laya_agent.py` / `omni_engi
 
 ## 3. Test Suite & Health Metrics Breakdown
 
-- **Total Automated Tests**: 465 tests (+ 47 subtests = 512 total checks)
+- **Total Automated Tests**: 509 tests (+ 47 subtests = 556 total checks)
   - **L0 Baseline Tests**: 10 passed
   - **L1 & L1.1 Memory and Math Tests**: 12 passed
   - **L2 Contracts Tests**: 18 passed
@@ -279,8 +300,8 @@ The repository contains a standalone prototype CLI (`laya_agent.py` / `omni_engi
   - **L13 Deterministic Plan Validator Tests**: 29 passed
   - **L14 Deterministic DAG Executor Tests**: 17 passed
   - **L14.1 Runtime Integrity & Durability Tests**: 16 passed
-  - **L14.2 Adversarial Durability & Integrity Tests**: 25 passed
-- **Pass Rate**: 100% (506 passed, 0 failed, 0 errors, 4 warnings in 456s across 27 test files).
+  - **L14.2 Adversarial Durability & Integrity Tests**: 28 passed
+- **Pass Rate**: 100% (509 passed, 0 failed, 0 errors, 4 warnings in 456s across 27 test files).
 - **Runtime**: ~456s across full repository test suite.
 
 ---
@@ -307,6 +328,7 @@ Within roadmap `L14.2 RUNTIME CLOSURE, ADVERSARIAL DURABILITY & EVIDENCE INTEGRI
   8. Active Cancellation Protocol (ADR-019): `cancel()` on running quest signals coordinator via `_cancellation_events` without lease collision (`QuestAlreadyRunningError`).
   9. Append-Only Reconciliation History (ADR-019): Immutable audit trail persisted in SQLite table `operation_reconciliations`.
   10. Evidence-Based Completion (Invariant 6): Reaching step completion transitions quest strictly to `AWAITING_VERIFICATION`. It does NOT mark itself `COMPLETED` (L15 Verifier is future work).
+  11. Full Transactional Fault Rollback (ADR-019, D1–D6): Real SQLite mid-transaction fault injection proofs across begin_attempt, commit_attempt, fail_attempt, transition_quest, transition_step, and attach_plan proving 100% transaction atomicity, OCC version consistency, and zero orphaned attempt/event rows on cold database reopen.
 - **Next Milestone**: **L15 Completion Verifier & L16 Controlled Replanner** (scheduled for future phase; zero advance code implemented).
 
 

@@ -34,6 +34,7 @@ from ..contracts.quest import (
     StepNotFoundError,
     StepStatus,
     TERMINAL_QUEST_STATES,
+    TERMINAL_STEP_STATES,
 )
 from ..capabilities.registry import CapabilityRegistry
 from ..operations.ledger import OperationLedger
@@ -73,6 +74,10 @@ class DeterministicDAGExecutor:
 
         # Strict mutation barrier lock (BLK-4)
         self._mutation_lock = threading.Lock()
+
+        # Active cancellation event tracking (L14.2-K)
+        self._cancellation_events: Dict[str, threading.Event] = {}
+        self._cancellation_reasons: Dict[str, str] = {}
 
     # =========================================================================
     # Public Execution Entry Points
@@ -143,19 +148,58 @@ class DeterministicDAGExecutor:
     ) -> QuestExecutionSummary:
         """Cancels a quest and transitions uncompleted steps to CANCELLED.
         
-        Args:
-            quest_id: Target quest identifier.
-            reason: Cancellation reason or audit justification.
-            
-        Returns:
-            QuestExecutionSummary envelope.
-            
-        Raises:
-            QuestNotFoundError: If quest does not exist.
+        Supports active cancellation while running without lease collision (L14.2-K).
         """
+        start_time = time.perf_counter()
+        with self._lease_lock:
+            is_running = (quest_id in self._active_leases)
+
+        if is_running:
+            # Active Quest Cancellation: Signal running coordinator loop to abort
+            cancel_evt = self._cancellation_events.get(quest_id)
+            if cancel_evt:
+                cancel_evt.set()
+            self._cancellation_reasons[quest_id] = reason
+
+            quest = self.quest_engine.get_quest(quest_id)
+            if not quest:
+                raise QuestNotFoundError(f"Quest '{quest_id}' not found.")
+
+            initial_status = quest.status
+            # Immediately transition non-running uncompleted steps to CANCELLED
+            for step in quest.steps:
+                if step.status in (StepStatus.PENDING, StepStatus.READY):
+                    try:
+                        self.quest_engine.transition_step(
+                            quest_id, step.step_id, StepStatus.CANCELLED, error=f"Cancelled: {reason}"
+                        )
+                    except Exception:
+                        pass
+
+            try:
+                updated_quest = self.quest_engine.transition_quest(
+                    quest_id, QuestStatus.CANCELLED, reason=reason
+                )
+            except Exception:
+                updated_quest = self.quest_engine.get_quest(quest_id)
+
+            completed_count = sum(1 for s in updated_quest.steps if s.status == StepStatus.COMPLETED)
+            failed_count = sum(1 for s in updated_quest.steps if s.status == StepStatus.FAILED)
+
+            return QuestExecutionSummary(
+                quest_id=quest_id,
+                initial_status=initial_status,
+                final_status=QuestStatus.CANCELLED,
+                total_steps=len(updated_quest.steps),
+                completed_steps=completed_count,
+                failed_steps=failed_count,
+                error=f"Quest cancelled: {reason}",
+                latency_ms=round((time.perf_counter() - start_time) * 1000, 3),
+            )
+
+        # Non-running cancellation
         self._acquire_lease(quest_id)
         try:
-            start_time = time.perf_counter()
             quest = self.quest_engine.get_quest(quest_id)
             if not quest:
                 raise QuestNotFoundError(f"Quest '{quest_id}' not found.")
@@ -174,7 +218,6 @@ class DeterministicDAGExecutor:
                 )
 
             # Cancel all uncompleted steps
-            cancelled_steps_count = 0
             for step in quest.steps:
                 if step.status not in (
                     StepStatus.COMPLETED,
@@ -188,7 +231,6 @@ class DeterministicDAGExecutor:
                         StepStatus.CANCELLED,
                         error=f"Cancelled: {reason}",
                     )
-                    cancelled_steps_count += 1
 
             # Transition quest to CANCELLED
             updated_quest = self.quest_engine.transition_quest(
@@ -230,8 +272,18 @@ class DeterministicDAGExecutor:
 
         initial_status = quest.status
 
-        # 1. Plan Verification Firewall (ADR-016 / Invariant 5)
+        # 1. Plan Verification Firewall (ADR-016 / Invariant 5 / L14.2-F)
         active_plan = plan or self._reconstruct_plan(quest)
+
+        # Plan Tamper Firewall:
+        expected_hash = quest.metadata.get("plan_hash") or quest.metadata.get("plan_provenance", {}).get("plan_hash")
+        if expected_hash:
+            computed_hash = active_plan.compute_hash()
+            if computed_hash != expected_hash:
+                raise ExecutionFirewallError(
+                    f"Plan tamper firewall detected tampering! Computed hash '{computed_hash}' does not match expected hash '{expected_hash}'."
+                )
+
         validation_report = self.plan_validator.validate(active_plan, autonomy_profile=quest.autonomy_profile)
         if not validation_report.is_valid:
             error_msg = f"Plan validation firewall rejected plan: {validation_report.errors}"
@@ -243,19 +295,25 @@ class DeterministicDAGExecutor:
             )
             raise ExecutionFirewallError(error_msg)
 
-        # 2. Attach plan if in CREATED status
-        if quest.status == QuestStatus.CREATED:
-            from ..planning.engine import StructuredDAGPlanner
-            planner = StructuredDAGPlanner(capability_registry=self.capability_registry)
-            planner.attach_to_quest(self.quest_engine, active_plan)
-            quest = self.quest_engine.get_quest(quest_id)
+        cancel_evt = threading.Event()
+        self._cancellation_events[quest_id] = cancel_evt
+        try:
+            # 2. Attach plan if in CREATED status
+            if quest.status == QuestStatus.CREATED:
+                from ..planning.engine import StructuredDAGPlanner
+                planner = StructuredDAGPlanner(capability_registry=self.capability_registry)
+                planner.attach_to_quest(self.quest_engine, active_plan)
+                quest = self.quest_engine.get_quest(quest_id)
 
-        # 3. Transition PLANNED -> RUNNING
-        if quest.status == QuestStatus.PLANNED:
-            quest = self.quest_engine.transition_quest(quest_id, QuestStatus.RUNNING, reason="Starting DAG execution")
+            # 3. Transition PLANNED -> RUNNING
+            if quest.status == QuestStatus.PLANNED:
+                quest = self.quest_engine.transition_quest(quest_id, QuestStatus.RUNNING, reason="Starting DAG execution")
 
-        # 4. Coordinator Loop
-        return self._run_coordinator_loop(quest_id, inputs or {}, start_time, initial_status)
+            # 4. Coordinator Loop
+            return self._run_coordinator_loop(quest_id, inputs or {}, start_time, initial_status)
+        finally:
+            self._cancellation_events.pop(quest_id, None)
+            self._cancellation_reasons.pop(quest_id, None)
 
     def _resume_internal(
         self,
@@ -350,13 +408,19 @@ class DeterministicDAGExecutor:
             reason="Resuming execution after reconciliation or user response",
         )
 
-        return self._run_coordinator_loop(
-            quest_id,
-            merged_inputs,
-            start_time,
-            initial_status,
-            confirmed_step_id=confirmed_step_id,
-        )
+        cancel_evt = threading.Event()
+        self._cancellation_events[quest_id] = cancel_evt
+        try:
+            return self._run_coordinator_loop(
+                quest_id,
+                merged_inputs,
+                start_time,
+                initial_status,
+                confirmed_step_id=confirmed_step_id,
+            )
+        finally:
+            self._cancellation_events.pop(quest_id, None)
+            self._cancellation_reasons.pop(quest_id, None)
 
     # =========================================================================
     # Single Coordinator Dispatcher Loop (BLK-1)
@@ -448,6 +512,41 @@ class DeterministicDAGExecutor:
             in_flight: Dict[concurrent.futures.Future, str] = {}
 
             while True:
+                # Active Cancellation check (L14.2-K)
+                cancel_evt = self._cancellation_events.get(quest_id)
+                if cancel_evt and cancel_evt.is_set():
+                    cancel_reason = self._cancellation_reasons.get(quest_id, "Execution cancelled by user")
+                    for fut in in_flight:
+                        fut.cancel()
+                    while in_flight:
+                        self._drain_one_future(in_flight, step_map, completed_steps, failed_steps, quest_id)
+                    for sid, s in list(step_map.items()):
+                        if s.status not in TERMINAL_STEP_STATES:
+                            try:
+                                step_map[sid] = self.quest_engine.transition_step(
+                                    quest_id, sid, StepStatus.CANCELLED, error=f"Cancelled: {cancel_reason}"
+                                )
+                            except Exception:
+                                pass
+                    curr_q = self.quest_engine.get_quest(quest_id)
+                    if curr_q and curr_q.status != QuestStatus.CANCELLED:
+                        try:
+                            self.quest_engine.transition_quest(
+                                quest_id, QuestStatus.CANCELLED, reason=cancel_reason
+                            )
+                        except Exception:
+                            pass
+                    return self._build_summary(
+                        quest_id,
+                        initial_status,
+                        QuestStatus.CANCELLED,
+                        len(step_map),
+                        completed_steps,
+                        failed_steps,
+                        start_time,
+                        error=f"Quest cancelled: {cancel_reason}",
+                    )
+
                 # AUDIT-15: Check plan timeout budget at top of coordinator loop
                 elapsed = time.perf_counter() - start_time
                 if elapsed > timeout_budget_s:
@@ -616,6 +715,12 @@ class DeterministicDAGExecutor:
 
                         # Handle pause / completion / failure
                         if receipt.status == StepStatus.PAUSED:
+                            step_map[next_mutation.step_id] = self.quest_engine.transition_step(
+                                quest_id,
+                                next_mutation.step_id,
+                                StepStatus.PAUSED,
+                                error=receipt.error,
+                            )
                             is_input_pause = "Missing required input" in (receipt.error or "")
                             pause_status = QuestStatus.PAUSED_FOR_INPUT if is_input_pause else QuestStatus.PAUSED_FOR_CONFIRMATION
                             self.quest_engine.transition_quest(
@@ -809,12 +914,6 @@ class DeterministicDAGExecutor:
                 completed_steps=completed_steps,
             )
         except MissingInputError as mie:
-            self.quest_engine.transition_step(
-                quest_id,
-                step.step_id,
-                StepStatus.PAUSED,
-                error=f"Missing required input parameter: '{mie.input_key}'",
-            )
             return StepExecutionReceipt(
                 step_id=step.step_id,
                 capability_id=step.capability_id,
@@ -858,8 +957,6 @@ class DeterministicDAGExecutor:
 
         if not policy_decision.allowed:
             if policy_decision.effect == PolicyEffect.REQUIRE_CONFIRMATION:
-                # Transition step to PAUSED
-                self.quest_engine.transition_step(quest_id, step.step_id, StepStatus.PAUSED)
                 return StepExecutionReceipt(
                     step_id=step.step_id,
                     capability_id=step.capability_id,
@@ -882,7 +979,21 @@ class DeterministicDAGExecutor:
         # Case A: Read-Only Actions (No mutation ledger required)
         if step.action_class == ActionClass.READ_ONLY:
             try:
-                tool_res = self.capability_registry.invoke(step.capability_id, resolved_args)
+                step_timeout = step.timeout_s or (spec.timeout_seconds if spec else 30.0)
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                    fut = pool.submit(self.capability_registry.invoke, step.capability_id, resolved_args)
+                    try:
+                        tool_res = fut.result(timeout=step_timeout)
+                    except concurrent.futures.TimeoutError:
+                        tool_res = ToolResult(
+                            capability_id=step.capability_id,
+                            outcome=ToolOutcome.FAILURE,
+                            success=False,
+                            error=ToolError(
+                                code=ErrorCode.TIMEOUT,
+                                message=f"Read capability timed out after {step_timeout}s",
+                            ),
+                        )
                 latency = round((time.perf_counter() - t0) * 1000, 3)
                 if tool_res.success:
                     return StepExecutionReceipt(
@@ -922,6 +1033,7 @@ class DeterministicDAGExecutor:
             step_id=step.step_id,
             capability_id=step.capability_id,
             arguments=resolved_args,
+            max_attempts=getattr(step, "max_attempts", 3) or 3,
             idempotency_class=spec.idempotency_class,
         )
 
@@ -943,17 +1055,32 @@ class DeterministicDAGExecutor:
                 latency_ms=round((time.perf_counter() - t0) * 1000, 3),
             )
 
-        # Execute mutation with attempt recording
+        # Execute mutation with attempt recording and timeout
         try:
             self.operation_ledger.begin_attempt(op_id)
-            tool_res = self.capability_registry.invoke(
-                step.capability_id,
-                resolved_args,
-                operation_id=op_id,
-                idempotency_key=op_rec.idempotency_key,
-                quest_id=quest_id,
-                step_id=step.step_id,
-            )
+            step_timeout = step.timeout_s or (spec.timeout_seconds if spec else 30.0)
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                fut = pool.submit(
+                    self.capability_registry.invoke,
+                    step.capability_id,
+                    resolved_args,
+                    operation_id=op_id,
+                    idempotency_key=op_rec.idempotency_key,
+                    quest_id=quest_id,
+                    step_id=step.step_id,
+                )
+                try:
+                    tool_res = fut.result(timeout=step_timeout)
+                except concurrent.futures.TimeoutError:
+                    tool_res = ToolResult(
+                        capability_id=step.capability_id,
+                        outcome=ToolOutcome.FAILURE,
+                        success=False,
+                        error=ToolError(
+                            code=ErrorCode.TIMEOUT,
+                            message=f"Mutation capability timed out after {step_timeout}s",
+                        ),
+                    )
             latency = round((time.perf_counter() - t0) * 1000, 3)
 
             if tool_res.success:
@@ -1015,16 +1142,17 @@ class DeterministicDAGExecutor:
             self._active_leases.discard(quest_id)
 
     def _reconstruct_plan(self, quest: Quest) -> Plan:
-        """Reconstructs a Plan instance from an existing Quest and its steps."""
+        """Reconstructs a Plan instance from an existing Quest and its steps, preserving full semantics."""
+        provenance = quest.metadata.get("plan_provenance", {})
         plan_steps = []
         for s in quest.steps:
             spec = self.capability_registry.get_spec(s.capability_id)
-            max_attempts = 3
-            if spec and (spec.retry_policy == RetryPolicy.NEVER or spec.idempotency_class == IdempotencyClass.NON_IDEMPOTENT):
-                max_attempts = 1
-            if hasattr(s, "max_attempts") and s.max_attempts is not None:
-                max_attempts = s.max_attempts
-            timeout_s = getattr(s, "timeout_s", None) or (spec.timeout_seconds if spec else 30.0)
+            max_attempts = getattr(s, "max_attempts", 3)
+            if max_attempts is None:
+                max_attempts = 3
+            timeout_s = s.timeout_s if getattr(s, "timeout_s", None) is not None else (spec.timeout_seconds if spec else 60.0)
+            can_fail_silently = getattr(s, "can_fail_silently", False)
+            step_meta = dict(getattr(s, "metadata", {}))
             plan_steps.append(
                 PlanStep(
                     step_id=s.step_id,
@@ -1034,15 +1162,27 @@ class DeterministicDAGExecutor:
                     dependencies=s.dependencies,
                     max_attempts=max_attempts,
                     timeout_s=timeout_s,
+                    can_fail_silently=can_fail_silently,
+                    metadata=step_meta,
                 )
             )
-        provenance = quest.metadata.get("plan_provenance", {})
+
         timeout_budget_s = provenance.get("timeout_budget_s") or quest.metadata.get("timeout_budget_s") or 3600.0
+        plan_id = provenance.get("plan_id") or quest.metadata.get("plan_id") or f"plan_{quest.quest_id}"
+        plan_type_str = provenance.get("plan_type") or quest.metadata.get("plan_type")
+        plan_type = PlanType(plan_type_str) if plan_type_str else PlanType.TEMPLATE_DERIVED
+        skill_id = provenance.get("skill_id") or quest.metadata.get("skill_id")
+        plan_meta = dict(provenance.get("metadata", {}))
+        goal = provenance.get("goal") or quest.goal
+
         return Plan(
+            plan_id=plan_id,
             quest_id=quest.quest_id,
-            goal=quest.goal,
-            plan_type=PlanType.TEMPLATE_DERIVED,
+            goal=goal,
+            plan_type=plan_type,
             timeout_budget_s=timeout_budget_s,
+            skill_id=skill_id,
+            metadata=plan_meta,
             steps=plan_steps,
         )
 

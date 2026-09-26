@@ -636,7 +636,19 @@ class QuestStore:
     # Atomic Multi-Entity Operations (Checkpoint L14.1 / AUDIT-05)
     # =========================================================================
 
-    def transition_quest_atomic(self, quest: Quest, event: QuestEvent) -> Quest:
+    def transition_quest_atomic(
+        self,
+        quest: Optional[Quest] = None,
+        event: Optional[QuestEvent] = None,
+        *,
+        quest_id: Optional[str] = None,
+        target_status: Optional[QuestStatus] = None,
+        event_type: Optional[QuestEventEnum] = None,
+        reason: Optional[str] = None,
+        payload: Optional[Dict[str, Any]] = None,
+        current_step_id: Optional[str] = None,
+        _fault_injection: Optional[str] = None,
+    ) -> Quest:
         """Atomically updates a Quest's status and appends its audit event in a single transaction.
         
         Args:
@@ -650,6 +662,29 @@ class QuestStore:
             QuestNotFoundError: If the quest does not exist.
             OptimisticLockError: If an OCC version conflict occurs.
         """
+        if quest is None:
+            if not quest_id:
+                raise ValueError("Must provide either 'quest' or 'quest_id'")
+            fetched = self.get_quest(quest_id)
+            if not fetched:
+                raise QuestNotFoundError(f"Quest {quest_id} not found")
+            quest = fetched.model_copy(
+                update={
+                    "status": target_status or fetched.status,
+                    "current_step_id": current_step_id or fetched.current_step_id,
+                }
+            )
+
+        if event is None:
+            evt_type = event_type or QuestEventEnum.QUEST_RESUMED
+            evt_payload = payload or ({"reason": reason} if reason else {})
+            event = QuestEvent(
+                quest_id=quest.quest_id,
+                step_id=current_step_id,
+                event_type=evt_type,
+                payload=evt_payload,
+            )
+
         conn = self._get_connection()
         now = time.time()
         new_version = quest.version + 1
@@ -686,6 +721,9 @@ class QuestStore:
                     raise OptimisticLockError(
                         f"Quest {quest.quest_id} OCC conflict: expected version {quest.version}, but database has {actual_version}"
                     )
+
+                if _fault_injection == "after_quest_update":
+                    raise sqlite3.OperationalError("Simulated fault after quest update")
 
                 # Atomically append the event
                 conn.execute(

@@ -95,6 +95,31 @@ class InvalidMutationStateTransitionError(LedgerError):
     pass
 
 
+class ConcurrentAttemptConflictError(LedgerError):
+    """Raised when a concurrent CAS update on an attempt lease fails due to competition."""
+    pass
+
+
+class StaleAttemptError(LedgerError):
+    """Raised when an attempt state mutation references a stale, mismatched, or non-current attempt."""
+    pass
+
+
+class OperationReconciliationRecord(BaseContractModel):
+    """Strongly typed contract for an immutable audit record of an operation reconciliation."""
+    reconciliation_id: str = Field(default_factory=lambda: f"rec_{uuid.uuid4().hex[:12]}")
+    operation_id: str
+    prior_state: MutationState
+    reconciled_state: MutationState
+    evidence: Dict[str, Any] = Field(default_factory=dict)
+    note: Optional[str] = None
+    actor: str = "system"
+    timestamp: float = Field(default_factory=time.time)
+
+    def __getitem__(self, item: str) -> Any:
+        return getattr(self, item)
+
+
 class OperationAttempt(BaseContractModel):
     """Strongly typed contract for an individual execution attempt of a mutation."""
     attempt_id: str = Field(default_factory=lambda: f"att_{uuid.uuid4().hex[:12]}")

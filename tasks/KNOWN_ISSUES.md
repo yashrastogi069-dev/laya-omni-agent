@@ -67,8 +67,6 @@
 - **Resolution**: Implemented `WorkspaceConfiner.capture_baseline_state()` and updated `safe_revert(..., baseline_state=baseline_state)` to capture pre-existing dirty files and content byte-for-byte. Untracked baseline files are never deleted, and modified baseline files are restored to their exact baseline contents rather than clean git commit baseline.
 - **Regression Test**: `tests/test_rv0_reality_gate.py::test_rv0_f_mandatory_dirty_worktree_survival` (passes 100%).
 
----
-
 ### ISSUE-08: Runtime Integrity, Durability & Failure Accountability Hardening (AUDIT-01 through AUDIT-16)
 - **Severity**: HIGH
 - **Status**: **RESOLVED (Checkpoint L14.1 Runtime Integrity Hardening)**
@@ -76,3 +74,11 @@
 - **Resolution**: Implemented 16 scoped repairs across Batches 1 through 4, verified each with RED reproduced failures before repairs and GREEN passing tests after repairs. All defects, root causes, repairs, and invariants are fully documented in canonical `tasks/FAILURE_LEDGER.md`.
 - **Regression Test**: `tests/test_l14_1_runtime_integrity.py` (16 unit tests, 100% passing). Total repository suite: 481 automated tests + 47 subtests = 528 checks passing.
 
+---
+
+### ISSUE-09: Runtime Closure, Adversarial Durability & Evidence Integrity Gate (L14.2-A through L14.2-N)
+- **Severity**: HIGH
+- **Status**: **RESOLVED (Checkpoint L14.2)**
+- **Description**: Independent audit found residual vulnerabilities in L14.1: lack of step-scoping in automatic idempotency keys, reliance on in-memory locks for attempt concurrency, missing UNIQUE constraint on `operation_attempts`, shallow `hasattr()` invariant proofs, unverified attempt consistency allowing stale attempts or zombie overwriting, unverified plan tamper firewall, loss of generative plan type during reconstruction, decorative `can_fail_silently` field, duplicate PAUSED step transitions, mutation timeout fail-fast instead of UNKNOWN_COMMIT quarantine, active cancellation blocked by lease collision, unpersisted reconciliation history, Python 3.12 SQLite `BEGIN IMMEDIATE` collisions, and overly restrictive `PlanStep.timeout_s >= 1.0` constraint.
+- **Resolution**: Implemented step-scoped idempotency keys, DB-level CAS updates (`UPDATE operations ... WHERE state IN ('pending', 'failed') AND current_attempt = ?`), `UNIQUE(operation_id, attempt_number)` schema constraint, transactional SQLite fault injection (`conn.rollback()`), attempt state verification, Plan Tamper Firewall (`Plan.compute_hash()` SHA-256), faithful plan reconstruction, Pass 9 rejection of `can_fail_silently=True` (deferred to L16), single-writer pause transitions, UNKNOWN_COMMIT mutation quarantine on timeout, active cancellation via `_cancellation_events`, append-only `operation_reconciliations` table, and sub-second step timeout bounds (`ge=0.01`).
+- **Regression Test**: `tests/test_l14_2_durability.py` (25 adversarial tests, 100% passing). Total repository suite: 506 automated tests passing across 27 test files.

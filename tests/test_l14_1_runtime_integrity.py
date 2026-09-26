@@ -311,8 +311,8 @@ class TestL14_1_Batch2_IdempotencyAndTimeouts(unittest.TestCase):
             arguments=args,
         )
         self.assertFalse(is_dedup1)
-        self.operation_ledger.begin_attempt(op1.operation_id)
-        self.operation_ledger.commit_attempt(op1.operation_id, "att_1", {"written": True})
+        att1 = self.operation_ledger.begin_attempt(op1.operation_id)
+        self.operation_ledger.commit_attempt(op1.operation_id, att1.attempt_id, {"written": True})
 
         # Quest 2 arrives later with identical capability and arguments
         op2, is_dedup2 = self.operation_ledger.register_mutation(
@@ -335,8 +335,8 @@ class TestL14_1_Batch2_IdempotencyAndTimeouts(unittest.TestCase):
             custom_idempotency_key=shared_key,
         )
         self.assertFalse(is_dedup3)
-        self.operation_ledger.begin_attempt(op3.operation_id)
-        self.operation_ledger.commit_attempt(op3.operation_id, "att_3", {"tx": "done"})
+        att3 = self.operation_ledger.begin_attempt(op3.operation_id)
+        self.operation_ledger.commit_attempt(op3.operation_id, att3.attempt_id, {"tx": "done"})
 
         op4, is_dedup4 = self.operation_ledger.register_mutation(
             quest_id="quest_delta",

@@ -459,6 +459,10 @@ class DeterministicPlanValidator:
         # =====================================================================
         p9_errors: List[str] = []
         for step in plan.steps:
+            if getattr(step, "can_fail_silently", False):
+                p9_errors.append(
+                    f"Step '{step.step_id}' specifies can_fail_silently=True, which is an unsupported runtime capability deferred to Checkpoint L16 (Controlled Replanner)."
+                )
             if not self.capability_registry.has(step.capability_id):
                 continue
             spec = self.capability_registry.get_spec(step.capability_id)

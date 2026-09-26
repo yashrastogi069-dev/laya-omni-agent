@@ -140,6 +140,9 @@ from .operation import (
     OperationCommitUncertainError,
     MaxAttemptsExceededError,
     InvalidMutationStateTransitionError,
+    ConcurrentAttemptConflictError,
+    StaleAttemptError,
+    OperationReconciliationRecord,
     OperationAttempt,
     OperationRecord,
 )
@@ -288,6 +291,9 @@ __all__ = [
     "OperationCommitUncertainError",
     "MaxAttemptsExceededError",
     "InvalidMutationStateTransitionError",
+    "ConcurrentAttemptConflictError",
+    "StaleAttemptError",
+    "OperationReconciliationRecord",
     "OperationAttempt",
     "OperationRecord",
     # Structured DAG Planner (L12)

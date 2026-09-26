@@ -96,4 +96,14 @@
 - **Observation**: If multiple worker threads executing parallel read steps attempt to transition step status or update quest version directly in SQLite, optimistic concurrency control (`WHERE version = ?`) frequently detects concurrent version increments and raises `OptimisticLockError`.
 - **Principle**: Kahn-style topological DAG traversal must execute on a single dedicated coordinator thread. Worker threads only execute capability logic and return receipts; only the coordinator thread mutates SQLite tables and advances state machine transitions, eliminating write race collisions.
 
+## Lesson 25: Python 3.12 Transaction Control and Manual BEGIN Statements (PEP 249)
+- **Observation**: In Python 3.12 with `conn.autocommit = False`, the standard library `sqlite3` driver implicitly opens transactions upon executing DML statements (`SELECT`, `INSERT`, `UPDATE`). Calling explicit `conn.execute("BEGIN IMMEDIATE;")` raises `sqlite3.OperationalError: cannot start a transaction within a transaction`.
+- **Principle**: In Python 3.12 with `autocommit = False`, do not issue manual `BEGIN` SQL statements. Rely on the driver's implicit transaction initiation, protect critical sections with process-level write locks (`_write_lock`), and demarcate atomic boundaries cleanly with `conn.commit()` and `conn.rollback()`.
 
+## Lesson 26: SQLite Text Comparison Case Sensitivity vs String Enums
+- **Observation**: When Python String Enum values are lowercase (e.g. `MutationState.PENDING = "pending"`), embedding uppercase string literals into SQL clauses (`WHERE state IN ('PENDING', 'FAILED')`) causes queries to fail silently with `rowcount == 0` because SQLite string comparisons are case-sensitive by default unless `COLLATE NOCASE` is defined.
+- **Principle**: Never hardcode string literals in SQL queries. Always parameterize queries using the canonical enum values (e.g. `WHERE state IN (?, ?)` with `(MutationState.PENDING.value, MutationState.FAILED.value)`) to ensure exact case alignment and type safety.
+
+## Lesson 27: Aggregate Root Validation Priority in State Machine Transitions
+- **Observation**: When validating attempt completion in a nested entity hierarchy (Operation -> Attempts), validating the child entity (`OperationAttempt.state == STARTED`) before the parent aggregate root (`OperationRecord.state`) causes operations locked in `UNKNOWN_COMMIT` to fail with child-level errors (`StaleAttemptError`) instead of the critical aggregate safety lock (`OperationCommitUncertainError`).
+- **Principle**: Always validate the aggregate root entity first. If the aggregate root is frozen, quarantined, or in an invalid state, reject the transaction immediately at the root level before inspecting child entity state.

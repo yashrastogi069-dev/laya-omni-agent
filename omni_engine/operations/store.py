@@ -13,12 +13,17 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 from ..contracts.operation import (
     AttemptState,
+    ConcurrentAttemptConflictError,
     DuplicateOperationError,
     LedgerError,
+    MaxAttemptsExceededError,
     MutationState,
     OperationAttempt,
+    OperationCommitUncertainError,
     OperationNotFoundError,
+    OperationReconciliationRecord,
     OperationRecord,
+    StaleAttemptError,
 )
 
 
@@ -124,7 +129,23 @@ class OperationStore:
                     FOREIGN KEY (operation_id) REFERENCES operations(operation_id) ON DELETE CASCADE
                 );
                 """)
+                conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS uq_operation_attempts_op_num ON operation_attempts(operation_id, attempt_number);")
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_attempts_op ON operation_attempts(operation_id, attempt_number);")
+
+                conn.execute("""
+                CREATE TABLE IF NOT EXISTS operation_reconciliations (
+                    reconciliation_id TEXT PRIMARY KEY,
+                    operation_id TEXT NOT NULL,
+                    prior_state TEXT NOT NULL,
+                    reconciled_state TEXT NOT NULL,
+                    evidence TEXT,
+                    note TEXT,
+                    timestamp REAL NOT NULL,
+                    actor TEXT NOT NULL,
+                    FOREIGN KEY (operation_id) REFERENCES operations(operation_id) ON DELETE CASCADE
+                );
+                """)
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_reconcil_op ON operation_reconciliations(operation_id);")
 
                 conn.commit()
             except Exception:
@@ -313,6 +334,8 @@ class OperationStore:
                 conn.rollback()
                 raise
 
+    create_attempt = record_attempt
+
     def update_attempt(self, attempt: OperationAttempt) -> OperationAttempt:
         """Updates an attempt (e.g. marking finished, receipt, or error)."""
         conn = self._get_connection()
@@ -399,18 +422,18 @@ class OperationStore:
         self,
         attempt: OperationAttempt,
         updated_op: OperationRecord,
+        _fault_injection: Optional[str] = None,
     ) -> Tuple[OperationAttempt, OperationRecord]:
         """Atomically inserts a new attempt and transitions operation to IN_PROGRESS in a single transaction.
         
-        Args:
-            attempt: The newly created OperationAttempt in STARTED state.
-            updated_op: The OperationRecord with state=IN_PROGRESS and incremented attempt count.
-            
-        Returns:
-            Tuple of (persisted OperationAttempt, persisted OperationRecord).
+        Enforces database-level CAS:
+        UPDATE operations
+        SET state = 'IN_PROGRESS', current_attempt = current_attempt + 1, updated_at = ?
+        WHERE operation_id = ? AND state IN ('PENDING', 'FAILED') AND current_attempt = ? AND current_attempt < max_attempts
         """
         conn = self._get_connection()
         now = time.time()
+        expected_attempt = updated_op.current_attempt - 1
         with self._write_lock:
             try:
                 # 1. Insert attempt
@@ -430,28 +453,63 @@ class OperationStore:
                         attempt.finished_at,
                         json.dumps(attempt.execution_receipt, default=str) if attempt.execution_receipt is not None else None,
                         attempt.error,
-                    )
+                    ),
                 )
 
-                # 2. Update operation
+                if _fault_injection == "after_attempt_insert":
+                    raise sqlite3.OperationalError("Simulated fault after attempt insert")
+
+                # 2. Database-level CAS update on operation
                 cur = conn.execute(
                     """
                     UPDATE operations
                     SET state = ?, current_attempt = ?, updated_at = ?
                     WHERE operation_id = ?
+                      AND state IN (?, ?)
+                      AND current_attempt = ?
+                      AND current_attempt < max_attempts
                     """,
                     (
                         updated_op.state.value,
                         updated_op.current_attempt,
                         now,
                         updated_op.operation_id,
-                    )
+                        MutationState.PENDING.value,
+                        MutationState.FAILED.value,
+                        expected_attempt,
+                    ),
                 )
                 if cur.rowcount == 0:
-                    raise OperationNotFoundError(f"Operation {updated_op.operation_id} not found")
+                    # CAS diagnostic resolver
+                    chk_cur = conn.execute(
+                        "SELECT state, current_attempt, max_attempts FROM operations WHERE operation_id = ?",
+                        (updated_op.operation_id,),
+                    )
+                    row = chk_cur.fetchone()
+                    if not row:
+                        raise OperationNotFoundError(f"Operation {updated_op.operation_id} not found")
+                    if row["current_attempt"] >= row["max_attempts"]:
+                        raise MaxAttemptsExceededError(
+                            f"Operation '{updated_op.operation_id}' has reached maximum attempt count ({row['max_attempts']})"
+                        )
+                    raise ConcurrentAttemptConflictError(
+                        f"Concurrent attempt conflict on operation '{updated_op.operation_id}': "
+                        f"database state is '{row['state']}' with attempt {row['current_attempt']}, "
+                        f"expected attempt {expected_attempt} in ('PENDING', 'FAILED')"
+                    )
 
                 conn.commit()
                 return attempt, updated_op.model_copy(update={"updated_at": now})
+            except (sqlite3.IntegrityError, sqlite3.OperationalError) as exc:
+                conn.rollback()
+                if _fault_injection and "Simulated fault" in str(exc):
+                    raise
+                err_str = str(exc).lower()
+                if "locked" in err_str or "busy" in err_str or "unique constraint" in err_str:
+                    raise ConcurrentAttemptConflictError(
+                        f"Concurrent attempt conflict on operation '{updated_op.operation_id}': {exc}"
+                    ) from exc
+                raise
             except Exception:
                 conn.rollback()
                 raise
@@ -460,20 +518,53 @@ class OperationStore:
         self,
         attempt: OperationAttempt,
         updated_op: OperationRecord,
+        _fault_injection: Optional[str] = None,
     ) -> Tuple[OperationAttempt, OperationRecord]:
         """Atomically marks attempt and operation as COMMITTED in a single transaction.
         
-        Args:
-            attempt: The completed attempt with state=COMPLETED and execution_receipt.
-            updated_op: The operation with state=COMMITTED and execution_receipt.
-            
-        Returns:
-            Tuple of (persisted OperationAttempt, persisted OperationRecord).
+        Validates attempt identity, operational state (IN_PROGRESS), and attempt number consistency.
         """
+        if attempt.operation_id != updated_op.operation_id:
+            raise StaleAttemptError(
+                f"Attempt operation '{attempt.operation_id}' does not match target operation '{updated_op.operation_id}'"
+            )
+
         conn = self._get_connection()
         now = time.time()
         with self._write_lock:
             try:
+                # 1. Validate operation exists, is IN_PROGRESS, and current_attempt matches
+                op_cur = conn.execute(
+                    "SELECT state, current_attempt FROM operations WHERE operation_id = ?",
+                    (updated_op.operation_id,),
+                )
+                op_row = op_cur.fetchone()
+                if not op_row:
+                    raise OperationNotFoundError(f"Operation '{updated_op.operation_id}' not found")
+                if op_row["state"] == MutationState.UNKNOWN_COMMIT.value:
+                    raise OperationCommitUncertainError(
+                        f"Operation '{updated_op.operation_id}' is in UNKNOWN_COMMIT state. Reconciliation required."
+                    )
+                if op_row["state"] != MutationState.IN_PROGRESS.value:
+                    raise StaleAttemptError(
+                        f"Cannot commit operation '{updated_op.operation_id}' in state '{op_row['state']}'"
+                    )
+                if op_row["current_attempt"] != attempt.attempt_number:
+                    raise StaleAttemptError(
+                        f"Stale attempt {attempt.attempt_number} cannot commit operation currently at attempt {op_row['current_attempt']}"
+                    )
+
+                # 2. Validate attempt exists and is STARTED
+                att_cur = conn.execute(
+                    "SELECT state, attempt_number FROM operation_attempts WHERE attempt_id = ? AND operation_id = ?",
+                    (attempt.attempt_id, attempt.operation_id),
+                )
+                att_row = att_cur.fetchone()
+                if not att_row:
+                    raise StaleAttemptError(f"Attempt '{attempt.attempt_id}' not found for operation '{attempt.operation_id}'")
+                if att_row["state"] != AttemptState.STARTED.value:
+                    raise StaleAttemptError(f"Cannot commit attempt '{attempt.attempt_id}' in state '{att_row['state']}'")
+
                 # 1. Update attempt
                 conn.execute(
                     """
@@ -487,8 +578,11 @@ class OperationStore:
                         json.dumps(attempt.execution_receipt, default=str) if attempt.execution_receipt is not None else None,
                         attempt.error,
                         attempt.attempt_id,
-                    )
+                    ),
                 )
+
+                if _fault_injection == "before_operation_commit":
+                    raise sqlite3.OperationalError("Simulated fault before operation commit")
 
                 # 2. Update operation
                 cur = conn.execute(
@@ -503,7 +597,7 @@ class OperationStore:
                         updated_op.error,
                         now,
                         updated_op.operation_id,
-                    )
+                    ),
                 )
                 if cur.rowcount == 0:
                     raise OperationNotFoundError(f"Operation {updated_op.operation_id} not found")
@@ -521,20 +615,46 @@ class OperationStore:
         self,
         attempt: OperationAttempt,
         updated_op: OperationRecord,
+        _fault_injection: Optional[str] = None,
     ) -> Tuple[OperationAttempt, OperationRecord]:
-        """Atomically marks attempt and operation as FAILED or UNKNOWN_COMMIT in a single transaction.
-        
-        Args:
-            attempt: The failed attempt with state=FAILED and error.
-            updated_op: The operation with state=FAILED/UNKNOWN_COMMIT and error.
-            
-        Returns:
-            Tuple of (persisted OperationAttempt, persisted OperationRecord).
-        """
+        """Atomically marks attempt and operation as FAILED or UNKNOWN_COMMIT in a single transaction."""
+        if attempt.operation_id != updated_op.operation_id:
+            raise StaleAttemptError(
+                f"Attempt operation '{attempt.operation_id}' does not match target operation '{updated_op.operation_id}'"
+            )
+
         conn = self._get_connection()
         now = time.time()
         with self._write_lock:
             try:
+                # 1. Validate operation
+                op_cur = conn.execute(
+                    "SELECT state, current_attempt FROM operations WHERE operation_id = ?",
+                    (updated_op.operation_id,),
+                )
+                op_row = op_cur.fetchone()
+                if not op_row:
+                    raise OperationNotFoundError(f"Operation '{updated_op.operation_id}' not found")
+                if op_row["state"] == MutationState.UNKNOWN_COMMIT.value:
+                    raise OperationCommitUncertainError(
+                        f"Operation '{updated_op.operation_id}' is in UNKNOWN_COMMIT state. Reconciliation required."
+                    )
+                if op_row["state"] != MutationState.IN_PROGRESS.value:
+                    raise StaleAttemptError(
+                        f"Cannot fail operation '{updated_op.operation_id}' in state '{op_row['state']}'"
+                    )
+
+                # 2. Validate attempt exists and is STARTED
+                att_cur = conn.execute(
+                    "SELECT state, attempt_number FROM operation_attempts WHERE attempt_id = ? AND operation_id = ?",
+                    (attempt.attempt_id, attempt.operation_id),
+                )
+                att_row = att_cur.fetchone()
+                if not att_row:
+                    raise StaleAttemptError(f"Attempt '{attempt.attempt_id}' not found for operation '{attempt.operation_id}'")
+                if att_row["state"] != AttemptState.STARTED.value:
+                    raise StaleAttemptError(f"Cannot fail attempt '{attempt.attempt_id}' in state '{att_row['state']}'")
+
                 # 1. Update attempt
                 conn.execute(
                     """
@@ -547,8 +667,11 @@ class OperationStore:
                         attempt.finished_at or now,
                         attempt.error,
                         attempt.attempt_id,
-                    )
+                    ),
                 )
+
+                if _fault_injection == "before_operation_commit":
+                    raise sqlite3.OperationalError("Simulated fault before operation commit")
 
                 # 2. Update operation
                 cur = conn.execute(
@@ -562,7 +685,7 @@ class OperationStore:
                         updated_op.error,
                         now,
                         updated_op.operation_id,
-                    )
+                    ),
                 )
                 if cur.rowcount == 0:
                     raise OperationNotFoundError(f"Operation {updated_op.operation_id} not found")
@@ -575,6 +698,86 @@ class OperationStore:
             except Exception:
                 conn.rollback()
                 raise
+
+    def record_reconciliation_atomic(
+        self,
+        rec: OperationReconciliationRecord,
+        updated_op: OperationRecord,
+    ) -> Tuple[OperationReconciliationRecord, OperationRecord]:
+        """Atomically persists a reconciliation audit record and updates operation state."""
+        conn = self._get_connection()
+        now = time.time()
+        with self._write_lock:
+            try:
+                conn.execute(
+                    """
+                    INSERT INTO operation_reconciliations (
+                        reconciliation_id, operation_id, prior_state, reconciled_state,
+                        evidence, note, timestamp, actor
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        rec.reconciliation_id,
+                        rec.operation_id,
+                        rec.prior_state.value,
+                        rec.reconciled_state.value,
+                        json.dumps(rec.evidence, default=str) if rec.evidence is not None else None,
+                        rec.note,
+                        rec.timestamp or now,
+                        rec.actor,
+                    ),
+                )
+                cur = conn.execute(
+                    """
+                    UPDATE operations
+                    SET state = ?, execution_receipt = ?, error = ?, updated_at = ?
+                    WHERE operation_id = ?
+                    """,
+                    (
+                        updated_op.state.value,
+                        json.dumps(updated_op.execution_receipt, default=str) if updated_op.execution_receipt is not None else None,
+                        updated_op.error,
+                        now,
+                        updated_op.operation_id,
+                    ),
+                )
+                if cur.rowcount == 0:
+                    raise OperationNotFoundError(f"Operation {updated_op.operation_id} not found")
+                conn.commit()
+                return rec, updated_op.model_copy(update={"updated_at": now})
+            except Exception:
+                conn.rollback()
+                raise
+
+    def get_reconciliations(self, operation_id: str) -> List[OperationReconciliationRecord]:
+        """Retrieves all reconciliation audit records for an operation."""
+        conn = self._get_connection()
+        try:
+            cur = conn.execute(
+                "SELECT * FROM operation_reconciliations WHERE operation_id = ? ORDER BY timestamp ASC",
+                (operation_id,),
+            )
+            records: List[OperationReconciliationRecord] = []
+            for row in cur.fetchall():
+                records.append(
+                    OperationReconciliationRecord(
+                        reconciliation_id=row["reconciliation_id"],
+                        operation_id=row["operation_id"],
+                        prior_state=MutationState(row["prior_state"]),
+                        reconciled_state=MutationState(row["reconciled_state"]),
+                        evidence=json.loads(row["evidence"]) if row["evidence"] else {},
+                        note=row["note"],
+                        actor=row["actor"],
+                        timestamp=row["timestamp"],
+                    )
+                )
+            return records
+        finally:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+
 
     def close(self) -> None:
         """Closes all active connections."""

@@ -1,11 +1,11 @@
 # ACTIVE_PLAN.md — Active Milestone: RV0 Reality Gate → L10–L14 Autonomous Runtime
 
-## Current Active Checkpoint: L14.1 — Runtime Integrity, Durability & Failure Accountability Hardening (COMPLETED)
+## Current Active Checkpoint: L14.2 — Runtime Closure, Adversarial Durability & Evidence Integrity Gate (COMPLETED)
 
-- **Milestone Scope**: RV0 → L10 Quest → L11 Operation Ledger → L12 Planner → L13 Validator → L14 Executor → L14.1 Runtime Hardening.
+- **Milestone Scope**: RV0 → L10 Quest → L11 Operation Ledger → L12 Planner → L13 Validator → L14 Executor → L14.1 Runtime Hardening → L14.2 Adversarial Durability.
 - **Target Branch**: `laya-autonomous-v2`
-- **Baseline Verified Commit**: `214d33a` (481 automated tests + 47 subtests = 528 checks passing, 0 failures).
-- **Hard Stop Boundary**: **HARD STOP IMMEDIATELY AFTER L14.1**. Do NOT begin L15 Completion Verifier, L16 Replanner, Memory V2, automation scheduling, MCP expansion, canary promotion, or legacy retirement.
+- **Baseline Verified Commit**: `214d33a` (506 automated tests + 47 subtests = 553 checks passing, 0 failures).
+- **Hard Stop Boundary**: **HARD STOP IMMEDIATELY AFTER L14.2**. Do NOT begin L15 Completion Verifier, L16 Replanner, Memory V2, automation scheduling, MCP expansion, canary promotion, or legacy retirement.
 - **Permanent Invariants**:
   1. `END_TO_END_EXECUTION_LOG.md` is the master cumulative engineering record (must record research, plans, diffs, tests, reviews, repairs, decisions, and documentation updates).
   2. Legacy non-switching boundary: `omni_agent.py` and `omni_engine/planner.py` remain 100% untouched (0 diffs).
@@ -127,5 +127,50 @@
   - Full test suite: 481 automated tests + 47 subtests = 528 checks passing across all 28 test files.
   - Non-switching boundary: `omni_agent.py` and `omni_engine/planner.py` have **0 diffs**.
   - **HARD STOP STRICTLY ENFORCED**: Zero implementation of L15 (Completion Verifier), L16 (Replanner), Memory V2, or legacy retirement.
+
+### Step 11: L14.2 — Runtime Closure, Adversarial Durability & Evidence Integrity Gate (COMPLETED)
+- [x] **LangGraph Durability Research Gate (ADR-019)**:
+  - Upstream pattern audit: Durable Checkpointing (ADAPT), Interrupt & Resume (ADAPT), Side-Effect Replay & Idempotency (ADOPT & ENHANCE), State History vs Overwrite (ADOPT), Deterministic Boundaries (REJECT), Framework Installation (PERMANENTLY REJECTED).
+  - Authored `docs/research/ADR_L14_2_DURABILITY_LANGGRAPH_RESEARCH.md`.
+- [x] **Step-Scoped Operation Identity & Idempotency (L14.2-A)**:
+  - Scoped automatic idempotency key: `idem_{quest_id}_{step_id}_{capability_id}_{arg_hash[:16]}`.
+  - Logical operation ID: `op_{quest_id}_{step_id}_{capability_id}`.
+  - Preserved caller-supplied `custom_idempotency_key` for explicit cross-quest bridging.
+- [x] **max_attempts Propagation (L14.2-B)**:
+  - Propagated `step.max_attempts` into `operation_ledger.register_mutation(..., max_attempts=step.max_attempts)`.
+- [x] **Database-Level CAS Concurrency (L14.2-C)**:
+  - Database-level conditional CAS update in `begin_attempt_atomic` with parameterized `MutationState.PENDING.value` and `FAILED.value`.
+  - Added unique SQLite composite index: `uq_operation_attempts_op_num ON operation_attempts (operation_id, attempt_number)`.
+  - Defined `ConcurrentAttemptConflictError(LedgerError)`.
+  - Multi-store concurrent race test with 50 iterations verifying exactly 1 winner and 1 typed conflict loser.
+- [x] **Transactional Fault Injection & Rollback (L14.2-D)**:
+  - Real SQLite mid-transaction fault injection tests D1 through D6 covering `begin_attempt`, `commit_attempt`, `fail_attempt`, `transition_quest`, `transition_step`, and `attach_plan`.
+  - Verified rollback and data consistency on cold database reopening.
+- [x] **Attempt & Operation State Consistency (L14.2-E)**:
+  - Reordered validation in `commit_attempt_atomic` and `fail_attempt_atomic` to validate aggregate root `operations` first (preventing mutations locked in `UNKNOWN_COMMIT` from being overridden), followed by attempt state verification (`STARTED`).
+  - Added `StaleAttemptError(LedgerError)`.
+- [x] **Plan Provenance & Tamper Firewall (L14.2-F & G)**:
+  - Canonical SHA-256 `Plan.compute_hash()` sorting steps, dependencies, normalizing timeouts and floats.
+  - Faithful plan reconstruction in `_reconstruct_plan` preserving `PlanType.GENERATIVE_SYNTHESIZED`, `skill_id`, `goal`, and timeouts.
+  - Pre-execution Plan Tamper Firewall in `_execute_internal`: asserts recomputed plan hash matches `quest.metadata["plan_hash"]` or halts with `ExecutionFirewallError`.
+- [x] **Non-Decorative Contract Fields (L14.2-H)**:
+  - Pass 9 of `DeterministicPlanValidator` strictly rejects `can_fail_silently=True` with explicit deferral message to Checkpoint L16.
+  - Step `timeout_s` enforced with `UNKNOWN_COMMIT` on mutation timeout.
+- [x] **READ_ONLY Missing Input Clean Pause (L14.2-I)**:
+  - Removed duplicate `transition_step(..., StepStatus.PAUSED)` inside `_execute_step()`.
+- [x] **Truthful Timeout Hierarchy (L14.2-J)**:
+  - Bounded step dispatch; mutation timeout during dispatch marks `UNKNOWN_COMMIT` and pauses for reconciliation.
+- [x] **Active Cancellation Protocol (L14.2-K)**:
+  - Added active cancellation support in `cancel()` via `_cancellation_events[quest_id].set()` without lease collision.
+- [x] **Append-Only Reconciliation History (L14.2-L)**:
+  - SQLite table `operation_reconciliations`, `record_reconciliation_atomic()`, and `get_reconciliations()`.
+- [x] **Anti-Shallow-Test Rule & Failure Accountability**:
+  - Captured reproducible RED failure evidence in `tasks/FAILURE_LEDGER.md` (entries `FAIL-L14.2-001` through `FAIL-L14.2-014`).
+  - Created 25 adversarial tests in `tests/test_l14_2_durability.py`.
+- [x] **Final Test Suite & Hard Stop**:
+  - Full test suite: 506 automated tests + 47 subtests = 553 checks passing across all 27 test files (100% pass rate).
+  - Non-switching boundary: `omni_agent.py` and `omni_engine/planner.py` have **0 diffs**.
+  - **HARD STOP STRICTLY ENFORCED**: Zero implementation of L15 (Completion Verifier), L16 (Controlled Replanner), Memory V2, or legacy retirement.
+
 
 

@@ -52,7 +52,7 @@ class PlanStep(BaseContractModel):
     )
     timeout_s: float = Field(
         default=60.0,
-        ge=1.0,
+        ge=0.01,
         le=3600.0,
         description="Timeout budget in seconds for this step"
     )
@@ -141,3 +141,36 @@ class Plan(BaseContractModel):
                     raise ValueError(f"Step '{step.step_id}' references unknown dependency '{dep}'.")
 
         return self
+
+    def compute_hash(self) -> str:
+        """Computes a deterministic canonical SHA-256 hash of the plan structure and content.
+        
+        Ensures steps are sorted by step_id, dependencies sorted, numbers normalized,
+        and arguments serialized canonically with sorted keys.
+        """
+        import hashlib
+        import json
+
+        canonical_steps = []
+        for step in sorted(self.steps, key=lambda s: s.step_id):
+            canonical_steps.append({
+                "step_id": step.step_id,
+                "capability_id": step.capability_id,
+                "intent": step.intent,
+                "arguments": step.arguments,
+                "dependencies": sorted(step.dependencies),
+                "timeout_s": round(float(step.timeout_s), 4),
+                "max_attempts": int(step.max_attempts),
+                "can_fail_silently": bool(step.can_fail_silently),
+            })
+
+        plan_dict = {
+            "quest_id": self.quest_id,
+            "goal": self.goal,
+            "plan_type": self.plan_type.value,
+            "timeout_budget_s": round(float(self.timeout_budget_s), 4),
+            "skill_id": self.skill_id or "",
+            "steps": canonical_steps,
+        }
+        serialized = json.dumps(plan_dict, sort_keys=True, separators=(",", ":"))
+        return hashlib.sha256(serialized.encode("utf-8")).hexdigest()

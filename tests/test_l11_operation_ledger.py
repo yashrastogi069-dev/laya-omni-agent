@@ -199,7 +199,7 @@ class TestL11ExactlyOnceLifecycle(unittest.TestCase):
         # Re-registering identical mutation must return cached receipt immediately without re-executing
         dedup_op, is_dedup_flag = self.ledger.register_mutation(
             quest_id=quest_id,
-            step_id="step_duplicate_file",
+            step_id=step_id,
             capability_id=capability_id,
             arguments=arguments,
         )
@@ -255,7 +255,7 @@ class TestL11UnknownCommitDefense(unittest.TestCase):
         with self.assertRaises(OperationCommitUncertainError) as ctx:
             self.ledger.register_mutation(
                 quest_id=quest_id,
-                step_id="step_charge_card_retry",
+                step_id=step_id,
                 capability_id=capability_id,
                 arguments=args,
             )
@@ -425,7 +425,7 @@ class TestL11CrashRecoveryAndPersistence(unittest.TestCase):
         # Verify deduplication still functions across restarts
         dedup_op, is_dedup = ledger2.register_mutation(
             quest_id="qst_crash_1",
-            step_id="step_1_rerun",
+            step_id="step_1",
             capability_id="file_write",
             arguments={"path": "a.txt", "text": "hello"},
         )
@@ -436,7 +436,7 @@ class TestL11CrashRecoveryAndPersistence(unittest.TestCase):
         with self.assertRaises(OperationCommitUncertainError):
             ledger2.register_mutation(
                 quest_id="qst_crash_1",
-                step_id="step_2_rerun",
+                step_id="step_2",
                 capability_id="desktop.launch_app",
                 arguments={"app_name": "calc.exe"},
             )

@@ -21,6 +21,7 @@ from ..contracts.operation import (
     OperationAttempt,
     OperationCommitUncertainError,
     OperationNotFoundError,
+    OperationReconciliationRecord,
     OperationRecord,
     TERMINAL_MUTATION_STATES,
     VALID_MUTATION_TRANSITIONS,
@@ -69,15 +70,18 @@ class OperationLedger:
         arguments: Dict[str, Any],
         custom_key: Optional[str] = None,
         quest_id: Optional[str] = None,
+        step_id: Optional[str] = None,
     ) -> str:
         """Derives a deterministic external idempotency key for capability invocation.
         
         If custom_key is provided, it is used verbatim (allowing explicit cross-quest deduplication).
-        Otherwise, the key is strictly scoped by quest_id to prevent unintended cross-quest collisions.
+        Otherwise, the key is strictly scoped by quest_id and step_id to prevent unintended collisions.
         """
         if custom_key:
             return custom_key
         arg_hash = self.compute_argument_hash(arguments)
+        if quest_id and step_id:
+            return f"idem_{quest_id}_{step_id}_{capability_id}_{arg_hash[:16]}"
         if quest_id:
             return f"idem_{quest_id}_{capability_id}_{arg_hash[:16]}"
         return f"idem_{capability_id}_{arg_hash[:16]}"
@@ -123,6 +127,7 @@ class OperationLedger:
             arguments,
             custom_key=custom_idempotency_key,
             quest_id=quest_id,
+            step_id=step_id,
         )
         arg_hash = self.compute_argument_hash(arguments)
 
@@ -420,11 +425,25 @@ class OperationLedger:
                 "updated_at": now,
             }
         )
-        return self.store.update_operation(updated_op)
+        rec = OperationReconciliationRecord(
+            operation_id=operation_id,
+            prior_state=op.state,
+            reconciled_state=new_state,
+            evidence=receipt_data if isinstance(receipt_data, dict) else {},
+            note=reconciliation_note or ("Reconciled as committed" if is_verified_committed else "Reconciled as uncommitted"),
+            actor="operator",
+            timestamp=now,
+        )
+        _, persisted_op = self.store.record_reconciliation_atomic(rec, updated_op)
+        return persisted_op
 
     # =========================================================================
     # Queries & Helpers
     # =========================================================================
+
+    def get_reconciliations(self, operation_id: str) -> List[OperationReconciliationRecord]:
+        """Retrieves all reconciliation audit records for an operation."""
+        return self.store.get_reconciliations(operation_id)
 
     def get_operation(self, operation_id: str) -> Optional[OperationRecord]:
         """Retrieves an operation record by ID."""

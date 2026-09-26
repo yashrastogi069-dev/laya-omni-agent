@@ -176,29 +176,26 @@ class StructuredDAGPlanner:
             )
             quest_steps.append(q_step)
 
-        # Compute plan hash and provenance (AUDIT-08)
-        plan_hash_payload = {
-            "plan_id": plan.plan_id,
-            "quest_id": plan.quest_id,
-            "plan_type": plan.plan_type.value,
-            "steps": [s.model_dump() for s in plan.steps],
-        }
-        plan_hash = hashlib.sha256(
-            json.dumps(plan_hash_payload, sort_keys=True, default=str).encode("utf-8")
-        ).hexdigest()
+        # Compute plan hash and provenance (AUDIT-08 / L14.2-F)
+        plan_hash = plan.compute_hash()
         plan_provenance = {
             "plan_id": plan.plan_id,
             "plan_type": plan.plan_type.value,
             "plan_hash": plan_hash,
+            "goal": plan.goal,
             "timeout_budget_s": plan.timeout_budget_s,
             "skill_id": plan.skill_id,
+            "metadata": dict(plan.metadata),
         }
 
         # Attach plan to quest via QuestEngine
         updated_quest = quest_engine.attach_plan(
             quest_id=plan.quest_id,
             steps=quest_steps,
-            metadata={"plan_provenance": plan_provenance},
+            metadata={
+                "plan_hash": plan_hash,
+                "plan_provenance": plan_provenance,
+            },
         )
         return updated_quest
 

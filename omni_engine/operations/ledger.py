@@ -14,6 +14,7 @@ from ..contracts.enums import ErrorCode
 from ..contracts.operation import (
     AttemptState,
     DuplicateOperationError,
+    IdempotencyConflictError,
     InvalidMutationStateTransitionError,
     LedgerError,
     MaxAttemptsExceededError,
@@ -133,6 +134,14 @@ class OperationLedger:
 
         existing = self.store.get_by_idempotency_key(idempotency_key)
         if existing:
+            # 0. Idempotency Conflict Check: Same key with changed capability or arguments is a hard conflict!
+            if existing.capability_id != capability_id or existing.argument_hash != arg_hash:
+                raise IdempotencyConflictError(
+                    f"Idempotency key '{idempotency_key}' conflict: previously registered for capability "
+                    f"'{existing.capability_id}' with argument hash '{existing.argument_hash}', but re-invoked with "
+                    f"capability '{capability_id}' and argument hash '{arg_hash}'."
+                )
+
             # 1. Exactly-Once check: Already COMMITTED -> Return cached receipt immediately
             if existing.state == MutationState.COMMITTED:
                 return existing, True

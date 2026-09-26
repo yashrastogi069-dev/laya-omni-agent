@@ -144,6 +144,15 @@ Autonomous coding and subagent orchestration introduce severe risks of infinite 
    - All manual or evidence-based reconciliations are recorded in an append-only relational table `operation_reconciliations` capturing `reconciliation_id`, `operation_id`, `prior_state`, `reconciled_state`, `evidence`, `note`, `timestamp`, and `actor`.
 5. **Transactional Fault Rollback (D1–D6)**:
    - Multi-statement mutations in `QuestStore` and `OperationStore` are wrapped in explicit database transactions. Fault injection during write operations triggers `conn.rollback()`, ensuring entity updates and audit events/attempts commit or roll back together, leaving zero orphaned rows on cold reopen.
+6. **Active Mutation Cancellation Safety**:
+   - Calling `cancel()` on a running quest with an in-flight mutation does NOT immediately mark the quest `CANCELLED` while the external mutation might continue executing.
+   - The runtime records durable cancellation intent (`quest.metadata["cancellation_requested"] = True`), marks the mutation `UNKNOWN_COMMIT`, and transitions the quest to `PAUSED_FOR_RECONCILIATION`.
+   - Only after physical evidence reconciliation confirms the operation's outcome is the cancellation intent honored, cleanly transitioning to `CANCELLED` without executing downstream steps.
+7. **Complete Plan Provenance & Tamper Firewall (F1–F5)**:
+   - Canonical SHA-256 calculation incorporates `schema_version`, `plan_version`, `validator_version`, `validation_hash`, `validation_receipt`, and sorted `metadata`.
+   - The pre-execution firewall defends against tampered step arguments (F1), tampered capabilities (F2), tampered dependencies (F3), phantom steps injected into SQLite (F4), and tampered plan metadata or timeout budgets (F5).
+8. **Policy Latency Benchmark Distribution Proof**:
+   - Algorithmic latency SLA of the policy engine is proven by a 20-run statistical distribution asserting median < 2.0ms (sub-1ms typical SLA), eliminating single-sample wall-clock scheduler jitter.
 
 
 

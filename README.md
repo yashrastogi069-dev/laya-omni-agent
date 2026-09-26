@@ -201,18 +201,31 @@ Inside the interactive prompt (`LayaAgent > `), you can use built-in commands:
 - [x] Persistent JSON memory engine with telemetry tracking.
 - [x] Older hardware optimization (sub-400MB RAM, zero local heavy LLM).
 
-### 🚀 Phase 2: Autonomous Swarm & Vision (Upcoming v3.0)
+### ⚡ Phase 2: Autonomous Engine Runtime (Checkpoints L0–L14.2 Completed)
+- [x] **Sub-1ms Deterministic Policy Engine**: Hard OS invariants, protected paths/processes, multi-tiered autonomy, and zero-bypass Rule-0 defense (`omni_engine/policy/`).
+- [x] **Provider Broker & Model Sovereignty**: Hierarchical two-level locking, RAM pressure debouncing, English-only scoping, and `USER_LOCKED` / `USER_PREFERRED` sovereignty (`omni_engine/providers/`).
+- [x] **Deep Research Engine**: SHA-256 cryptographic citation ledger, bounded crawl saturation, and untrusted prompt injection sanitization (`omni_engine/research/`).
+- [x] **Real Browser Engine**: Persistent isolated Playwright sessions, dynamic `@1..@N` element indexing, and DOM mutation receipts (`omni_engine/browser/`).
+- [x] **Windows Desktop & Service Engine**: Trampoline PID resolution, visible window diffing, and dual-stack loopback socket health probers (`omni_engine/desktop/`).
+- [x] **n8n Automation Engine**: Draft-Test-Validate Gate Triad, acyclic DAG connection validator, and zero-plaintext secret scrubbing (`omni_engine/automation/`).
+- [x] **Foreman Supervised Developer Engine**: 5-stage convergence loop, AST pre-test syntax gate, and byte-for-byte dirty worktree preservation (`omni_engine/developer/`).
+- [x] **Persisted SQLite Quest Runtime**: Strict deterministic state machine, Optimistic Concurrency Control (OCC), and transaction atomicity (`omni_engine/quest/`).
+- [x] **Exactly-Once Operation Ledger**: Multi-attempt tracking, attempt-level database CAS concurrency, and `UNKNOWN_COMMIT` reconciliation history (`omni_engine/operations/`).
+- [x] **Deterministic DAG Planner & 10-Pass Validator**: Cryptographic plan hashing, complete provenance metadata, and multi-pass structural validation firewall (`omni_engine/planning/`).
+- [x] **Deterministic DAG Executor**: Parallel read-only worker pools, serialized mutation barriers, non-blocking step timeouts, and active cancellation with durable intent (`omni_engine/execution/`).
+
+### 🚀 Phase 3: Autonomous Swarm & Vision (Upcoming v3.0)
 - [ ] **Vision-Language Grounding**: Integrate OmniParser / lightweight YOLO to click on arbitrary web/desktop UI elements without needing DOM selectors.
 - [ ] **Multi-Agent Collaboration**: Support specialized sub-agent handoffs (Researcher Agent, Coder Agent, QA Verifier) communicating asynchronously.
 - [ ] **Voice I/O Interface**: Add fast local Whisper speech-to-text and Piper text-to-speech for hands-free voice control.
 - [ ] **Desktop GUI Automation**: Extend beyond web into full desktop mouse/keyboard automation via Windows UI Automation API.
 
-### 🌐 Phase 3: Ecosystem & Integrations (v3.5)
+### 🌐 Phase 4: Ecosystem & Integrations (v3.5)
 - [ ] **Workflow Integrations**: Native N8N and Zapier webhook triggers to run Laya agents from Discord/Slack/Telegram.
 - [ ] **Vector Episodic Memory**: Hybrid memory with ChromaDB / FAISS for semantic document search over historical missions.
 - [ ] **Multi-Tab Browser Workflows**: Simultaneous parallel tab navigation and cross-site comparison.
 
-### 🧬 Phase 4: Self-Training Pipeline (v4.0)
+### 🧬 Phase 5: Self-Training Pipeline (v4.0)
 - [ ] **Automated DPO/SFT Dataset Generator**: Every successful multi-step mission automatically formats into instruction tuning pairs.
 - [ ] **Continuous LoRA Fine-Tuning**: Periodically retrain the local ModernBERT weights on local machine logs to make System 1 smarter over time.
 

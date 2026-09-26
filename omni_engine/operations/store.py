@@ -14,6 +14,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 from ..contracts.operation import (
     AttemptState,
     ConcurrentAttemptConflictError,
+    ConcurrentReconciliationConflictError,
     DuplicateOperationError,
     LedgerError,
     MaxAttemptsExceededError,
@@ -643,6 +644,10 @@ class OperationStore:
                     raise StaleAttemptError(
                         f"Cannot fail operation '{updated_op.operation_id}' in state '{op_row['state']}'"
                     )
+                if op_row["current_attempt"] != attempt.attempt_number:
+                    raise StaleAttemptError(
+                        f"Stale attempt {attempt.attempt_number} cannot fail operation currently at attempt {op_row['current_attempt']}"
+                    )
 
                 # 2. Validate attempt exists and is STARTED
                 att_cur = conn.execute(
@@ -731,7 +736,7 @@ class OperationStore:
                     """
                     UPDATE operations
                     SET state = ?, execution_receipt = ?, error = ?, updated_at = ?
-                    WHERE operation_id = ?
+                    WHERE operation_id = ? AND state = ?
                     """,
                     (
                         updated_op.state.value,
@@ -739,10 +744,22 @@ class OperationStore:
                         updated_op.error,
                         now,
                         updated_op.operation_id,
+                        rec.prior_state.value,
                     ),
                 )
                 if cur.rowcount == 0:
-                    raise OperationNotFoundError(f"Operation {updated_op.operation_id} not found")
+                    check_cur = conn.execute(
+                        "SELECT state FROM operations WHERE operation_id = ?",
+                        (updated_op.operation_id,),
+                    )
+                    row = check_cur.fetchone()
+                    if not row:
+                        raise OperationNotFoundError(f"Operation {updated_op.operation_id} not found")
+                    else:
+                        raise ConcurrentReconciliationConflictError(
+                            f"Operation '{updated_op.operation_id}' reconciliation conflict: "
+                            f"expected prior state '{rec.prior_state.value}', but found '{row['state']}'."
+                        )
                 conn.commit()
                 return rec, updated_op.model_copy(update={"updated_at": now})
             except Exception:

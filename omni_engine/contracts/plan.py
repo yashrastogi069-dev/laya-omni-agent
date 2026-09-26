@@ -115,6 +115,27 @@ class Plan(BaseContractModel):
         default_factory=dict,
         description="Telemetry, model attribution, or custom metadata"
     )
+    schema_version: str = Field(
+        default="2.0",
+        description="Plan contract schema version"
+    )
+    plan_version: int = Field(
+        default=1,
+        ge=1,
+        description="Monotonically increasing version of this plan"
+    )
+    validator_version: Optional[str] = Field(
+        default=None,
+        description="Version of the validator that certified this plan"
+    )
+    validation_hash: Optional[str] = Field(
+        default=None,
+        description="Canonical hash certified by validator"
+    )
+    validation_receipt: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Validation report receipt from DeterministicPlanValidator"
+    )
     created_at: float = Field(default_factory=time.time)
 
     @field_validator("quest_id", "goal")
@@ -146,7 +167,7 @@ class Plan(BaseContractModel):
         """Computes a deterministic canonical SHA-256 hash of the plan structure and content.
         
         Ensures steps are sorted by step_id, dependencies sorted, numbers normalized,
-        and arguments serialized canonically with sorted keys.
+        and arguments/metadata serialized canonically with sorted keys.
         """
         import hashlib
         import json
@@ -162,14 +183,19 @@ class Plan(BaseContractModel):
                 "timeout_s": round(float(step.timeout_s), 4),
                 "max_attempts": int(step.max_attempts),
                 "can_fail_silently": bool(step.can_fail_silently),
+                "metadata": {k: step.metadata[k] for k in sorted(step.metadata.keys())} if step.metadata else {},
             })
 
         plan_dict = {
             "quest_id": self.quest_id,
             "goal": self.goal,
             "plan_type": self.plan_type.value,
+            "schema_version": self.schema_version,
+            "plan_version": self.plan_version,
+            "validator_version": self.validator_version or "",
             "timeout_budget_s": round(float(self.timeout_budget_s), 4),
             "skill_id": self.skill_id or "",
+            "metadata": {k: self.metadata[k] for k in sorted(self.metadata.keys())} if self.metadata else {},
             "steps": canonical_steps,
         }
         serialized = json.dumps(plan_dict, sort_keys=True, separators=(",", ":"))

@@ -11,8 +11,8 @@ import threading
 import time
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
 
-from ..contracts.capability import IdempotencyClass, ToolResult
-from ..contracts.enums import ActionClass, AutonomyProfile, ErrorCode, RetryPolicy
+from ..contracts.capability import IdempotencyClass, ToolError, ToolResult
+from ..contracts.enums import ActionClass, AutonomyProfile, ErrorCode, RetryPolicy, ToolOutcome
 from ..contracts.execution import (
     ExecutionError,
     ExecutionFirewallError,
@@ -23,7 +23,7 @@ from ..contracts.execution import (
     StepExecutionReceipt,
     UnresolvedArgumentError,
 )
-from ..contracts.operation import MutationState
+from ..contracts.operation import MutationState, OperationCommitUncertainError
 from ..contracts.plan import Plan, PlanStep, PlanType
 from ..contracts.policy import PolicyDecision, PolicyEffect
 from ..contracts.quest import (
@@ -165,16 +165,75 @@ class DeterministicDAGExecutor:
             if not quest:
                 raise QuestNotFoundError(f"Quest '{quest_id}' not found.")
 
+            # Record durable cancellation intent in quest metadata
+            quest.metadata["cancellation_requested"] = True
+            quest.metadata["cancellation_reason"] = reason
+            self.quest_engine.store.update_quest(quest)
+
             initial_status = quest.status
-            # Immediately transition non-running uncompleted steps to CANCELLED
+            has_uncertain_mutation = False
+
+            # Check steps: non-running uncompleted steps become CANCELLED
             for step in quest.steps:
-                if step.status in (StepStatus.PENDING, StepStatus.READY):
+                if step.status in (StepStatus.PENDING, StepStatus.READY, StepStatus.PAUSED):
                     try:
                         self.quest_engine.transition_step(
                             quest_id, step.step_id, StepStatus.CANCELLED, error=f"Cancelled: {reason}"
                         )
                     except Exception:
                         pass
+                elif step.status == StepStatus.RUNNING:
+                    if step.action_class == ActionClass.READ_ONLY:
+                        try:
+                            self.quest_engine.transition_step(
+                                quest_id, step.step_id, StepStatus.CANCELLED, error=f"Cancelled: {reason}"
+                            )
+                        except Exception:
+                            pass
+                    else:
+                        # Active mutating step in flight cannot be assumed safely cancelled while worker thread executes!
+                        has_uncertain_mutation = True
+                        op_id = f"op_{quest_id}_{step.step_id}_{step.capability_id}"
+                        try:
+                            self.operation_ledger.fail_operation(
+                                op_id,
+                                error=f"Cancellation requested while mutation was running: {reason}",
+                                is_uncertain=True,
+                            )
+                        except Exception:
+                            pass
+                        try:
+                            self.quest_engine.transition_step(
+                                quest_id,
+                                step.step_id,
+                                StepStatus.AWAITING_RECONCILIATION,
+                                error=f"Cancellation requested while mutation was in-flight; state uncertain until reconciled",
+                            )
+                        except Exception:
+                            pass
+
+            if has_uncertain_mutation:
+                try:
+                    updated_quest = self.quest_engine.transition_quest(
+                        quest_id,
+                        QuestStatus.PAUSED_FOR_RECONCILIATION,
+                        reason=f"Cancellation requested while mutation was running: {reason}",
+                    )
+                except Exception:
+                    updated_quest = self.quest_engine.get_quest(quest_id)
+
+                completed_count = sum(1 for s in updated_quest.steps if s.status == StepStatus.COMPLETED)
+                failed_count = sum(1 for s in updated_quest.steps if s.status == StepStatus.FAILED)
+                return QuestExecutionSummary(
+                    quest_id=quest_id,
+                    initial_status=initial_status,
+                    final_status=QuestStatus.PAUSED_FOR_RECONCILIATION,
+                    total_steps=len(updated_quest.steps),
+                    completed_steps=completed_count,
+                    failed_steps=failed_count,
+                    error=f"Cancellation requested while mutation was in-flight; operation marked UNKNOWN_COMMIT requiring reconciliation",
+                    latency_ms=round((time.perf_counter() - start_time) * 1000, 3),
+                )
 
             try:
                 updated_quest = self.quest_engine.transition_quest(
@@ -217,6 +276,12 @@ class DeterministicDAGExecutor:
                     latency_ms=round((time.perf_counter() - start_time) * 1000, 3),
                 )
 
+            # Record durable cancellation intent
+            quest.metadata["cancellation_requested"] = True
+            quest.metadata["cancellation_reason"] = reason
+            self.quest_engine.store.update_quest(quest)
+
+            has_uncertain_mutation = False
             # Cancel all uncompleted steps
             for step in quest.steps:
                 if step.status not in (
@@ -225,19 +290,47 @@ class DeterministicDAGExecutor:
                     StepStatus.SKIPPED,
                     StepStatus.CANCELLED,
                 ):
-                    self.quest_engine.transition_step(
-                        quest_id,
-                        step.step_id,
-                        StepStatus.CANCELLED,
-                        error=f"Cancelled: {reason}",
-                    )
+                    if step.status == StepStatus.RUNNING and step.action_class != ActionClass.READ_ONLY:
+                        has_uncertain_mutation = True
+                        op_id = f"op_{quest_id}_{step.step_id}_{step.capability_id}"
+                        try:
+                            self.operation_ledger.fail_operation(
+                                op_id,
+                                error=f"Cancellation requested while mutation was in-flight: {reason}",
+                                is_uncertain=True,
+                            )
+                        except Exception:
+                            pass
+                        self.quest_engine.transition_step(
+                            quest_id,
+                            step.step_id,
+                            StepStatus.AWAITING_RECONCILIATION,
+                            error=f"Cancellation requested while mutation was in-flight: {reason}",
+                        )
+                    else:
+                        self.quest_engine.transition_step(
+                            quest_id,
+                            step.step_id,
+                            StepStatus.CANCELLED,
+                            error=f"Cancelled: {reason}",
+                        )
 
-            # Transition quest to CANCELLED
-            updated_quest = self.quest_engine.transition_quest(
-                quest_id,
-                QuestStatus.CANCELLED,
-                reason=reason,
-            )
+            if has_uncertain_mutation:
+                updated_quest = self.quest_engine.transition_quest(
+                    quest_id,
+                    QuestStatus.PAUSED_FOR_RECONCILIATION,
+                    reason=f"Cancellation requested with in-flight mutation: {reason}",
+                )
+                final_q_status = QuestStatus.PAUSED_FOR_RECONCILIATION
+                summary_err = f"Cancellation requested while mutation was in-flight; operation marked UNKNOWN_COMMIT requiring reconciliation"
+            else:
+                updated_quest = self.quest_engine.transition_quest(
+                    quest_id,
+                    QuestStatus.CANCELLED,
+                    reason=reason,
+                )
+                final_q_status = QuestStatus.CANCELLED
+                summary_err = f"Quest cancelled: {reason}"
 
             completed_count = sum(1 for s in updated_quest.steps if s.status == StepStatus.COMPLETED)
             failed_count = sum(1 for s in updated_quest.steps if s.status == StepStatus.FAILED)
@@ -245,11 +338,11 @@ class DeterministicDAGExecutor:
             return QuestExecutionSummary(
                 quest_id=quest_id,
                 initial_status=initial_status,
-                final_status=QuestStatus.CANCELLED,
+                final_status=final_q_status,
                 total_steps=len(updated_quest.steps),
                 completed_steps=completed_count,
                 failed_steps=failed_count,
-                error=f"Quest cancelled: {reason}",
+                error=summary_err,
                 latency_ms=round((time.perf_counter() - start_time) * 1000, 3),
             )
         finally:
@@ -393,6 +486,35 @@ class DeterministicDAGExecutor:
                         )
             # Refresh quest model after step status updates
             quest = self.quest_engine.get_quest(quest_id)
+
+            # If cancellation was requested while mutation was in flight, transition to CANCELLED now that state is reconciled
+            if quest.metadata.get("cancellation_requested"):
+                c_reason = quest.metadata.get("cancellation_reason", "Execution cancelled by user")
+                for s in quest.steps:
+                    if s.status not in TERMINAL_STEP_STATES:
+                        try:
+                            self.quest_engine.transition_step(
+                                quest_id, s.step_id, StepStatus.CANCELLED, error=f"Cancelled: {c_reason}"
+                            )
+                        except Exception:
+                            pass
+                updated_quest = self.quest_engine.transition_quest(
+                    quest_id,
+                    QuestStatus.CANCELLED,
+                    reason=f"Cancelled following reconciliation: {c_reason}",
+                )
+                completed_count = sum(1 for s in updated_quest.steps if s.status == StepStatus.COMPLETED)
+                failed_count = sum(1 for s in updated_quest.steps if s.status == StepStatus.FAILED)
+                return QuestExecutionSummary(
+                    quest_id=quest_id,
+                    initial_status=initial_status,
+                    final_status=QuestStatus.CANCELLED,
+                    total_steps=len(updated_quest.steps),
+                    completed_steps=completed_count,
+                    failed_steps=failed_count,
+                    error=f"Quest cancelled following reconciliation: {c_reason}",
+                    latency_ms=round((time.perf_counter() - start_time) * 1000, 3),
+                )
 
         # Merge user inputs if resuming from input pause
         merged_inputs = dict(quest.metadata.get("inputs", {}))
@@ -740,25 +862,38 @@ class DeterministicDAGExecutor:
                                 confirmation_prompt=receipt.error,
                             )
                         elif receipt.status == StepStatus.COMPLETED:
-                            step_map[next_mutation.step_id] = self.quest_engine.transition_step(
-                                quest_id,
-                                next_mutation.step_id,
-                                StepStatus.COMPLETED,
-                                execution_receipt=receipt.tool_result.model_dump() if receipt.tool_result else None,
-                            )
-                            completed_steps[next_mutation.step_id] = step_map[next_mutation.step_id]
+                            fresh_step = self.quest_engine.get_step(quest_id, next_mutation.step_id)
+                            if fresh_step and fresh_step.status in TERMINAL_STEP_STATES:
+                                step_map[next_mutation.step_id] = fresh_step
+                            elif fresh_step and fresh_step.status == StepStatus.AWAITING_RECONCILIATION:
+                                step_map[next_mutation.step_id] = fresh_step
+                            else:
+                                step_map[next_mutation.step_id] = self.quest_engine.transition_step(
+                                    quest_id,
+                                    next_mutation.step_id,
+                                    StepStatus.COMPLETED,
+                                    execution_receipt=receipt.tool_result.model_dump() if receipt.tool_result else None,
+                                )
+                                completed_steps[next_mutation.step_id] = step_map[next_mutation.step_id]
                         elif receipt.status == StepStatus.AWAITING_RECONCILIATION:
-                            step_map[next_mutation.step_id] = self.quest_engine.transition_step(
-                                quest_id,
-                                next_mutation.step_id,
-                                StepStatus.AWAITING_RECONCILIATION,
-                                error=receipt.error,
-                            )
-                            self.quest_engine.transition_quest(
-                                quest_id,
-                                QuestStatus.PAUSED_FOR_RECONCILIATION,
-                                reason=f"Step '{next_mutation.step_id}' entered UNKNOWN_COMMIT: {receipt.error}",
-                            )
+                            fresh_step = self.quest_engine.get_step(quest_id, next_mutation.step_id)
+                            if not fresh_step or fresh_step.status != StepStatus.AWAITING_RECONCILIATION:
+                                step_map[next_mutation.step_id] = self.quest_engine.transition_step(
+                                    quest_id,
+                                    next_mutation.step_id,
+                                    StepStatus.AWAITING_RECONCILIATION,
+                                    error=receipt.error,
+                                )
+                            else:
+                                step_map[next_mutation.step_id] = fresh_step
+
+                            curr_q = self.quest_engine.get_quest(quest_id)
+                            if not curr_q or curr_q.status != QuestStatus.PAUSED_FOR_RECONCILIATION:
+                                self.quest_engine.transition_quest(
+                                    quest_id,
+                                    QuestStatus.PAUSED_FOR_RECONCILIATION,
+                                    reason=f"Step '{next_mutation.step_id}' entered UNKNOWN_COMMIT: {receipt.error}",
+                                )
                             return self._build_summary(
                                 quest_id,
                                 initial_status,
@@ -847,9 +982,19 @@ class DeterministicDAGExecutor:
         last_receipt: Optional[StepExecutionReceipt] = None
         for fut in done:
             step_id = in_flight.pop(fut)
+            curr_step = step_map.get(step_id)
+            if curr_step and curr_step.status in TERMINAL_STEP_STATES:
+                continue
+
             try:
                 receipt: StepExecutionReceipt = fut.result()
                 last_receipt = receipt
+
+                fresh_step = self.quest_engine.get_step(quest_id, step_id)
+                if fresh_step and fresh_step.status in TERMINAL_STEP_STATES:
+                    step_map[step_id] = fresh_step
+                    continue
+
                 if receipt.status == StepStatus.COMPLETED:
                     step_map[step_id] = self.quest_engine.transition_step(
                         quest_id,
@@ -882,13 +1027,20 @@ class DeterministicDAGExecutor:
                     )
                     failed_steps[step_id] = step_map[step_id]
             except Exception as e:
-                step_map[step_id] = self.quest_engine.transition_step(
-                    quest_id,
-                    step_id,
-                    StepStatus.FAILED,
-                    error=str(e),
-                )
-                failed_steps[step_id] = step_map[step_id]
+                fresh_step = self.quest_engine.get_step(quest_id, step_id)
+                if fresh_step and fresh_step.status in TERMINAL_STEP_STATES:
+                    step_map[step_id] = fresh_step
+                    continue
+                try:
+                    step_map[step_id] = self.quest_engine.transition_step(
+                        quest_id,
+                        step_id,
+                        StepStatus.FAILED,
+                        error=str(e),
+                    )
+                    failed_steps[step_id] = step_map[step_id]
+                except Exception:
+                    pass
         return last_receipt
 
     # =========================================================================
@@ -980,7 +1132,13 @@ class DeterministicDAGExecutor:
         if step.action_class == ActionClass.READ_ONLY:
             try:
                 step_timeout = step.timeout_s or (spec.timeout_seconds if spec else 30.0)
-                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                # Physical Interruption Semantics:
+                # CPython threads running blocking C-extensions, socket I/O, or non-cooperative loops
+                # cannot be asynchronously killed from Python. Subprocesses can be terminated via OS
+                # signals/taskkill, but in-process threads cannot. To prevent freezing the coordinator
+                # thread after the timeout deadline expires, we do NOT wait on pool shutdown (wait=False).
+                pool = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+                try:
                     fut = pool.submit(self.capability_registry.invoke, step.capability_id, resolved_args)
                     try:
                         tool_res = fut.result(timeout=step_timeout)
@@ -994,6 +1152,9 @@ class DeterministicDAGExecutor:
                                 message=f"Read capability timed out after {step_timeout}s",
                             ),
                         )
+                finally:
+                    pool.shutdown(wait=False, cancel_futures=True)
+
                 latency = round((time.perf_counter() - t0) * 1000, 3)
                 if tool_res.success:
                     return StepExecutionReceipt(
@@ -1059,7 +1220,14 @@ class DeterministicDAGExecutor:
         try:
             self.operation_ledger.begin_attempt(op_id)
             step_timeout = step.timeout_s or (spec.timeout_seconds if spec else 30.0)
-            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            # Physical Interruption Semantics:
+            # If a mutation thread hangs or times out, the external state mutation may still be in-flight.
+            # In CPython, in-process threads cannot be asynchronously terminated. To avoid blocking the
+            # coordinator on thread completion while guaranteeing exactly-once safety, we do NOT wait on
+            # pool shutdown (wait=False), and immediately record UNKNOWN_COMMIT in the ledger and transition
+            # the step to AWAITING_RECONCILIATION so human or verifier reconciliation is required before retry.
+            pool = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+            try:
                 fut = pool.submit(
                     self.capability_registry.invoke,
                     step.capability_id,
@@ -1081,26 +1249,42 @@ class DeterministicDAGExecutor:
                             message=f"Mutation capability timed out after {step_timeout}s",
                         ),
                     )
+            finally:
+                pool.shutdown(wait=False, cancel_futures=True)
             latency = round((time.perf_counter() - t0) * 1000, 3)
 
             if tool_res.success:
                 receipt_dict = tool_res.model_dump()
-                self.operation_ledger.commit_operation(op_id, execution_receipt=receipt_dict)
-                return StepExecutionReceipt(
-                    step_id=step.step_id,
-                    capability_id=step.capability_id,
-                    action_class=step.action_class,
-                    status=StepStatus.COMPLETED,
-                    tool_result=tool_res,
-                    latency_ms=latency,
-                )
+                try:
+                    self.operation_ledger.commit_operation(op_id, execution_receipt=receipt_dict)
+                    return StepExecutionReceipt(
+                        step_id=step.step_id,
+                        capability_id=step.capability_id,
+                        action_class=step.action_class,
+                        status=StepStatus.COMPLETED,
+                        tool_result=tool_res,
+                        latency_ms=latency,
+                    )
+                except OperationCommitUncertainError:
+                    return StepExecutionReceipt(
+                        step_id=step.step_id,
+                        capability_id=step.capability_id,
+                        action_class=step.action_class,
+                        status=StepStatus.AWAITING_RECONCILIATION,
+                        tool_result=tool_res,
+                        latency_ms=latency,
+                        error="Operation in UNKNOWN_COMMIT state requiring reconciliation",
+                    )
             else:
                 err_msg = str(tool_res.error.message if tool_res.error else "Mutation execution failed")
                 # AUDIT-01: Timeouts or network partitions during mutation mean execution outcome is UNCERTAIN (UNKNOWN_COMMIT)!
                 is_timeout_or_uncertain = bool(
                     tool_res.error and tool_res.error.code in (ErrorCode.TIMEOUT, ErrorCode.NETWORK_ERROR)
                 )
-                self.operation_ledger.fail_operation(op_id, error=err_msg, is_uncertain=is_timeout_or_uncertain)
+                try:
+                    self.operation_ledger.fail_operation(op_id, error=err_msg, is_uncertain=is_timeout_or_uncertain)
+                except OperationCommitUncertainError:
+                    pass
                 step_status = StepStatus.AWAITING_RECONCILIATION if is_timeout_or_uncertain else StepStatus.FAILED
                 return StepExecutionReceipt(
                     step_id=step.step_id,
@@ -1112,10 +1296,23 @@ class DeterministicDAGExecutor:
                     error=err_msg,
                 )
 
+        except OperationCommitUncertainError as ocue:
+            latency = round((time.perf_counter() - t0) * 1000, 3)
+            return StepExecutionReceipt(
+                step_id=step.step_id,
+                capability_id=step.capability_id,
+                action_class=step.action_class,
+                status=StepStatus.AWAITING_RECONCILIATION,
+                latency_ms=latency,
+                error=f"Operation in UNKNOWN_COMMIT: {ocue}",
+            )
         except Exception as e:
             latency = round((time.perf_counter() - t0) * 1000, 3)
             # Unhandled exceptions mark operation UNKNOWN_COMMIT to block blind retries
-            self.operation_ledger.fail_operation(op_id, error=str(e), is_uncertain=True)
+            try:
+                self.operation_ledger.fail_operation(op_id, error=str(e), is_uncertain=True)
+            except Exception:
+                pass
             return StepExecutionReceipt(
                 step_id=step.step_id,
                 capability_id=step.capability_id,
@@ -1174,12 +1371,22 @@ class DeterministicDAGExecutor:
         skill_id = provenance.get("skill_id") or quest.metadata.get("skill_id")
         plan_meta = dict(provenance.get("metadata", {}))
         goal = provenance.get("goal") or quest.goal
+        schema_version = provenance.get("schema_version") or "2.0"
+        plan_version = provenance.get("plan_version") or 1
+        validator_version = provenance.get("validator_version")
+        validation_hash = provenance.get("validation_hash")
+        validation_receipt = provenance.get("validation_receipt")
 
         return Plan(
             plan_id=plan_id,
             quest_id=quest.quest_id,
             goal=goal,
             plan_type=plan_type,
+            schema_version=schema_version,
+            plan_version=plan_version,
+            validator_version=validator_version,
+            validation_hash=validation_hash,
+            validation_receipt=validation_receipt,
             timeout_budget_s=timeout_budget_s,
             skill_id=skill_id,
             metadata=plan_meta,

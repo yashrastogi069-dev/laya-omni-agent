@@ -575,6 +575,17 @@ class DeterministicPlanValidator:
         elapsed_ms = (time.perf_counter() - t0) * 1000.0
         is_valid = len(errors) == 0
 
+        validator_ver = "1.0.0"
+        validation_hash = plan.compute_hash() if is_valid else None
+        validation_receipt = {
+            "plan_id": plan.plan_id,
+            "validation_hash": validation_hash,
+            "validator_version": validator_ver,
+            "passed_passes": [p.pass_name.value for p in passes if p.passed],
+            "total_passes": len(passes),
+            "timestamp": time.time(),
+        } if is_valid else None
+
         return PlanValidationReport(
             plan_id=plan.plan_id,
             is_valid=is_valid,
@@ -582,6 +593,9 @@ class DeterministicPlanValidator:
             errors=errors,
             warnings=warnings,
             latency_ms=round(elapsed_ms, 3),
+            validator_version=validator_ver,
+            validation_hash=validation_hash,
+            validation_receipt=validation_receipt,
         )
 
     # -------------------------------------------------------------------------

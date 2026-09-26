@@ -49,3 +49,6 @@ class PlanValidationReport(BaseContractModel):
     errors: List[str] = Field(default_factory=list)
     warnings: List[str] = Field(default_factory=list)
     latency_ms: float = Field(default=0.0, ge=0.0)
+    validator_version: str = Field(default="1.0.0", description="Version of the DeterministicPlanValidator")
+    validation_hash: Optional[str] = Field(default=None, description="Plan canonical hash verified by validator")
+    validation_receipt: Optional[Dict[str, Any]] = Field(default=None, description="Detailed validation receipt")

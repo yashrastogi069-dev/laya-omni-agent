@@ -20,6 +20,8 @@ from omni_engine.contracts.execution import ExecutionFirewallError, StepExecutio
 from omni_engine.contracts.operation import (
     AttemptState,
     ConcurrentAttemptConflictError,
+    ConcurrentReconciliationConflictError,
+    IdempotencyConflictError,
     LedgerError,
     MaxAttemptsExceededError,
     MutationState,
@@ -27,6 +29,7 @@ from omni_engine.contracts.operation import (
     OperationCommitUncertainError,
     OperationNotFoundError,
     OperationRecord,
+    StaleAttemptError,
 )
 from omni_engine.contracts.plan import Plan, PlanStep, PlanType
 from omni_engine.contracts.policy import AutonomyProfile
@@ -172,6 +175,37 @@ class TestL14_2_OperationIdentityAndIdempotency(unittest.TestCase):
                 step_id="step_1",
                 capability_id="file_write",
                 arguments={"content": "MODIFIED_CONFLICTING_ARG"},
+            )
+
+    def test_a6_custom_idempotency_conflict_protection(self):
+        """A6: Same custom idempotency key with changed capability or arguments raises IdempotencyConflictError."""
+        shared_key = "custom_idem_conflict_key_999"
+        self.ledger.register_mutation(
+            quest_id="quest_a6_1",
+            step_id="step_1",
+            capability_id="file_write",
+            arguments={"filepath": "out.txt", "content": "alpha"},
+            custom_idempotency_key=shared_key,
+        )
+
+        # Conflict 1: Same key, different arguments -> IdempotencyConflictError
+        with self.assertRaises(IdempotencyConflictError):
+            self.ledger.register_mutation(
+                quest_id="quest_a6_2",
+                step_id="step_2",
+                capability_id="file_write",
+                arguments={"filepath": "out.txt", "content": "DIFFERENT_PAYLOAD"},
+                custom_idempotency_key=shared_key,
+            )
+
+        # Conflict 2: Same key, different capability -> IdempotencyConflictError
+        with self.assertRaises(IdempotencyConflictError):
+            self.ledger.register_mutation(
+                quest_id="quest_a6_3",
+                step_id="step_3",
+                capability_id="powershell",
+                arguments={"filepath": "out.txt", "content": "alpha"},
+                custom_idempotency_key=shared_key,
             )
 
 
@@ -717,6 +751,115 @@ class TestL14_2_PlanProvenanceAndTamperFirewall(unittest.TestCase):
         with self.assertRaises(ExecutionFirewallError):
             self.executor.execute(quest.quest_id)
 
+    def test_f3_tampered_dependencies_blocks_execution(self):
+        """F3: Directly modifying step dependencies in SQLite breaks plan hash and blocks execution."""
+        quest = self.quest_engine.create_quest(title="F3 Quest", goal="Test dep tamper")
+        plan = Plan(
+            quest_id=quest.quest_id,
+            goal="Two steps",
+            steps=[
+                PlanStep(step_id="step_1", capability_id="safe_math", intent="Step 1", arguments={"expression": "1+1"}),
+                PlanStep(step_id="step_2", capability_id="safe_math", intent="Step 2", arguments={"expression": "2+2"}, dependencies=["step_1"]),
+            ],
+        )
+        self.planner.attach_to_quest(self.quest_engine, plan)
+
+        # TAMPER: Remove dependency of step_2 in SQLite
+        import json
+        conn = sqlite3.connect(self.quest_db)
+        conn.execute(
+            "UPDATE quest_steps SET dependencies = ? WHERE quest_id = ? AND step_id = ?",
+            (json.dumps([]), quest.quest_id, "step_2"),
+        )
+        conn.commit()
+        conn.close()
+
+        with self.assertRaises(ExecutionFirewallError) as ctx:
+            self.executor.execute(quest.quest_id)
+        self.assertIn("tamper", str(ctx.exception).lower())
+
+    def test_f4_phantom_step_blocks_execution(self):
+        """F4: Injecting an unauthorized rogue step into SQLite breaks plan hash and blocks execution."""
+        quest = self.quest_engine.create_quest(title="F4 Quest", goal="Test phantom step")
+        plan = Plan(
+            quest_id=quest.quest_id,
+            goal="Single step",
+            steps=[
+                PlanStep(step_id="step_1", capability_id="safe_math", intent="Step 1", arguments={"expression": "1+1"}),
+            ],
+        )
+        self.planner.attach_to_quest(self.quest_engine, plan)
+
+        # TAMPER: Insert unauthorized phantom step into quest_steps table
+        import json
+        conn = sqlite3.connect(self.quest_db)
+        conn.execute(
+            """
+            INSERT INTO quest_steps (
+                step_id, quest_id, capability_id, action_class, intent,
+                arguments, dependencies, status, timeout_s, max_attempts,
+                can_fail_silently, metadata, execution_receipt, verification_receipt,
+                error, created_at, updated_at, version
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                "phantom_step_99",
+                quest.quest_id,
+                "file_write",
+                ActionClass.LOCAL_UPDATE.value,
+                "Unauthorized injection",
+                json.dumps({"filepath": "evil.txt", "content": "injected"}),
+                json.dumps([]),
+                StepStatus.PENDING.value,
+                30.0,
+                3,
+                0,
+                json.dumps({}),
+                None,
+                None,
+                None,
+                time.time(),
+                time.time(),
+                1,
+            ),
+        )
+        conn.commit()
+        conn.close()
+
+        with self.assertRaises(ExecutionFirewallError) as ctx:
+            self.executor.execute(quest.quest_id)
+        self.assertIn("tamper", str(ctx.exception).lower())
+
+    def test_f5_tampered_plan_metadata_or_budget_blocks_execution(self):
+        """F5: Directly modifying plan metadata or timeout budget breaks plan hash and blocks execution."""
+        quest = self.quest_engine.create_quest(title="F5 Quest", goal="Test budget tamper")
+        plan = Plan(
+            quest_id=quest.quest_id,
+            goal="Single step",
+            timeout_budget_s=120.0,
+            metadata={"security_level": "restricted"},
+            steps=[
+                PlanStep(step_id="step_1", capability_id="safe_math", intent="Step 1", arguments={"expression": "1+1"}),
+            ],
+        )
+        self.planner.attach_to_quest(self.quest_engine, plan)
+
+        # TAMPER: Modify plan_provenance timeout budget in quest metadata table
+        import json
+        conn = sqlite3.connect(self.quest_db)
+        cur = conn.execute("SELECT metadata FROM quests WHERE quest_id = ?", (quest.quest_id,))
+        row = cur.fetchone()
+        raw_meta = json.loads(row[0])
+        # Tamper provenance budget
+        raw_meta["plan_provenance"]["timeout_budget_s"] = 9999.0
+        conn.execute("UPDATE quests SET metadata = ? WHERE quest_id = ?", (json.dumps(raw_meta), quest.quest_id))
+        conn.commit()
+        conn.close()
+
+        with self.assertRaises(ExecutionFirewallError) as ctx:
+            self.executor.execute(quest.quest_id)
+        self.assertIn("tamper", str(ctx.exception).lower())
+
     def test_f6_generative_plan_type_preserved_after_restart(self):
         """F6: Reconstructing a generative plan preserves PlanType.GENERATIVE_SYNTHESIZED."""
         quest = self.quest_engine.create_quest(title="F6 Quest", goal="Generative plan")
@@ -903,6 +1046,86 @@ class TestL14_2_ActiveCancellation(unittest.TestCase):
         q = self.quest_engine.get_quest(quest.quest_id)
         self.assertEqual(q.status, QuestStatus.CANCELLED)
 
+    def test_k2_mutation_cancel_with_durable_intent_and_reconciliation_on_restart(self):
+        """K2: In-flight mutation cancellation routes to UNKNOWN_COMMIT/PAUSED_FOR_RECONCILIATION; resume transitions to CANCELLED without running remaining steps."""
+        quest = self.quest_engine.create_quest(
+            title="K2 Quest",
+            goal="Cancel in-flight mutation",
+            autonomy_profile=AutonomyProfile.LOCAL_OPERATOR,
+        )
+
+        started_event = threading.Event()
+        can_finish_event = threading.Event()
+
+        def slow_mutation(**kwargs):
+            started_event.set()
+            can_finish_event.wait(timeout=5.0)
+            return {"file": "written"}
+
+        from omni_engine.contracts.capability import CapabilitySpec
+        spec = CapabilitySpec(
+            id="slow_mut_k2",
+            name="Slow Mutation",
+            domain="os",
+            description="Mutation that blocks until released",
+            action_class=ActionClass.LOCAL_UPDATE,
+            input_schema={"type": "object", "properties": {}},
+            output_schema={"type": "object", "properties": {}},
+            minimum_autonomy_profile=AutonomyProfile.LOCAL_OPERATOR,
+        )
+        self.registry.register(spec, slow_mutation)
+
+        plan = Plan(
+            quest_id=quest.quest_id,
+            goal="Mutate then calculate",
+            plan_type=PlanType.TEMPLATE_DERIVED,
+            steps=[
+                PlanStep(step_id="step_mut", capability_id="slow_mut_k2", intent="Step Mut"),
+                PlanStep(step_id="step_math", capability_id="safe_math", intent="Step Math", arguments={"expression": "5*5"}, dependencies=["step_mut"]),
+            ],
+        )
+        self.planner.attach_to_quest(self.quest_engine, plan)
+
+        # Run execute in background
+        exec_thread = threading.Thread(target=self.executor.execute, args=(quest.quest_id,))
+        exec_thread.start()
+
+        self.assertTrue(started_event.wait(timeout=3.0))
+
+        # Cancel while mutation is actively in-flight
+        try:
+            cancel_summary = self.executor.cancel(quest.quest_id, reason="User cancelled slow mutation")
+            # Mutation in-flight cannot be cleanly marked CANCELLED immediately; must be PAUSED_FOR_RECONCILIATION
+            self.assertEqual(cancel_summary.final_status, QuestStatus.PAUSED_FOR_RECONCILIATION)
+        finally:
+            can_finish_event.set()
+            exec_thread.join(timeout=5.0)
+
+        # Verify durable cancellation intent persisted in quest metadata
+        q = self.quest_engine.get_quest(quest.quest_id)
+        self.assertTrue(q.metadata.get("cancellation_requested"))
+        self.assertEqual(q.status, QuestStatus.PAUSED_FOR_RECONCILIATION)
+
+        # Verify operation in ledger is UNKNOWN_COMMIT
+        op = self.operation_ledger.get_operation(f"op_{quest.quest_id}_step_mut_slow_mut_k2")
+        self.assertEqual(op.state, MutationState.UNKNOWN_COMMIT)
+
+        # Reconcile operation (e.g. verified it succeeded)
+        self.operation_ledger.reconcile_operation(
+            operation_id=op.operation_id,
+            is_verified_committed=True,
+            evidence={"verified": True},
+            reconciliation_note="Verified safe",
+        )
+
+        # Now resume: because cancellation was requested, quest transitions cleanly to CANCELLED without running step_math!
+        resume_summary = self.executor.resume(quest.quest_id)
+        self.assertEqual(resume_summary.final_status, QuestStatus.CANCELLED)
+
+        # Step Math must NOT have executed; must be CANCELLED
+        step_math = self.quest_engine.get_step(quest.quest_id, "step_math")
+        self.assertEqual(step_math.status, StepStatus.CANCELLED)
+
 
 class TestL14_2_DurableReconciliationHistory(unittest.TestCase):
     """L14.2-L: UNKNOWN_COMMIT Reconciliation Audit History."""
@@ -953,6 +1176,49 @@ class TestL14_2_DurableReconciliationHistory(unittest.TestCase):
         self.assertEqual(rec["reconciled_state"], MutationState.COMMITTED.value)
         self.assertEqual(rec["evidence"]["file_size"], 1024)
         reopened_store.close()
+
+    def test_l2_reconciliation_db_cas_rejects_concurrent_conflict(self):
+        """L2: Database-level CAS in record_reconciliation_atomic ensures one reconciler wins; conflicting second is rejected."""
+        from omni_engine.contracts.operation import OperationReconciliationRecord
+        op_id = "op_rec_test_2"
+        self.ledger.register_mutation(
+            quest_id="quest_rec_2",
+            step_id="step_1",
+            capability_id="file_write",
+            arguments={"filepath": "target2.txt"},
+            operation_id=op_id,
+        )
+        att = self.ledger.begin_attempt(op_id)
+        self.ledger.fail_attempt(op_id, att.attempt_id, "timeout", is_uncertain=True)
+
+        store1 = self.store
+        store2 = OperationStore(self.ledger_db)
+
+        # Reconciler 1 reconciles UNKNOWN_COMMIT -> COMMITTED
+        op = store1.get_operation(op_id)
+        rec1 = OperationReconciliationRecord(
+            operation_id=op_id,
+            prior_state=MutationState.UNKNOWN_COMMIT,
+            reconciled_state=MutationState.COMMITTED,
+            evidence={"verified": True},
+            note="Reconciler 1 won",
+        )
+        updated_op1 = op.model_copy(update={"state": MutationState.COMMITTED})
+        store1.record_reconciliation_atomic(rec1, updated_op1)
+
+        # Reconciler 2 attempts to reconcile expecting prior_state UNKNOWN_COMMIT
+        rec2 = OperationReconciliationRecord(
+            operation_id=op_id,
+            prior_state=MutationState.UNKNOWN_COMMIT,
+            reconciled_state=MutationState.FAILED,
+            evidence={"verified": False},
+            note="Reconciler 2 conflicting attempt",
+        )
+        updated_op2 = op.model_copy(update={"state": MutationState.FAILED})
+        with self.assertRaises(ConcurrentReconciliationConflictError):
+            store2.record_reconciliation_atomic(rec2, updated_op2)
+
+        store2.close()
 
 
 class TestL14_2_AttemptStateConsistency(unittest.TestCase):
@@ -1014,6 +1280,19 @@ class TestL14_2_AttemptStateConsistency(unittest.TestCase):
         from omni_engine.contracts.operation import OperationCommitUncertainError
         with self.assertRaises(OperationCommitUncertainError):
             self.ledger.commit_attempt(op.operation_id, att.attempt_id, {"late": True})
+
+    def test_e5_fail_attempt_stale_attempt_rejected(self):
+        """E5: A delayed zombie attempt (attempt 1) cannot fail an operation currently at attempt 2."""
+        op, _ = self.ledger.register_mutation(quest_id="q1", step_id="s1", capability_id="c1", arguments={}, max_attempts=3)
+        att1 = self.ledger.begin_attempt(op.operation_id)
+        self.ledger.fail_attempt(op.operation_id, att1.attempt_id, "transient error", is_uncertain=False)
+
+        # Begin attempt 2
+        att2 = self.ledger.begin_attempt(op.operation_id)
+
+        # Zombie attempt 1 tries to fail operation currently at attempt 2
+        with self.assertRaises(StaleAttemptError):
+            self.ledger.fail_attempt(op.operation_id, att1.attempt_id, "zombie late failure", is_uncertain=False)
 
 
 class TestL14_2_PlanSemanticsRoundTrip(unittest.TestCase):
@@ -1188,6 +1467,56 @@ class TestL14_2_TruthfulTimeoutHierarchy(unittest.TestCase):
         op = self.operation_ledger.get_operation(f"op_{quest.quest_id}_step_mut_hanging_mut")
         self.assertIsNotNone(op)
         self.assertEqual(op.state, MutationState.UNKNOWN_COMMIT)
+
+    def test_j3_executor_non_blocking_timeout_after_deadline(self):
+        """J3: ThreadPoolExecutor does NOT block coordinator on thread shutdown after deadline; returns promptly."""
+        from omni_engine.contracts.capability import CapabilitySpec
+
+        def very_slow_capability(**kwargs):
+            time.sleep(3.0)
+            return {"done": True}
+
+        spec = CapabilitySpec(
+            id="very_slow_cap",
+            name="Very Slow Cap",
+            domain="os",
+            description="Sleeps 3.0s",
+            action_class=ActionClass.READ_ONLY,
+            input_schema={"type": "object", "properties": {}},
+            output_schema={"type": "object", "properties": {}},
+            minimum_autonomy_profile=AutonomyProfile.ADVISOR,
+        )
+        self.registry.register(spec, very_slow_capability)
+
+        quest = self.quest_engine.create_quest(
+            title="J3 Quest",
+            goal="Test non-blocking timeout",
+        )
+        plan = Plan(
+            quest_id=quest.quest_id,
+            goal="Timeout promptly",
+            steps=[
+                PlanStep(
+                    step_id="step_slow",
+                    capability_id="very_slow_cap",
+                    intent="Sleep step",
+                    timeout_s=0.2,  # 200ms timeout
+                )
+            ],
+        )
+        self.planner.attach_to_quest(self.quest_engine, plan)
+
+        t_start = time.perf_counter()
+        summary = self.executor.execute(quest.quest_id)
+        elapsed = time.perf_counter() - t_start
+
+        # Proves coordinator unblocked promptly (< 1.5s) without waiting for the full 3.0s sleep to finish!
+        self.assertLess(
+            elapsed, 1.5,
+            f"Executor took {elapsed:.2f}s! Must NOT block waiting for hung thread on pool shutdown."
+        )
+        self.assertEqual(summary.final_status, QuestStatus.FAILED)
+        self.assertIn("timed out", (summary.error or "").lower())
 
 
 if __name__ == "__main__":

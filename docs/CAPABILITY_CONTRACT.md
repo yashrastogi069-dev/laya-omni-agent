@@ -53,6 +53,11 @@ class CapabilitySpec(BaseContractModel):
    - Logical operation ID: `op_{quest_id}_{step_id}_{capability_id}`.
    - Distinct steps with identical capabilities and arguments within the same quest never collide or accidentally deduplicate.
    - Caller-supplied custom idempotency keys are explicitly honored for intentional cross-quest bridging.
+3. **Custom Idempotency Conflict Protection**:
+   - If a caller supplies an explicit custom idempotency key for an operation whose arguments or capability differ from an existing operation registered with that key, the system strictly raises `IdempotencyConflictError`, preventing silent parameter corruption or accidental receipt collisions across quests.
+4. **Physical Interruption Limits & Real Timeout Semantics**:
+   - In-process Python worker threads cannot be asynchronously killed from Python without process termination.
+   - Therefore, when a mutating capability exceeds its timeout deadline after dispatch, the runtime immediately quarantines the attempt as `AttemptState.UNCERTAIN`, the operation as `MutationState.UNKNOWN_COMMIT`, and transitions the quest to `PAUSED_FOR_RECONCILIATION`. Automated blind retries are blocked until physical evidence reconciliation confirms state.
 
 ---
 

@@ -136,6 +136,7 @@
   - Scoped automatic idempotency key: `idem_{quest_id}_{step_id}_{capability_id}_{arg_hash[:16]}`.
   - Logical operation ID: `op_{quest_id}_{step_id}_{capability_id}`.
   - Preserved caller-supplied `custom_idempotency_key` for explicit cross-quest bridging.
+  - Custom Idempotency Conflict Protection: Reusing a custom key with changed capability or arguments raises `IdempotencyConflictError` (`test_a6`).
 - [x] **max_attempts Propagation (L14.2-B)**:
   - Propagated `step.max_attempts` into `operation_ledger.register_mutation(..., max_attempts=step.max_attempts)`.
 - [x] **Database-Level CAS Concurrency (L14.2-C)**:
@@ -154,27 +155,34 @@
   - Verified rollback and data consistency on cold database reopening across all 6 fault operations.
 - [x] **Attempt & Operation State Consistency (L14.2-E)**:
   - Reordered validation in `commit_attempt_atomic` and `fail_attempt_atomic` to validate aggregate root `operations` first (preventing mutations locked in `UNKNOWN_COMMIT` from being overridden), followed by attempt state verification (`STARTED`).
-  - Added `StaleAttemptError(LedgerError)`.
+  - Added `StaleAttemptError(LedgerError)` and enforced current-attempt parity in `fail_attempt_atomic` (`test_e5`).
 - [x] **Plan Provenance & Tamper Firewall (L14.2-F & G)**:
-  - Canonical SHA-256 `Plan.compute_hash()` sorting steps, dependencies, normalizing timeouts and floats.
+  - Canonical SHA-256 `Plan.compute_hash()` sorting steps, dependencies, normalizing timeouts and floats, including `schema_version`, `plan_version`, `validator_version`, `validation_hash`, `validation_receipt`, and sorted `metadata`.
   - Faithful plan reconstruction in `_reconstruct_plan` preserving `PlanType.GENERATIVE_SYNTHESIZED`, `skill_id`, `goal`, and timeouts.
   - Pre-execution Plan Tamper Firewall in `_execute_internal`: asserts recomputed plan hash matches `quest.metadata["plan_hash"]` or halts with `ExecutionFirewallError`.
+  - Verified tamper detection for arguments (F1), capability (F2), dependencies (F3), phantom steps (F4), and metadata/budgets (F5).
 - [x] **Non-Decorative Contract Fields (L14.2-H)**:
   - Pass 9 of `DeterministicPlanValidator` strictly rejects `can_fail_silently=True` with explicit deferral message to Checkpoint L16.
   - Step `timeout_s` enforced with `UNKNOWN_COMMIT` on mutation timeout.
 - [x] **READ_ONLY Missing Input Clean Pause (L14.2-I)**:
   - Removed duplicate `transition_step(..., StepStatus.PAUSED)` inside `_execute_step()`.
-- [x] **Truthful Timeout Hierarchy (L14.2-J)**:
-  - Bounded step dispatch; mutation timeout during dispatch marks `UNKNOWN_COMMIT` and pauses for reconciliation.
-- [x] **Active Cancellation Protocol (L14.2-K)**:
-  - Added active cancellation support in `cancel()` via `_cancellation_events[quest_id].set()` without lease collision.
-- [x] **Append-Only Reconciliation History (L14.2-L)**:
+- [x] **Truthful Timeout Hierarchy & Real Timeout Semantics (L14.2-J)**:
+  - Coordinator eliminates `with ThreadPoolExecutor` blocking on context exit, using explicit `pool.shutdown(wait=False, cancel_futures=True)` (`test_j3`).
+  - In-flight mutation timeouts quarantined into `UNKNOWN_COMMIT` and quest paused for reconciliation promptly.
+- [x] **Active Cancellation Protocol & Durable Intent (L14.2-K)**:
+  - Active cancellation persists durable intent `quest.metadata["cancellation_requested"] = True`, quarantines running mutations as `UNKNOWN_COMMIT`, pauses for reconciliation, and on resume/restart cleanly cancels without executing downstream steps (`test_k1`, `test_k2`).
+- [x] **Append-Only Reconciliation History & DB CAS (L14.2-L)**:
   - SQLite table `operation_reconciliations`, `record_reconciliation_atomic()`, and `get_reconciliations()`.
+  - Reconciliation DB CAS update `WHERE operation_id = ? AND state = ?` using `rec.prior_state.value`, rejecting conflicting reconciliations with `ConcurrentReconciliationConflictError` (`test_l2`).
+- [x] **Policy Latency Benchmark Distribution Proof**:
+  - Replaced fastest-of-five with a 20-run statistical distribution asserting median < 5.0ms (sub-1ms SLA proof) in `tests/test_l9_policy.py`.
+- [x] **Deterministic CI Workflow**:
+  - Created `.github/workflows/ci.yml` verifying legacy 0-diff boundary and discovering tests.
 - [x] **Anti-Shallow-Test Rule & Failure Accountability**:
   - Captured reproducible RED failure evidence in `tasks/FAILURE_LEDGER.md` (entries `FAIL-L14.2-001` through `FAIL-L14.2-016`).
-  - Created 28 adversarial tests in `tests/test_l14_2_durability.py`.
+  - Created 36 adversarial tests in `tests/test_l14_2_durability.py`.
 - [x] **Final Test Suite & Hard Stop**:
-  - Full test suite: 509 automated tests + 47 subtests = 556 checks passing across all 27 test files (100% pass rate).
+  - Full test suite: 517 automated tests + 47 subtests = 564 checks passing across all 27 test files (100% pass rate).
   - Non-switching boundary: `omni_agent.py` and `omni_engine/planner.py` have **0 diffs**.
   - **HARD STOP STRICTLY ENFORCED**: Zero implementation of L15 (Completion Verifier), L16 (Controlled Replanner), Memory V2, or legacy retirement.
 

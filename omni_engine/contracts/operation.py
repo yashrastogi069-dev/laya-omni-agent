@@ -105,6 +105,16 @@ class StaleAttemptError(LedgerError):
     pass
 
 
+class IdempotencyConflictError(LedgerError):
+    """Raised when an idempotency key is re-used with mismatched capability or arguments."""
+    pass
+
+
+class ConcurrentReconciliationConflictError(LedgerError):
+    """Raised when a concurrent reconciliation attempts to reconcile an operation whose prior state changed."""
+    pass
+
+
 class OperationReconciliationRecord(BaseContractModel):
     """Strongly typed contract for an immutable audit record of an operation reconciliation."""
     reconciliation_id: str = Field(default_factory=lambda: f"rec_{uuid.uuid4().hex[:12]}")

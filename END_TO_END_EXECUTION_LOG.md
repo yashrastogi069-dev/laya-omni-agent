@@ -11,14 +11,15 @@
 | **System Role** | Standalone Autonomous Operating Agent (Independent from Jarvis Core V2) |
 | **Active Architecture Branch** | `laya-autonomous-v2` |
 | **Public GitHub Remote** | `https://github.com/yashrastogi069-dev/laya-omni-agent.git` |
-| **Latest Branch Commit** | `df45f8a` (`feat(l14.3): practical runtime integration and operator-control closure (PRACT-001..036)`) on `laya-autonomous-v2` |
-| **Total Automated Tests** | **538 / 538 Passing (100%)** (+ 47 subtests = 585 total checks) |
-| **Test Categorization** | **536 Feature Acceptance Tests** + **2 Known Defect Reproduction Tests** |
+| **Latest Branch Commit** | `628bd3d` (`fix(capabilities): handle cross-drive paths gracefully in tool_file_write`) on `laya-autonomous-v2` |
+| **Total Automated Tests** | **539 / 539 Passing (100%)** (+ 47 subtests = 586 total checks) |
+| **GitHub Actions CI Status** | **100% GREEN (Run 37220997979)**: Deterministic Test Suite (4m21s) & Non-Switching Boundary Check (3s) |
+| **Test Categorization** | **537 Feature Acceptance Tests** + **2 Known Defect Reproduction Tests** |
 | **Known Warnings Classification** | **4 Warnings Emitted**: `RuntimeWarning` from `laya/router.py:187` (Upstream library temperature outside [0.5, 5] clamping — BENIGN/UPSTREAM); 0 unhandled warnings in test suite |
 | **Calibration Status** | **Intent Signal**: Calibrated (ECE 0.1192, 72/31 stratified corpus split); **Domain Signal**: Uncalibrated (Deterministic fail-open fallback, cross-domain pooling, and escalation) |
 | **Hardware Operating Baseline** | Windows 10 Host, 4 CPU Cores, 7.81 GB RAM, PyTorch 2.13.0+cpu, NO CUDA GPU (CPU DecisionFrame latency ~15.4s; SystemOneBroker enforces user sovereignty, RAM threshold debouncing, and quality floor) |
 | **Checkpoints Completed** | **L0–L14.3, Foundation Gate, R1, R2, R3, R4, R5, RV0** |
-| **Active Milestone & Checkpoint** | **CHECKPOINT COMPLETE: L14.3 PRACTICAL RUNTIME INTEGRATION & OPERATOR-CONTROL CLOSURE ACHIEVED (PREPARED FOR L15)** |
+| **Active Milestone & Checkpoint** | **CHECKPOINT COMPLETE: L14.3 PRACTICAL RUNTIME INTEGRATION & OPERATOR-CONTROL CLOSURE ACHIEVED (100% GREEN CI — PREPARED FOR L15)** |
 
 ---
 
@@ -3173,7 +3174,7 @@ All 36 findings are permanently recorded in `tasks/PRACTICAL_FINDINGS.md` and su
 ### 16.6 Test Suite Inventory & Results
 - **Practical Regression Tests (`tests/test_l14_3_practical.py`)**: 21 / 21 passed in 6.46s (100% pass rate).
 - **Core Multi-Step & Autonomy Subsystems (L10–L14.3)**: 166 tests passed (100% pass rate).
-- **Full Repository Suite Across All Checkpoints (L0–L14.3)**: **538 / 538 automated tests passed (+ 47 subtests = 585 total checks)** across all 28 test files in 337s (100% pass rate).
+- **Full Repository Suite Across All Checkpoints (L0–L14.3)**: **539 / 539 automated tests passed (+ 47 subtests = 586 total checks)** across all 28 test files in 290s (100% pass rate).
 - **CLI Dry Run Acceptance**: `python laya_v2_cli.py --dry-run -p "Inspect repository structure, locate Quest persistence, and analyze crash recovery" --verbose` executed with exit code 0 and status `PLAN_VALIDATED`.
 
 ### 16.7 Adversarial Diff Review
@@ -3185,8 +3186,30 @@ All 36 findings are permanently recorded in `tasks/PRACTICAL_FINDINGS.md` and su
 - Executed: `git diff origin/main -- omni_agent.py omni_engine/planner.py`.
 - Result: **EXACTLY 0 DIFFS**. Legacy entrypoints remain 100% untouched.
 
-### 16.9 Checkpoint L14.3 Final Status
-- **Checkpoint L14.3 is Officially PASSED, HARDENED, and COMPLETED**.
+### 16.9 Checkpoint L14.3 Windows Cross-Mount Path Diagnosis & CI Green Closure
+- **Context**: In GitHub Actions CI run `37220082253`, the `Non-Switching Boundary Check` passed in 3s, but the `Deterministic Test Suite` reported 3 test failures out of 538 tests:
+  1. `test_confirmation_gate_pause_and_resume` in `tests/test_l14_executor.py` (`AssertionError: <QuestStatus.FAILED> != <QuestStatus.AWAITING_VERIFICATION>`)
+  2. `test_mutation_barrier_and_operation_ledger_deduplication` in `tests/test_l14_executor.py` (`AssertionError: <QuestStatus.FAILED> != <QuestStatus.AWAITING_VERIFICATION>`)
+  3. `test_structured_file_write_via_kwargs_adapter` in `tests/test_l3_capabilities.py` (`AssertionError: <ToolOutcome.FAILURE> != <ToolOutcome.SUCCESS>`)
+- **Root Cause Analysis**:
+  - In Windows CI runners, temporary files created by `tempfile.NamedTemporaryFile()` are located on drive `C:` (`C:\Users\runneradmin\AppData\Local\Temp`), while the repository workspace is checked out on drive `D:` (`D:\a\laya-omni-agent\laya-omni-agent`).
+  - In `omni_engine/tools/dev_tools.py`, `tool_file_write` executed `os.path.relpath(fpath, WORKSPACE_ROOT)`.
+  - On Windows, `ntpath.relpath` raises `ValueError: path is on mount 'C:', start on mount 'D:'` whenever paths reside on different volume mounts.
+  - This unhandled `ValueError` was caught by `tool_file_write`'s generic exception handler and converted to `"Write error: path is on mount 'C:', start on mount 'D:'"`.
+  - `intercept_legacy_error_string()` intercepted this string as a fatal `ToolError`, causing capability execution and subsequent Quest steps to fail.
+- **Fix Applied**:
+  - In `omni_engine/tools/dev_tools.py`, wrapped the relative path display formatting with `try: display_path = os.path.relpath(fpath, WORKSPACE_ROOT) except ValueError: display_path = fpath`.
+  - Added regression test `test_file_write_cross_mount_resilience` in `tests/test_l3_capabilities.py` using `patch("os.path.relpath", side_effect=ValueError("path is on mount 'C:', start on mount 'D:'"))` to assert that file write succeeds and returns `ToolOutcome.SUCCESS` even when paths span across different drive mounts.
+- **Local Test Verification**: Full repository test suite ran 539 tests in 290.381s: **539 / 539 passed (100% OK)**.
+- **GitHub Actions CI Verification**:
+  - Commit `628bd3d` pushed to `origin/laya-autonomous-v2`.
+  - Workflow run `37220997979` executed on GitHub Actions Windows runner:
+    - `Deterministic Test Suite` passed in 4m 21s (539 tests passed, 0 failures, 0 errors).
+    - `Non-Switching Boundary Check` passed in 3s (0 diffs).
+    - **100% GREEN ON GITHUB ACTIONS CI**.
+
+### 16.10 Checkpoint L14.3 Final Status
+- **Checkpoint L14.3 is Officially PASSED, HARDENED, FULLY VERIFIED, and 100% GREEN ON CI**.
 - **HARD STOP ENFORCED**: Complete Checkpoint L14.3. Do NOT begin Checkpoint L15 (Completion Verifier & Real-World Evidence Verification) until explicitly commanded by the user.
 
 ---

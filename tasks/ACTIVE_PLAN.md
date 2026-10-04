@@ -4,7 +4,7 @@
 
 - **Milestone Scope**: RV0 → L10 Quest → L11 Operation Ledger → L12 Planner → L13 Validator → L14 Executor → L14.1 Runtime Hardening → L14.2 Adversarial Durability → L14.3 Practical Runtime Integration.
 - **Target Branch**: `laya-autonomous-v2`
-- **Baseline Verified Commit**: `df45f8a` (`feat(l14.3): practical runtime integration and operator-control closure (PRACT-001..036)`) on `laya-autonomous-v2` (538 automated tests + 47 subtests = 585 checks passing, 0 failures).
+- **Baseline Verified Commit**: `628bd3d` (`fix(capabilities): handle cross-drive paths gracefully in tool_file_write`) on `laya-autonomous-v2` (539 automated tests + 47 subtests = 586 checks passing, 0 failures; 100% GREEN on GitHub Actions CI Run 37220997979).
 - **Hard Stop Boundary**: **HARD STOP IMMEDIATELY AFTER L14.3**. Do NOT begin L15 Completion Verifier, L16 Replanner, Memory V2, automation scheduling, MCP expansion, canary promotion, or legacy retirement until explicitly commanded.
 - **Permanent Invariants**:
   1. `END_TO_END_EXECUTION_LOG.md` is the master cumulative engineering record (must record research, plans, diffs, tests, reviews, repairs, decisions, and documentation updates).
@@ -218,7 +218,11 @@
   - `v2_cli_test.py` converted to a thin legacy shim with `DeprecationWarning`.
 - [x] **CI Hard Boundary Gate (`.github/workflows/ci.yml`)**:
   - Dedicated `boundary-check` job failing hard on any diffs against legacy entrypoints.
+- [x] **Cross-Mount Windows Path Resilience (`omni_engine/tools/dev_tools.py`)**:
+  - Handled cross-drive paths gracefully in `tool_file_write` when `os.path.relpath` raises `ValueError: path is on mount 'C:', start on mount 'D:'`.
+  - Added regression test `test_file_write_cross_mount_resilience` in `tests/test_l3_capabilities.py`.
 - [x] **Test Verification**:
   - 21 targeted practical regression tests in `tests/test_l14_3_practical.py` (100% passing).
-  - Full test suite: 538 tests passing across all 28 test files.
+  - Full test suite: 539 tests passing across all 28 test files.
+  - GitHub Actions CI Run `37220997979`: 100% GREEN (Deterministic Test Suite passed in 4m21s, Non-Switching Boundary Check passed in 3s).
 - [x] **HARD STOP ENFORCED**: Complete Checkpoint L14.3. Do NOT begin L15 (Completion Verifier & Evidence Verification) until explicitly commanded.

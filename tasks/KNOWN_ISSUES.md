@@ -134,4 +134,15 @@
   10. *Calibrated Browser Risk*: Ordinary read-only browser navigation base risk set to `0.15` (`ALLOW` under `LOCAL_OPERATOR` without false-positive pauses).
   11. *Production V2 Operator CLI*: Created `laya_v2_cli.py` assembling the complete V2 autonomous stack; converted `v2_cli_test.py` into a thin legacy shim with `DeprecationWarning`.
   12. *Hard Boundary CI Gate*: Added dedicated `boundary-check` job to `.github/workflows/ci.yml`.
-- **Regression Test**: `tests/test_l14_3_practical.py` (21 practical regression tests, 100% passing). Total repository suite: 538 automated tests (+ 47 subtests = 585 checks) passing across all 28 test files.
+- **Regression Test**: `tests/test_l14_3_practical.py` (21 practical regression tests, 100% passing). Total repository suite: 539 automated tests (+ 47 subtests = 586 checks) passing across all 28 test files.
+
+---
+
+### ISSUE-11: Windows Cross-Mount Path Failure in `tool_file_write` (`ValueError: path is on mount 'C:', start on mount 'D:'`)
+- **Severity**: HIGH
+- **Status**: **RESOLVED & FULLY VERIFIED (Checkpoint L14.3)**
+- **Reproduction**:
+  In Windows CI environments (e.g. GitHub Actions runner), temp files are allocated on `C:\Users\runneradmin\AppData\Local\Temp` while the repository workspace is on `D:\a\laya-omni-agent\laya-omni-agent`. Calling `tool_file_write(payload)` triggered `os.path.relpath(fpath, WORKSPACE_ROOT)`, which on Windows raises `ValueError: path is on mount 'C:', start on mount 'D:'`. This was caught as a write error and returned as a tool failure, causing `test_structured_file_write_via_kwargs_adapter` and mutating DAG execution steps to fail.
+- **Resolution**:
+  Updated `tool_file_write` in `omni_engine/tools/dev_tools.py` with a nested `try...except ValueError` block around `os.path.relpath(fpath, WORKSPACE_ROOT)`, falling back cleanly to `fpath` when paths are located on different Windows drive mounts. Added regression test `test_file_write_cross_mount_resilience` in `tests/test_l3_capabilities.py`.
+- **Regression Test**: `tests/test_l3_capabilities.py::TestL3CMutationDeclarativeWrappers::test_file_write_cross_mount_resilience`. Total repository suite: 539 automated tests passing across 28 test files; 100% GREEN on GitHub Actions CI Run `37220997979`.

@@ -16,8 +16,9 @@ A **trustworthy pre-execution control plane, provider broker, five complete real
   - Calibrated Browser Navigation Risk: Reduced base risk of ordinary browser navigation to `0.15` in `PolicyEngine`, allowing automated browse under `LOCAL_OPERATOR` without false-positive pauses while retaining strict gating for financial actions.
   - Production V2 Operator CLI: Implemented `laya_v2_cli.py` assembling the complete V2 autonomous stack with dry-run, verbose logging, and interactive REPL mode; converted `v2_cli_test.py` into a thin legacy shim with `DeprecationWarning`.
   - CI Hard Boundary Gate: Added dedicated `boundary-check` job to `.github/workflows/ci.yml`.
+  - Cross-Mount Windows Path Resilience: Fixed `tool_file_write` in `omni_engine/tools/dev_tools.py` to catch cross-drive `ValueError` in Windows CI environments; added `test_file_write_cross_mount_resilience` in `tests/test_l3_capabilities.py`.
   - Adversarial Diff Review: **PASS (Zero critical defects, 100% invariant adherence, 0 boundary diffs)** (Subagent `3166c59b-829e-4b4c-a968-382e2ec9c48e`).
-  - Practical regression test suite `tests/test_l14_3_practical.py` (21/21 passed in 6.46s). Full repository suite: **538 automated tests (+ 47 subtests = 585 checks) passing across all 28 test files (100% pass rate)**.
+  - Practical regression test suite `tests/test_l14_3_practical.py` (21/21 passed in 6.46s). Full repository suite: **539 automated tests (+ 47 subtests = 586 checks) passing across all 28 test files (100% pass rate); 100% GREEN on GitHub Actions CI Run 37220997979**.
 - **Checkpoint L14.2: Runtime Closure, Adversarial Durability & Evidence Integrity Gate**:
   - `ADR-019`: Upstream technology audit of durable workflow engines (LangGraph) with strict classification: Durable Checkpointing (ADAPT), Interrupt & Resume (ADAPT), Side-Effect Replay & Idempotency (ADOPT & ENHANCE), State History vs Overwrite (ADOPT), Deterministic Boundaries (REJECT), Framework Installation (PERMANENTLY REJECTED). Zero framework bloat.
   - Step-Scoped Operation Identity & Idempotency: Auto-derived idempotency key `idem_{quest_id}_{step_id}_{capability_id}_{arg_hash[:16]}` and logical operation ID `op_{quest_id}_{step_id}_{capability_id}` preventing cross-step conflation within the same quest while preserving caller-supplied `custom_idempotency_key` for explicit cross-quest bridging.
@@ -158,9 +159,9 @@ A **trustworthy pre-execution control plane, provider broker, five complete real
 ---
 
 ## Operational Boundary & Next Phase
-- **Completed Milestone Goal**: `L14.2 Runtime Closure, Adversarial Durability & Evidence Integrity Gate`.
-- **Status**: **COMPLETE & FULLY VERIFIED (100% Pass Rate across 509 automated tests + 47 subtests = 556 checks)**.
-- **Hard Stop Boundary**: **STRICTLY ENFORCED AFTER L14.2**. Zero implementation of L15 (Completion Verifier), L16 (Controlled Replanner), Memory V2, or legacy retirement.
+- **Completed Milestone Goal**: `L14.3 Practical Runtime Integration & Operator-Control Closure`.
+- **Status**: **COMPLETE & FULLY VERIFIED (100% Pass Rate across 539 automated tests + 47 subtests = 586 checks; 100% GREEN on GitHub Actions CI Run 37220997979)**.
+- **Hard Stop Boundary**: **STRICTLY ENFORCED**. 0 diffs in `omni_agent.py` and `omni_engine/planner.py`.
 - **Milestone Sequence (All Completed)**:
   - RV0: Live Reality Gate across capability engines (System 1, Research, Browser, Windows Desktop, n8n, Antigravity with dirty worktree test) — **PASSED**.
   - L10: Persisted SQLite Quest Engine (`Quest`, `QuestStep`, `QuestEvent`) — **PASSED**.
@@ -170,6 +171,7 @@ A **trustworthy pre-execution control plane, provider broker, five complete real
   - L14: Deterministic DAG Executor (scheduling firewall, ready-step calculation, concurrency & mutation locks, dynamic resolution, policy confirmation gating) — **PASSED**.
   - L14.1: Runtime Integrity, Durability & Failure Accountability Hardening (16 AUDIT resolutions across atomicity, idempotency, provenance, step semantics, resource extraction, timeout budget, and cancellation lifecycle) — **PASSED**.
   - L14.2: Runtime Closure, Adversarial Durability & Evidence Integrity Gate (14 audit areas L14.2-A through L14.2-N, database-level CAS concurrency, D1–D6 transaction fault injection, plan tamper firewall, append-only reconciliation history) — **PASSED**.
-- **Next Milestone**: **L15 Completion Verifier & L16 Replanner** (scheduled for future phase; zero advance code implemented).
+  - L14.3: Practical Runtime Integration & Operator-Control Closure (PRACT-001..036, ObjectiveDecomposer, Template-as-Building-Block, SessionManager, SemanticArgumentValidator, Production V2 Operator CLI, cross-mount Windows resilience) — **PASSED**.
+- **Next Milestone**: **L15 Evidence-Based Completion Verifier** (next planned phase).
 
 

@@ -1,8 +1,15 @@
-# HANDOFF.md — Operational Continuation Guide (Checkpoint L14.3 Practical Runtime Integration & Operator-Control Closure Completed — Prepared for L15)
+# HANDOFF.md — Operational Continuation Guide (Checkpoint L15 Evidence-Based Verifier Completed — Active on L16 Controlled Replanner)
 
 ## What We Have Built (Current State)
-A **trustworthy pre-execution control plane, provider broker, five complete real capability execution engines, persisted SQLite Quest runtime, Operation Ledger with exactly-once mutation semantics, Structured DAG Planner with template-first precedence and building-block augmentation, 10-Pass Deterministic Plan Validator Firewall, Deterministic DAG Executor, Hardened Adversarial Durability Gate, and Production V2 Operator CLI** powered by:
-- **Checkpoint L14.3: Practical Runtime Integration & Operator-Control Closure (COMPLETED & FULLY VERIFIED)**:
+A **trustworthy pre-execution control plane, provider broker, five complete real capability execution engines, persisted SQLite Quest runtime, Operation Ledger with exactly-once mutation semantics, Structured DAG Planner with template-first precedence and building-block augmentation, 10-Pass Deterministic Plan Validator Firewall, Deterministic DAG Executor, Evidence-Based Completion Engine & Physical Domain Verifiers, Hardened Adversarial Durability Gate, and Production V2 Operator CLI** powered by:
+- **Checkpoint L15: Evidence-Based Verifier & Completion Engine (COMPLETED & FULLY VERIFIED)**:
+  - ADR-020: Established deterministic physical verification precedence, evidence hashing, negative constraint auditing, and state machine transition rules. Recorded in `tasks/DECISIONS.md`.
+  - Strongly Typed Verification Contracts: `CheckType` (`PHYSICAL`, `STRUCTURED_RECEIPT`, `SEMANTIC_ASSERTION`, `POLICY_AUDIT`), `RequirementVerificationStatus`, `ConstraintVerificationStatus`, `VerificationCheckResult`, `RequirementVerification`, `ConstraintVerification`, and `ObjectiveVerificationResult` (`extra="forbid"`). Enforces `@model_validator` ensuring physical check failures strictly block `VERIFIED_SUCCESS`. Canonical SHA-256 `compute_evidence_hash()`.
+  - Deterministic Domain Verifiers: `FileVerifier` (file existence, byte count), `ProcessVerifier` (PID exists / does not exist), `DesktopVerifier` (TCP socket reachability probe with 0.5s timeout, telemetry receipts), `BrowserVerifier` (screenshot file existence on disk, DOM receipts), `N8nVerifier` (API provenance and zero plaintext secrets), `ResearchVerifier` (citation integrity, unverified citation token detection), `CommandVerifier`, `GitVerifier`, `DataVerifier`.
+  - Verification Registry & SQLite Store: `VerificationRegistry` dispatches domain verifiers; `VerificationStore` provides thread-local SQLite persistence with WAL mode, foreign keys, and explicit connection cleanup.
+  - Objective Completion Engine: `ObjectiveCompletionEngine` maps execution steps to typed requirements, audits negative constraints across execution history, computes deterministic evidence hash, and transitions Quest from `AWAITING_VERIFICATION` to `COMPLETED` solely on verified physical evidence (defeating false model completion).
+  - Adversarial Diff Review: **PASS (Zero blocking defects)** (Subagent `edab59d8-4cdb-4632-ac2c-60d7b4ecaffd`).
+  - Unit test suite: `tests/test_l15_verification.py` (12/12 passed in 0.73s). Full repository suite: **551 automated tests (+ 47 subtests = 598 checks) passing across all 29 test files; 100% GREEN on GitHub Actions CI Run 37232135971**.
   - Canonical Practical Findings Ledger: Documented all 36 findings `PRACT-001` through `PRACT-036` in `tasks/PRACTICAL_FINDINGS.md` linking directly to `END_TO_END_EXECUTION_LOG.md`.
   - Syntactic Objective Decomposition: Implemented `ObjectiveDecomposer` in `omni_engine/planning/decomposer.py` and typed `ObjectiveSpec` / `RequirementItem` in `omni_engine/contracts/objective.py` (`extra="forbid"`), splitting multi-intent objectives and isolating ports, paths, URLs, and processes.
   - Template-as-Building-Block Augmentation: Implemented `_augment_plan_for_objective` in `omni_engine/planning/engine.py`. Generates fast template DAGs first, then injects typed steps (`file_write`, `browser_screenshot`, `desktop.service_health`, `n8n.list_workflows`) for uncovered requirements to guarantee 100% pre-execution objective coverage without unbounded LLM calls.
@@ -125,7 +132,7 @@ A **trustworthy pre-execution control plane, provider broker, five complete real
 ## Current Architecture & State
 - Repository: Public GitHub `https://github.com/yashrastogi069-dev/laya-omni-agent` on branch `laya-autonomous-v2`.
 - Active Milestone Goal: **L14.2: Runtime Closure, Adversarial Durability & Evidence Integrity Gate (COMPLETED)**.
-- Full Test Suite: **517/517 tests passing (+ 47 subtests = 564 total checks, 100% pass rate)** across 27 test modules:
+- Full Test Suite: **551/551 tests passing (+ 47 subtests = 598 total checks, 100% pass rate)** across 29 test modules:
   - `tests/test_foundation_broker.py` (27 tests)
   - `tests/test_l0_baselines.py` (10 tests)
   - `tests/test_l10_quest.py` (13 tests)
@@ -134,11 +141,13 @@ A **trustworthy pre-execution control plane, provider broker, five complete real
   - `tests/test_l13_validator.py` (29 tests)
   - `tests/test_l14_1_runtime_integrity.py` (16 tests)
   - `tests/test_l14_2_durability.py` (36 tests)
+  - `tests/test_l14_3_practical.py` (21 tests)
   - `tests/test_l14_executor.py` (17 tests)
+  - `tests/test_l15_verification.py` (12 tests)
   - `tests/test_l1_repairs.py` (12 tests)
   - `tests/test_l2_1_reconciliation.py` (15 tests)
   - `tests/test_l2_contracts.py` (18 tests)
-  - `tests/test_l3_capabilities.py` (25 tests, 23 subtests)
+  - `tests/test_l3_capabilities.py` (28 tests, 23 subtests)
   - `tests/test_l4_providers.py` (19 tests)
   - `tests/test_l5_decision_fabric.py` (12 tests)
   - `tests/test_l6a_routing.py` (12 tests)
@@ -153,15 +162,15 @@ A **trustworthy pre-execution control plane, provider broker, five complete real
   - `tests/test_r4_n8n.py` (25 tests)
   - `tests/test_r5_developer.py` (25 tests)
   - `tests/test_rv0_reality_gate.py` (8 tests)
-- Governance: All canonical documents synchronized with verified implementation truth (`tasks/FAILURE_LEDGER.md` fully populated with L14.2 entries `FAIL-L14.2-001` through `016`).
+- Governance: All canonical documents synchronized with verified implementation truth (`tasks/FAILURE_LEDGER.md`, `tasks/PRACTICAL_FINDINGS.md`, `tasks/DECISIONS.md`).
 - Non-Switching Boundary: `omni_agent.py` and `omni_engine/planner.py` have **0 diffs**.
 
 ---
 
 ## Operational Boundary & Next Phase
-- **Completed Milestone Goal**: `L14.3 Practical Runtime Integration & Operator-Control Closure`.
-- **Status**: **COMPLETE & FULLY VERIFIED (100% Pass Rate across 539 automated tests + 47 subtests = 586 checks; 100% GREEN on GitHub Actions CI Run 37220997979)**.
-- **Hard Stop Boundary**: **STRICTLY ENFORCED**. 0 diffs in `omni_agent.py` and `omni_engine/planner.py`.
+- **Completed Milestone Goal**: `L15 Evidence-Based Verifier & Completion Engine`.
+- **Status**: **COMPLETE & FULLY VERIFIED (100% Pass Rate across 551 automated tests + 47 subtests = 598 checks; 100% GREEN on GitHub Actions CI Run 37232135971)**.
+- **Hard Stop Boundary**: Sequence: L15 (COMPLETED) → L16 (ACTIVE) → L17 → L17.5 → L18 → **HARD STOP** (Do NOT start L19 Memory V2). 0 diffs in `omni_agent.py` and `omni_engine/planner.py`.
 - **Milestone Sequence (All Completed)**:
   - RV0: Live Reality Gate across capability engines (System 1, Research, Browser, Windows Desktop, n8n, Antigravity with dirty worktree test) — **PASSED**.
   - L10: Persisted SQLite Quest Engine (`Quest`, `QuestStep`, `QuestEvent`) — **PASSED**.
@@ -172,6 +181,7 @@ A **trustworthy pre-execution control plane, provider broker, five complete real
   - L14.1: Runtime Integrity, Durability & Failure Accountability Hardening (16 AUDIT resolutions across atomicity, idempotency, provenance, step semantics, resource extraction, timeout budget, and cancellation lifecycle) — **PASSED**.
   - L14.2: Runtime Closure, Adversarial Durability & Evidence Integrity Gate (14 audit areas L14.2-A through L14.2-N, database-level CAS concurrency, D1–D6 transaction fault injection, plan tamper firewall, append-only reconciliation history) — **PASSED**.
   - L14.3: Practical Runtime Integration & Operator-Control Closure (PRACT-001..036, ObjectiveDecomposer, Template-as-Building-Block, SessionManager, SemanticArgumentValidator, Production V2 Operator CLI, cross-mount Windows resilience) — **PASSED**.
-- **Next Milestone**: **L15 Evidence-Based Completion Verifier** (next planned phase).
+  - L15: Evidence-Based Verifier & Completion Engine (ADR-020, strongly typed contracts, 8 deterministic domain verifiers, SQLite verification store, ObjectiveCompletionEngine, cryptographic evidence hash, negative constraint audit) — **PASSED**.
+- **Next Milestone**: **L16 Controlled Replanner & Recovery Loop** (currently active).
 
 

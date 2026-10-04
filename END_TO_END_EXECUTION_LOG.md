@@ -11,15 +11,15 @@
 | **System Role** | Standalone Autonomous Operating Agent (Independent from Jarvis Core V2) |
 | **Active Architecture Branch** | `laya-autonomous-v2` |
 | **Public GitHub Remote** | `https://github.com/yashrastogi069-dev/laya-omni-agent.git` |
-| **Latest Branch Commit** | `628bd3d` (`fix(capabilities): handle cross-drive paths gracefully in tool_file_write`) on `laya-autonomous-v2` |
-| **Total Automated Tests** | **539 / 539 Passing (100%)** (+ 47 subtests = 586 total checks) |
-| **GitHub Actions CI Status** | **100% GREEN (Run 37220997979)**: Deterministic Test Suite (4m21s) & Non-Switching Boundary Check (3s) |
-| **Test Categorization** | **537 Feature Acceptance Tests** + **2 Known Defect Reproduction Tests** |
+| **Latest Branch Commit** | `d466eaf` (`L15: evidence-based verifier and completion engine`) on `laya-autonomous-v2` |
+| **Total Automated Tests** | **551 / 551 Passing (100%)** (+ 47 subtests = 598 total checks) |
+| **GitHub Actions CI Status** | **100% GREEN (Run 37232135971)**: Deterministic Test Suite (4m58s) & Non-Switching Boundary Check (6s) |
+| **Test Categorization** | **549 Feature Acceptance Tests** + **2 Known Defect Reproduction Tests** |
 | **Known Warnings Classification** | **4 Warnings Emitted**: `RuntimeWarning` from `laya/router.py:187` (Upstream library temperature outside [0.5, 5] clamping — BENIGN/UPSTREAM); 0 unhandled warnings in test suite |
 | **Calibration Status** | **Intent Signal**: Calibrated (ECE 0.1192, 72/31 stratified corpus split); **Domain Signal**: Uncalibrated (Deterministic fail-open fallback, cross-domain pooling, and escalation) |
 | **Hardware Operating Baseline** | Windows 10 Host, 4 CPU Cores, 7.81 GB RAM, PyTorch 2.13.0+cpu, NO CUDA GPU (CPU DecisionFrame latency ~15.4s; SystemOneBroker enforces user sovereignty, RAM threshold debouncing, and quality floor) |
-| **Checkpoints Completed** | **L0–L14.3, Foundation Gate, R1, R2, R3, R4, R5, RV0** |
-| **Active Milestone & Checkpoint** | **CHECKPOINT COMPLETE: L14.3 PRACTICAL RUNTIME INTEGRATION & OPERATOR-CONTROL CLOSURE ACHIEVED (100% GREEN CI — PREPARED FOR L15)** |
+| **Checkpoints Completed** | **L0–L15, Foundation Gate, R1, R2, R3, R4, R5, RV0** |
+| **Active Milestone & Checkpoint** | **CHECKPOINT COMPLETE: L15 EVIDENCE-BASED VERIFIER & COMPLETION ENGINE ACHIEVED (100% GREEN CI — ACTIVE ON L16)** |
 
 ---
 
@@ -117,9 +117,12 @@
        │ ── 36/36 Durability Tests Passing (D1–D6 Fault Injection Proven); 517/517 Repository Tests Passing (+47 subtests = 564 checks)
        ▼
 [L14.3: PRACTICAL RUNTIME INTEGRATION & OPERATOR-CONTROL CLOSURE]
-       │ ── 21/21 Practical Regression Tests Passing (PRACT-001..036 Resolved); 538/538 Repository Tests Passing (+47 subtests = 585 checks)
+       │ ── 21/21 Practical Regression Tests Passing (PRACT-001..036 Resolved); 539/539 Repository Tests Passing (+47 subtests = 586 checks)
        ▼
-[READY FOR CHECKPOINT L15: EVIDENCE-BASED VERIFICATION & COMPLETION ENGINE]
+[L15: EVIDENCE-BASED VERIFICATION & COMPLETION ENGINE]
+       │ ── 12/12 Verification Tests Passing (Commit: d466eaf); 551/551 Repository Tests Passing (+47 subtests = 598 checks)
+       ▼
+[ACTIVE CHECKPOINT L16: CONTROLLED REPLANNER & RECOVERY LOOP]
 ```
 
 ---
@@ -3213,4 +3216,107 @@ All 36 findings are permanently recorded in `tasks/PRACTICAL_FINDINGS.md` and su
 - **HARD STOP ENFORCED**: Complete Checkpoint L14.3. Do NOT begin Checkpoint L15 (Completion Verifier & Real-World Evidence Verification) until explicitly commanded by the user.
 
 ---
+
+## 17. Checkpoint L15: Evidence-Based Verifier & Completion Engine
+
+### 17.1 Mission & Invariant Enforcement
+- **Prime Rule**: Models propose; deterministic software decides, executes, and verifies physical state.
+- **Invariant 1 & Invariant 6**: Never transition a Quest to `COMPLETED` merely because PlanSteps returned `SUCCESS` or an LLM claims success. Completion requires deterministic physical evidence (file existence/size/bytes, process state, socket reachability, screenshot files, citation integrity, zero leaked secrets, and negative constraint audit).
+- **Core State Machine Invariant**: Quests completing all plan steps transition from `RUNNING` to `AWAITING_VERIFICATION`. Only `ObjectiveCompletionEngine.verify_quest()` has the deterministic authority to transition from `AWAITING_VERIFICATION` to `COMPLETED` (with canonical SHA-256 evidence hash) or `FAILED`.
+
+### 17.2 ADR-020 (Evidence-Based Completion Verifier)
+- Authored `docs/research/ADR_L15_COMPLETION_VERIFIER.md` establishing:
+  1. Separation of Concerns: Planning produces intent; Execution produces attempts/receipts; Verification proves physical state change in the real world.
+  2. Domain-Specific Verifiers: Modular verifiers for filesystem, process, network, desktop, browser, n8n, research, and command results.
+  3. Cryptographic Provenance: Canonical SHA-256 evidence hash over sorted requirement verifications, physical check results, and constraint audits.
+  4. Negative Constraint Auditing: Continuous audit over quest execution history ensuring forbidden actions (e.g. file deletion, secret leakage, unauthorized network calls) were not committed.
+  5. SQLite Persistence: Relational schema for verification results in `verification_receipts` table with WAL mode and thread-local connections.
+- Recorded in `tasks/DECISIONS.md`.
+
+### 17.3 Strongly Typed Verification Contracts (`omni_engine/contracts/verification.py`)
+- `CheckType` Enum: `PHYSICAL`, `STRUCTURED_RECEIPT`, `SEMANTIC_ASSERTION`, `POLICY_AUDIT`.
+- `RequirementVerificationStatus` Enum: `PENDING`, `VERIFIED_SUCCESS`, `VERIFIED_FAILURE`, `INCONCLUSIVE`, `SKIPPED`.
+- `ConstraintVerificationStatus` Enum: `SATISFIED`, `VIOLATED`, `UNCHECKED`.
+- `VerificationCheckResult`: `check_id`, `check_type`, `passed`, `evidence_data`, `error_message`, `timestamp`.
+- `RequirementVerification`: `requirement_id`, `status`, `checks`, `verified_evidence_refs`, `confidence`, `notes`.
+  - `@model_validator(mode="after")`: Invariant enforcement: If any check of type `CheckType.PHYSICAL` failed (`passed == False`), `status` CANNOT be `VERIFIED_SUCCESS` (raises `ValueError`).
+- `ConstraintVerification`: `constraint_id`, `description`, `status`, `violating_step_ids`, `details`.
+- `ObjectiveVerificationResult`: `quest_id`, `plan_id`, `verified_complete`, `verified_failure`, `evidence_hash`, `requirement_results`, `constraint_results`, `summary`, `timestamp`, `metadata`.
+  - `compute_evidence_hash()`: Deterministic canonical SHA-256 over quest_id, plan_id, sorted requirement verification statuses, checks, evidence refs, and constraint statuses.
+- All models inherit `BaseContractModel` (`extra="forbid"`).
+- Exported in `omni_engine/contracts/__init__.py`.
+
+### 17.4 Deterministic Domain Verifiers (`omni_engine/verification/verifiers.py`)
+- `BaseVerifier(ABC)`: Standard interface requiring `can_verify(requirement)` and `verify(requirement, execution_receipts)`.
+- `FileVerifier`: Evaluates file requirements. Physically checks `os.path.exists()`, regular file type `os.path.isfile()`, non-zero byte size `os.path.getsize() > 0`, and matches expected content/size within CRLF/LF normalization tolerance.
+- `ProcessVerifier`: Evaluates process requirements. Checks process launch (`psutil.pid_exists(pid) == True`) and process termination (`psutil.pid_exists(pid) == False`) by querying the OS process table.
+- `DesktopVerifier`: Evaluates desktop and service health. Physically executes socket probe (`socket.create_connection`) with bounded 0.5s timeout; validates structured service receipts.
+- `BrowserVerifier`: Evaluates browser requirements. Physically verifies screenshot image existence on disk (`os.path.exists()` and `os.path.getsize() > 0`) and validates DOM/navigation event receipts.
+- `N8nVerifier`: Evaluates automation requirements. Validates API capability provenance (`n8n.*`), confirms data presence, and strictly scans outputs for plaintext secrets (`sk-`, `ghp_`, `Bearer ey`, `n8n_api_`).
+- `ResearchVerifier`: Evaluates research requirements. Validates evidence item count and strictly detects unverified citation markers (`[UNVERIFIED_CITATION: ...]`).
+- `CommandVerifier`, `GitVerifier`, `DataVerifier`: Verify command exit codes, git working tree diffs, and SQLite database file consistency.
+
+### 17.5 Verification Registry & SQLite Persistence (`omni_engine/verification/`)
+- `VerificationRegistry` (`registry.py`): Thread-safe registry mapping requirements to candidate domain verifiers with fallback dispatch.
+- `VerificationStore` (`store.py`): SQLite persistence under WAL mode, `PRAGMA foreign_keys = ON;`, `PRAGMA busy_timeout = 5000;`, thread-local connections (`threading.local()`), and explicit `close()` cleanup preventing Windows file locking issues.
+- Schema: Table `verification_receipts` storing `verification_id`, `quest_id`, `plan_id`, `verified_complete`, `verified_failure`, `evidence_hash`, `receipt_json`, `created_at`.
+
+### 17.6 Objective Completion Engine (`omni_engine/verification/engine.py`)
+- `ObjectiveCompletionEngine`: Orchestrates end-to-end evidence verification.
+  - Pre-flight decomposition: Decomposes goal using `ObjectiveDecomposer` or loads pre-existing `ObjectiveSpec`.
+  - Maps requirements to execution receipts produced by `DeterministicDAGExecutor`.
+  - Dispatches each requirement to matching domain verifiers.
+  - Audits negative constraints across full execution history (e.g. forbidden process terminations or file deletions).
+  - Computes cryptographic evidence hash.
+  - Deterministically transitions Quest in `QuestEngine`:
+    - If all mandatory requirements verified and zero constraint violations: `AWAITING_VERIFICATION -> COMPLETED`, persisting `evidence_hash` in quest metadata and emitting `QUEST_COMPLETED`.
+    - If any requirement failed or constraint violated: `AWAITING_VERIFICATION -> FAILED`, emitting `QUEST_FAILED`.
+  - False-completion defense: Proven in `test_false_completion_defense_missing_file_rejected` — a step claiming `SUCCESS` with a missing file on disk is caught and blocked from completing.
+
+### 17.7 Bug Remediation & Technical Lessons
+1. **Windows SQLite Thread-Local File Locking**:
+   - In unit tests using `tempfile.TemporaryDirectory()`, test teardown failed with `WinError 32: The process cannot access the file because it is being used by another process` because SQLite connections in `QuestStore` and `VerificationStore` remained open in thread-local storage.
+   - Fixed by adding explicit `close()` methods to `VerificationStore` and `QuestStore` and calling `store.close()` in `tearDown()`.
+2. **Quest Metadata Persistence during Verification**:
+   - `QuestEngine.transition_quest` takes status and reason, but does not accept arbitrary metadata dicts.
+   - In `ObjectiveCompletionEngine`, updated quest metadata with `evidence_hash` via `self.quest_engine.store.update_quest(quest.model_copy(update={"metadata": updated_meta}))` before transition.
+
+### 17.8 Test Suite Inventory & Results
+- **Targeted L15 Verification Tests (`tests/test_l15_verification.py`)**: 12 / 12 passed in 0.73s (100% pass rate).
+  - `test_physical_check_failure_blocks_verified_success`: Validates `@model_validator` physical precedence.
+  - `test_evidence_hash_determinism`: Validates SHA-256 canonical hashing across permutations.
+  - `test_file_verifier_real_file_success`: Real on-disk file verification.
+  - `test_file_verifier_missing_file_failure`: Physical non-existence detected.
+  - `test_process_verifier_launch_and_kill`: Physical process table checks via psutil.
+  - `test_n8n_verifier_detects_secret_leak`: Plaintext API key leakage caught and failed.
+  - `test_research_verifier_detects_unverified_citation`: Hallucinated citation caught and failed.
+  - `test_browser_verifier_real_screenshot`: Screenshot existence and size verified on disk.
+  - `test_negative_constraint_violation_fails_quest`: Negative constraint violation detected.
+  - `test_false_completion_defense_missing_file_rejected`: Quest transition to COMPLETED prevented on false tool success.
+  - `test_full_objective_completion_engine_success`: Full end-to-end verification passing quest to COMPLETED.
+  - `test_verification_receipt_persists_and_survives_cold_restart`: Cold restart persistence and byte-for-byte reload.
+- **Full Repository Suite Across All Checkpoints (L0–L15)**: **551 / 551 automated tests passed (+ 47 subtests = 598 total checks)** across all 29 test files in 315.066s (100% pass rate).
+
+### 17.9 Adversarial Diff Review
+- **Reviewer**: Read-Only Adversarial Software Reviewer (Subagent `edab59d8-4cdb-4632-ac2c-60d7b4ecaffd`).
+- **Verdict**: **PASS (Zero Blocking Defects Found)**.
+- **Summary**: All verification contracts, physical domain verifiers, SQLite persistence, and state transitions strictly enforce deterministic control and physical evidence precedence over model claims. Invariant 1 and Invariant 6 are fully upheld.
+
+### 17.10 Non-Switching Boundary Invariant
+- Executed: `git diff origin/main -- omni_agent.py omni_engine/planner.py`.
+- Result: **EXACTLY 0 DIFFS**. Legacy entrypoints remain 100% untouched.
+
+### 17.11 GitHub Actions CI Verification
+- Commit `d466eaf` pushed to `origin/laya-autonomous-v2`.
+- Workflow run `37232135971` executed on GitHub Actions Windows runner:
+  - `Deterministic Test Suite` passed in 4m 58s (551 tests passed, 0 failures, 0 errors).
+  - `Non-Switching Boundary Check` passed in 6s (0 diffs).
+  - **100% GREEN ON GITHUB ACTIONS CI**.
+
+### 17.12 Checkpoint L15 Final Status & Transition to L16
+- **Checkpoint L15 is Officially PASSED, FULLY VERIFIED, and 100% GREEN ON CI**.
+- **Active Checkpoint Advanced**: **Checkpoint L16: Controlled Replanner & Recovery Loop**.
+
+---
+
 

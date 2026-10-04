@@ -1,11 +1,11 @@
 # LAYA_BUILD_STATE.md — Current Ground Truth State
 
-**Last Updated**: 2026-10-04T23:15:00+05:30  
+**Last Updated**: 2026-10-05T02:00:00+05:30  
 **Current Branch**: `laya-autonomous-v2`  
-**Active Milestone Goal**: `L14.3 PRACTICAL RUNTIME INTEGRATION & OPERATOR-CONTROL CLOSURE (COMPLETED & 100% GREEN ON CI) — PREPARED FOR L15`  
-**Baseline Verified Commit**: `628bd3d` (`fix(capabilities): handle cross-drive paths gracefully in tool_file_write`) on `laya-autonomous-v2`  
-**Last Passing Test Suite**: All 28 test files across L0–L14.3:
-`tests/test_foundation_broker.py`, `tests/test_l0_baselines.py`, `tests/test_l10_quest.py`, `tests/test_l11_operation_ledger.py`, `tests/test_l12_planner.py`, `tests/test_l13_validator.py`, `tests/test_l14_1_runtime_integrity.py`, `tests/test_l14_2_durability.py`, `tests/test_l14_3_practical.py`, `tests/test_l14_executor.py`, `tests/test_l1_repairs.py`, `tests/test_l2_1_reconciliation.py`, `tests/test_l2_contracts.py`, `tests/test_l3_capabilities.py`, `tests/test_l4_providers.py`, `tests/test_l5_decision_fabric.py`, `tests/test_l6a_routing.py`, `tests/test_l6b_skill_routing.py`, `tests/test_l7_5_calibration.py`, `tests/test_l7_skills.py`, `tests/test_l8_arguments.py`, `tests/test_l9_policy.py`, `tests/test_r1_research.py`, `tests/test_r2_browser.py`, `tests/test_r3_desktop.py`, `tests/test_r4_n8n.py`, `tests/test_r5_developer.py`, `tests/test_rv0_reality_gate.py` (**539 automated tests passing across 28 test files (100% pass rate) (+ 47 subtests = 586 total checks); 100% GREEN on GitHub Actions CI Run 37220997979**).  
+**Active Milestone Goal**: `L16 CONTROLLED REPLANNER & RECOVERY LOOP (ACTIVE) — L15 EVIDENCE-BASED VERIFIER COMPLETED & 100% GREEN ON CI`  
+**Baseline Verified Commit**: `d466eaf` (`L15: evidence-based verifier and completion engine`) on `laya-autonomous-v2`  
+**Last Passing Test Suite**: All 29 test files across L0–L15:
+`tests/test_foundation_broker.py`, `tests/test_l0_baselines.py`, `tests/test_l10_quest.py`, `tests/test_l11_operation_ledger.py`, `tests/test_l12_planner.py`, `tests/test_l13_validator.py`, `tests/test_l14_1_runtime_integrity.py`, `tests/test_l14_2_durability.py`, `tests/test_l14_3_practical.py`, `tests/test_l14_executor.py`, `tests/test_l15_verification.py`, `tests/test_l1_repairs.py`, `tests/test_l2_1_reconciliation.py`, `tests/test_l2_contracts.py`, `tests/test_l3_capabilities.py`, `tests/test_l4_providers.py`, `tests/test_l5_decision_fabric.py`, `tests/test_l6a_routing.py`, `tests/test_l6b_skill_routing.py`, `tests/test_l7_5_calibration.py`, `tests/test_l7_skills.py`, `tests/test_l8_arguments.py`, `tests/test_l9_policy.py`, `tests/test_r1_research.py`, `tests/test_r2_browser.py`, `tests/test_r3_desktop.py`, `tests/test_r4_n8n.py`, `tests/test_r5_developer.py`, `tests/test_rv0_reality_gate.py` (**551 automated tests passing across 29 test files (100% pass rate) (+ 47 subtests = 598 total checks); 100% GREEN on GitHub Actions CI Run 37232135971**).  
 **Mission Role**: Complete Standalone Autonomous Operating Agent.
 
 ---
@@ -238,6 +238,14 @@ The repository contains a standalone prototype CLI (`laya_agent.py` / `omni_engi
     - **Cross-Mount Windows Path Resilience**: Fixed `tool_file_write` in `omni_engine/tools/dev_tools.py` to handle cross-drive paths gracefully (catching `ValueError: path is on mount 'C:', start on mount 'D:'` in Windows CI environments where temp files reside on `C:` and workspace on `D:`). Added regression test `test_file_write_cross_mount_resilience` in `tests/test_l3_capabilities.py`.
     - **Adversarial Diff Review**: **PASS (Zero critical defects, 100% invariant adherence, 0 boundary diffs)** (Subagent `3166c59b-829e-4b4c-a968-382e2ec9c48e`).
     - **Comprehensive Test Suite**: Created `tests/test_l14_3_practical.py` (21 regression tests, 100% pass rate in 6.46s). Full repository suite: **539 passed across 28 test files (100% pass rate) (+ 47 subtests = 586 total checks); 100% GREEN on GitHub Actions CI**.
+25. **Checkpoint L15 Milestone Reached (Evidence-Based Verifier & Completion Engine)**:
+    - **ADR-020**: Authored `docs/research/ADR_L15_COMPLETION_VERIFIER.md` establishing the architecture for deterministic physical verification before quest completion. Recorded in `tasks/DECISIONS.md`.
+    - **Strongly Typed Verification Contracts**: Implemented in `omni_engine/contracts/verification.py` with `CheckType` (`PHYSICAL`, `STRUCTURED_RECEIPT`, `SEMANTIC_ASSERTION`, `POLICY_AUDIT`), `RequirementVerificationStatus`, `ConstraintVerificationStatus`, `VerificationCheckResult`, `RequirementVerification`, `ConstraintVerification`, and `ObjectiveVerificationResult`. Enforced `@model_validator` ensuring physical check failures strictly block `VERIFIED_SUCCESS`. Canonical SHA-256 `compute_evidence_hash()`.
+    - **Deterministic Domain Verifiers**: Implemented in `omni_engine/verification/verifiers.py` (`FileVerifier`, `ProcessVerifier`, `DesktopVerifier`, `BrowserVerifier`, `N8nVerifier`, `ResearchVerifier`, `CommandVerifier`, `GitVerifier`, `DataVerifier`). Enforces real physical existence, byte count, process table checks, bounded socket probes, screenshot file verification, citation integrity, and zero plaintext secret leaks.
+    - **Verification Registry & SQLite Store**: Implemented `VerificationRegistry` and `VerificationStore` in `omni_engine/verification/` with WAL mode, foreign keys, thread-local connections, and explicit connection cleanup.
+    - **Objective Completion Engine**: Implemented `ObjectiveCompletionEngine` in `omni_engine/verification/engine.py` decomposing objectives into typed requirements, evaluating step receipts, auditing negative constraints across execution history, computing cryptographic evidence hashes, and transitioning Quests from `AWAITING_VERIFICATION` to `COMPLETED` solely on verified physical evidence (defeating false model completion).
+    - **Adversarial Diff Review**: **PASS (Zero blocking defects)** (Subagent `edab59d8-4cdb-4632-ac2c-60d7b4ecaffd`).
+    - **Comprehensive Test Suite**: Created `tests/test_l15_verification.py` (12 unit tests, 100% pass rate in 0.73s). Full repository suite: **551 passed across 29 test files (+ 47 subtests = 598 total checks); 100% GREEN on GitHub Actions CI Run 37232135971**.
 
 ---
 
@@ -321,33 +329,31 @@ The repository contains a standalone prototype CLI (`laya_agent.py` / `omni_engi
   - **L14.1 Runtime Integrity & Durability Tests**: 16 passed
   - **L14.2 Adversarial Durability & Integrity Tests**: 28 passed
   - **L14.3 Practical Runtime & Operator Integration Tests**: 21 passed
+  - **L15 Evidence Verification Tests**: 12 passed
   - **L3 Capability Substrate Tests**: 28 passed (including cross-mount resilience test)
-- **Pass Rate**: 100% (539 passed, 0 failed, 0 errors, across 28 test files).
-- **CI Status**: 100% GREEN on GitHub Actions CI Run `37220997979` (Deterministic Test Suite passed in 4m21s, Non-Switching Boundary Check passed in 3s).
-- **Runtime**: ~290s across full local repository test suite.
+- **Pass Rate**: 100% (551 passed, 0 failed, 0 errors, across 29 test files) (+ 47 subtests = 598 total checks).
+- **CI Status**: 100% GREEN on GitHub Actions CI Run `37232135971` (Deterministic Test Suite passed in 4m58s, Non-Switching Boundary Check passed in 6s).
+- **Runtime**: ~315s across full local repository test suite.
 
 ---
 
 ## 4. Current Blockers
 
-- **None**. The milestone `L14.3 PRACTICAL RUNTIME INTEGRATION & OPERATOR-CONTROL CLOSURE` is complete, verified, and passing 100% of automated tests locally and on GitHub Actions CI.
+- **None**. The milestone `L15 EVIDENCE-BASED VERIFIER & COMPLETION ENGINE` is complete, verified, and passing 100% of automated tests locally and on GitHub Actions CI.
 
 ---
 
 ## 5. Completed Milestone & Hard Stop Enforcement
 
-Within roadmap `L14.3 PRACTICAL RUNTIME INTEGRATION & OPERATOR-CONTROL CLOSURE`:
+Within roadmap `L15 EVIDENCE-BASED VERIFIER & COMPLETION ENGINE`:
 - **Status**: **COMPLETE & FULLY VERIFIED (100% GREEN ON GITHUB ACTIONS CI)**
-- **Hard Stop Boundary**: **STRICTLY ENFORCED**. 0 diffs in `omni_agent.py` and `omni_engine/planner.py`.
+- **Hard Stop Boundary**: Sequence: L15 (COMPLETED) → L16 (ACTIVE) → L17 → L17.5 → L18 → **HARD STOP** (Do NOT start L19 Memory V2). 0 diffs in `omni_agent.py` and `omni_engine/planner.py`.
 - **Invariants Upheld**:
   1. Deterministic Control (Invariant 1): Runtime strictly owns state transitions, dependency execution, confirmation enforcement, mutation identity, and lifecycle state.
-  2. Syntactic Objective Decomposition: Decomposes compound prompts into typed requirement items and covers all clauses deterministically.
-  3. Template-as-Building-Block Augmentation: Fills uncovered requirement clauses using canonical capabilities before execution.
-  4. Session Continuity & Referent Binding: Preserves user intent across pauses and binds conversational referents (`"this"`, `"the results"`).
-  5. Deep Semantic Argument Validation: Enforces strict URL scheme, port (1-65535), and path format integrity.
-  6. Rule-0 Secret-Bearing File Protection: Blocks all reads/writes to credential files (`.env*`, `keys.env`, `keys`, `id_rsa`, `*.pem`) with hard Stage 0 DENY.
-  7. Cross-Mount Windows Path Resilience: Prevents cross-drive `ValueError` in `tool_file_write`.
-  8. Evidence-Based Completion (Invariant 6): Reaching step completion transitions quest strictly to `AWAITING_VERIFICATION`. It does NOT mark itself `COMPLETED` (L15 Verifier is future work).
-- **Next Milestone**: **L15 Evidence-Based Completion Verifier** (next planned phase).
+  2. Evidence-Based Completion (Invariant 6): Transitions from `AWAITING_VERIFICATION` to `COMPLETED` require deterministic physical evidence (file existence, byte count, process table checks, socket probes, screenshot files, citation integrity, zero secret leaks). Models possess zero authority to declare completion.
+  3. Strongly Typed Verification Contracts (Invariant 4): Strictly validated Pydantic models (`extra="forbid"`) enforcing physical check precedence over model assertions.
+  4. Negative Constraint Auditing: Audits execution history for violations of negative constraints (zero deletions, zero secret leaks).
+  5. Cryptographic Evidence Hashing: Deterministic SHA-256 fingerprinting of verification outcomes.
+- **Next Milestone**: **L16 Controlled Replanner & Recovery Loop** (currently active).
 
 

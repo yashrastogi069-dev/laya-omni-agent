@@ -1,11 +1,11 @@
-# ACTIVE_PLAN.md — Active Milestone: RV0 Reality Gate → L10–L14.3 Autonomous Runtime
+# ACTIVE_PLAN.md — Active Milestone: RV0 Reality Gate → L10–L16 Autonomous Execution & Recovery
 
-## Current Active Checkpoint: L14.3 — Practical Runtime Integration & Operator-Control Closure (COMPLETED)
+## Current Active Checkpoint: L16 — Controlled Replanner & Recovery Loop (ACTIVE)
 
-- **Milestone Scope**: RV0 → L10 Quest → L11 Operation Ledger → L12 Planner → L13 Validator → L14 Executor → L14.1 Runtime Hardening → L14.2 Adversarial Durability → L14.3 Practical Runtime Integration.
+- **Milestone Scope**: RV0 → L10 Quest → L11 Operation Ledger → L12 Planner → L13 Validator → L14 Executor → L14.1 Runtime Hardening → L14.2 Adversarial Durability → L14.3 Practical Runtime Integration → L15 Evidence Verifier → L16 Controlled Replanner.
 - **Target Branch**: `laya-autonomous-v2`
-- **Baseline Verified Commit**: `628bd3d` (`fix(capabilities): handle cross-drive paths gracefully in tool_file_write`) on `laya-autonomous-v2` (539 automated tests + 47 subtests = 586 checks passing, 0 failures; 100% GREEN on GitHub Actions CI Run 37220997979).
-- **Hard Stop Boundary**: **HARD STOP IMMEDIATELY AFTER L14.3**. Do NOT begin L15 Completion Verifier, L16 Replanner, Memory V2, automation scheduling, MCP expansion, canary promotion, or legacy retirement until explicitly commanded.
+- **Baseline Verified Commit**: `d466eaf` (`L15: evidence-based verifier and completion engine`) on `laya-autonomous-v2` (551 automated tests + 47 subtests = 598 checks passing, 0 failures; 100% GREEN on GitHub Actions CI Run 37232135971).
+- **Hard Stop Boundary**: Sequence: L15 (COMPLETED) → L16 (ACTIVE) → L17 → L17.5 → L18 → **HARD STOP** (Do NOT start L19 Memory V2).
 - **Permanent Invariants**:
   1. `END_TO_END_EXECUTION_LOG.md` is the master cumulative engineering record (must record research, plans, diffs, tests, reviews, repairs, decisions, and documentation updates).
   2. Legacy non-switching boundary: `omni_agent.py` and `omni_engine/planner.py` remain 100% untouched (0 diffs).
@@ -225,4 +225,62 @@
   - 21 targeted practical regression tests in `tests/test_l14_3_practical.py` (100% passing).
   - Full test suite: 539 tests passing across all 28 test files.
   - GitHub Actions CI Run `37220997979`: 100% GREEN (Deterministic Test Suite passed in 4m21s, Non-Switching Boundary Check passed in 3s).
-- [x] **HARD STOP ENFORCED**: Complete Checkpoint L14.3. Do NOT begin L15 (Completion Verifier & Evidence Verification) until explicitly commanded.
+- [x] **Checkpoints L14.3 Complete**: All 36 practical defects resolved, tested, verified on remote CI.
+
+### Step 13: L15 — Evidence-Based Verifier & Completion Engine (COMPLETED)
+- [x] **ADR-020**: Authored `docs/research/ADR_L15_COMPLETION_VERIFIER.md` defining the physical evidence verification architecture, deterministic domain verifiers, cryptographic evidence hash, negative constraint auditing, and state machine transition rules. Recorded in `tasks/DECISIONS.md`.
+- [x] **Contracts (`omni_engine/contracts/verification.py`)**:
+  - `CheckType` (`PHYSICAL`, `STRUCTURED_RECEIPT`, `SEMANTIC_ASSERTION`, `POLICY_AUDIT`), `RequirementVerificationStatus`, `ConstraintVerificationStatus`.
+  - `VerificationCheckResult`, `RequirementVerification`, `ConstraintVerification`, `ObjectiveVerificationResult` (`extra="forbid"`).
+  - Precedence validator enforcing physical check failure blocks `VERIFIED_SUCCESS`.
+  - Cryptographic canonical SHA-256 `compute_evidence_hash()`.
+  - Clean exports in `omni_engine/contracts/__init__.py`.
+- [x] **Deterministic Domain Verifiers (`omni_engine/verification/verifiers.py`, `base.py`)**:
+  - `FileVerifier`: physical existence, regular file, non-empty, and byte count consistency.
+  - `ProcessVerifier`: process launch (`psutil.pid_exists`) and termination (`not psutil.pid_exists`).
+  - `DesktopVerifier`: physical TCP socket probes with bounded 0.5s timeouts; structured telemetry receipt validation.
+  - `BrowserVerifier`: physical screenshot files on disk; navigation/DOM receipts.
+  - `N8nVerifier`: API provenance and strict scanning for plaintext secret tokens (`sk-`, `ghp_`, `Bearer ey`, `n8n_api_`).
+  - `ResearchVerifier`: citation integrity and detection of `[UNVERIFIED_CITATION: ...]` tokens.
+  - `CommandVerifier`, `GitVerifier`, `DataVerifier`: exit codes, git tree checks, database consistency.
+- [x] **Verification Registry & SQLite Store (`omni_engine/verification/registry.py`, `store.py`)**:
+  - `VerificationRegistry` dispatches requirements to domain verifiers.
+  - `VerificationStore` SQLite persistence with WAL mode, foreign keys, thread-local connections, and explicit `close()` cleanup.
+- [x] **Objective Completion Engine (`omni_engine/verification/engine.py`)**:
+  - `ObjectiveCompletionEngine` maps steps to requirements, audits negative constraints across execution history, computes deterministic evidence hash, and transitions Quest from `AWAITING_VERIFICATION` to `COMPLETED` or `FAILED`.
+  - False completion defense: prevents marking complete when physical artifacts are missing.
+- [x] **Adversarial Diff Review**:
+  - Independent subagent review returned **PASS** with zero blocking defects.
+- [x] **Verification & Remote CI**:
+  - 12 unit tests passing in `tests/test_l15_verification.py`.
+  - Full test suite: 551 automated tests passing across 29 test files.
+  - Committed (`d466eaf`), pushed to `origin/laya-autonomous-v2`, and verified 100% GREEN on GitHub Actions CI Run `37232135971`.
+
+### Step 14: L16 — Controlled Replanner & Recovery Loop (ACTIVE)
+- [ ] **External Research & ADR-021**:
+  - Research replanning loops, sub-DAG replacement, blast-radius containment, and retry budgets.
+  - Author `docs/research/ADR_L16_CONTROLLED_REPLANNER.md` and record in `tasks/DECISIONS.md`.
+- [ ] **Replanner Contracts (`omni_engine/contracts/replanning.py`)**:
+  - `ReplanTrigger` (`STEP_FAILURE`, `TIMEOUT`, `PRECONDITION_FAILED`, `VERIFICATION_FAILED`).
+  - `ReplanScope` (`STEP_RETRY`, `DOWNSTREAM_PRUNE_AND_GRAFT`, `SUB_DAG_REPLACE`, `FULL_REPLAN`).
+  - `ReplanRequest`, `ReplanResult`, `PreservedExecutionReceipts`.
+  - Enforce replan budget bounds (`max_replans=3`, `max_replan_depth=2`).
+- [ ] **Recovery & Replanning Engine (`omni_engine/planning/replanner.py`)**:
+  - Identify failed step and compute blast radius (downstream dependent steps).
+  - Preserve successfully completed step receipts and OperationLedger idempotency tokens.
+  - Generate replacement sub-DAG conforming to remaining unfulfilled requirements.
+  - Validate spliced plan via `DeterministicPlanValidator` (10 passes).
+  - Attach revised plan to Quest (`PLAN_ATTACHED` event with `replan_version`).
+- [ ] **Executor Integration (`omni_engine/execution/executor.py`)**:
+  - Wire replan trigger on recoverable step failures before declaring quest `FAILED`.
+  - Resume execution of revised plan without re-executing already committed mutations.
+- [ ] **Adversarial Plan Review**:
+  - Independent subagent review for race conditions, infinite loops, and un-grafted dependencies.
+- [ ] **Unit & Adversarial Testing (`tests/test_l16_replanner.py`)**:
+  - Test recoverable step failure triggers targeted replan.
+  - Test completed steps are never re-executed (idempotency preserved).
+  - Test exhausted replan budget halts and transitions quest to `FAILED`.
+  - Test cycle detection and invalid graft rejection.
+- [ ] **Adversarial Diff Review, Verification & CI**:
+  - Full test suite passing, 0 diffs on legacy boundary, commit, push, and remote CI verification.
+

@@ -11,15 +11,15 @@
 | **System Role** | Standalone Autonomous Operating Agent (Independent from Jarvis Core V2) |
 | **Active Architecture Branch** | `laya-autonomous-v2` |
 | **Public GitHub Remote** | `https://github.com/yashrastogi069-dev/laya-omni-agent.git` |
-| **Latest Branch Commit** | `6546ad9` (`L16: controlled replanner and recovery loop`) on `laya-autonomous-v2` |
-| **Total Automated Tests** | **562 / 562 Passing (100%)** (+ 47 subtests = 609 total checks) |
-| **GitHub Actions CI Status** | **100% GREEN (Run 37234539308)**: Deterministic Test Suite (4m13s) & Non-Switching Boundary Check (5s) |
-| **Test Categorization** | **560 Feature Acceptance Tests** + **2 Known Defect Reproduction Tests** |
+| **Latest Branch Commit** | `0133b35` (`L17: role-aware generative provider router`) on `laya-autonomous-v2` |
+| **Total Automated Tests** | **585 / 585 Passing (100%)** (+ 47 subtests = 632 total checks) |
+| **GitHub Actions CI Status** | **100% GREEN (Run 37236418045)**: Deterministic Test Suite (4m18s) & Non-Switching Boundary Check (4s) |
+| **Test Categorization** | **583 Feature Acceptance Tests** + **2 Known Defect Reproduction Tests** |
 | **Known Warnings Classification** | **4 Warnings Emitted**: `RuntimeWarning` from `laya/router.py:187` (Upstream library temperature outside [0.5, 5] clamping — BENIGN/UPSTREAM); 0 unhandled warnings in test suite |
 | **Calibration Status** | **Intent Signal**: Calibrated (ECE 0.1192, 72/31 stratified corpus split); **Domain Signal**: Uncalibrated (Deterministic fail-open fallback, cross-domain pooling, and escalation) |
 | **Hardware Operating Baseline** | Windows 10 Host, 4 CPU Cores, 7.81 GB RAM, PyTorch 2.13.0+cpu, NO CUDA GPU (CPU DecisionFrame latency ~15.4s; SystemOneBroker enforces user sovereignty, RAM threshold debouncing, and quality floor) |
-| **Checkpoints Completed** | **L0–L16, Foundation Gate, R1, R2, R3, R4, R5, RV0** |
-| **Active Milestone & Checkpoint** | **CHECKPOINT COMPLETE: L16 CONTROLLED REPLANNER & RECOVERY LOOP ACHIEVED (100% GREEN CI — ACTIVE ON L17)** |
+| **Checkpoints Completed** | **L0–L17, Foundation Gate, R1, R2, R3, R4, R5, RV0** |
+| **Active Milestone & Checkpoint** | **CHECKPOINT COMPLETE: L17 ROLE-AWARE GENERATIVE PROVIDER ROUTER ACHIEVED (100% GREEN CI — ACTIVE ON L17.5)** |
 
 ---
 
@@ -125,7 +125,10 @@
 [L16: CONTROLLED REPLANNER & RECOVERY LOOP]
        │ ── 11/11 Replanner Tests Passing (Commit: 6546ad9); 562/562 Repository Tests Passing (+47 subtests = 609 checks)
        ▼
-[ACTIVE CHECKPOINT L17: ROLE-AWARE GENERATIVE PROVIDER ROUTER]
+[L17: ROLE-AWARE GENERATIVE PROVIDER ROUTER]
+       │ ── 23/23 Router Tests Passing (Commit: 0133b35); 585/585 Repository Tests Passing (+47 subtests = 632 checks)
+       ▼
+[ACTIVE CHECKPOINT L17.5: REAL CLOUD PROVIDER INTEGRATION]
 ```
 
 ---
@@ -3410,5 +3413,124 @@ All 36 findings are permanently recorded in `tasks/PRACTICAL_FINDINGS.md` and su
 - **Active Checkpoint Advanced**: **Checkpoint L17: Role-Aware Generative Provider Router**.
 
 ---
+
+## 19. Checkpoint L17 — Role-Aware Generative Provider Router
+
+### 19.1 Context & Problem Statement
+In the LAYA Omni Agent architecture, System 1 (`laya.Router()`) handles high-frequency structured classifications (<35ms on GPU, sub-second on CPU) across 15 canonical decision signals. Invariants 2 and 3 dictate that generative models are reserved strictly for tasks that deterministic code, skills, or System 1 cannot solve:
+1. Structured argument synthesis (`ARGUMENT_WRITER`) when deterministic resolution fails.
+2. Novel multi-step DAG planning (`PLANNER`) when no skill template matches.
+3. Recovery sub-DAG synthesis (`REPLANNER`) upon recoverable step failures.
+4. Deep research synthesis and executive dossier generation (`FINALIZER`).
+5. Supervised code generation and bug remediation (`CODING`).
+
+Historically, the repository utilized a monolithic `OpenRouterProvider` with a single global model string (e.g. `meta-llama/llama-3.3-70b-instruct`). However, different agent roles require distinct intelligence density, token budgets, temperatures, and latency profiles (e.g. `ARGUMENT_WRITER` prioritizing low latency and schema adherence via fast models, whereas `PLANNER` and `CODING` require deep topological reasoning via frontier models). Furthermore, a single provider outage or rate-limit would cause unrecoverable failures with zero model cascade or user sovereignty enforcement.
+
+### 19.2 Architectural Decisions & ADR-022
+- Authored `docs/research/ADR_L17_GENERATIVE_ROUTER.md` (ADR-022) and recorded in `tasks/DECISIONS.md`.
+- Key Architectural Invariants:
+  1. **Role Taxonomy (`AgentRole`)**: 5 explicit roles (`ARGUMENT_WRITER`, `PLANNER`, `REPLANNER`, `FINALIZER`, `CODING`).
+  2. **Model Tiers (`ModelTier`)**: `FAST` (<1s API latency, schema conformance), `BALANCED` (reasoning workhorse), `CAPABLE` (frontier intelligence and code generation).
+  3. **User Sovereignty Hierarchy (`ModelSovereigntyLevel`)**:
+     - `USER_LOCKED`: Pinned model strictly forbids fallbacks; any provider failure raises `ProviderError` immediately.
+     - `USER_PREFERRED`: Preferred model attempted first; cascades to fallbacks on recoverable errors, emitting explicit telemetry.
+     - `AUTO`: Dynamic role tier optimization cascading across configured fallback candidates.
+  4. **Recoverable vs Fatal Error Classification**:
+     - Recoverable errors (`RATE_LIMITED`, `TIMEOUT`, `NETWORK_ERROR`, `SERVICE_UNAVAILABLE`, `UNCONFIGURED`, and structured `SCHEMA_VIOLATION`) permit cascading.
+     - Fatal errors (`CANCELLED`, `UNAUTHORIZED_ACTION`, `CONFIRMATION_REJECTED`, `INVALID_ARGUMENT`) abort cascade immediately.
+  5. **Drop-In Compatibility Invariant**: `GenerativeRouter` inherits directly from `GenerativeProvider(ABC)`, transparently fulfilling existing caller expectations while exposing role-aware methods.
+
+### 19.3 Adversarial Plan Review & Blocker Resolutions
+Prior to implementation, an independent adversarial review subagent (`f8f06aa3-1e54-4e16-b3a7-e5ae094a4cc6`) audited the plan and identified 3 blocking issues:
+1. **Blocker 1 (Model/Timeout Propagation)**: `OpenRouterProvider` and `GenerativeProvider` ABC only accepted static constructor models. Mutating `provider.model_id` during candidate iterations introduced multi-threaded race conditions.
+   - *Resolution*: Updated `GenerativeProvider.generate_text` and `generate_structured` with optional `model: Optional[str] = None` and `timeout: Optional[float] = None`. Updated `OpenRouterProvider` to use invocation-local `target_model` and `target_timeout` without mutating instance state.
+2. **Blocker 2 (Telemetry Return Signatures)**: Returning tuples from role methods broke drop-in `GenerativeProvider` contract compatibility (`generate_text -> GenerationResult`, `generate_structured -> T`).
+   - *Resolution*: `generate_text_for_role` returns `GenerationResult` directly with serialized telemetry attached in `metadata["router_telemetry"]`; `generate_structured_for_role` returns `T` directly; dedicated typed methods `generate_text_with_telemetry` and `generate_structured_with_telemetry` return typed tuples `(Result, RouterTelemetry)`.
+3. **Blocker 3 (GenerativePlanner Compatibility)**: `GenerativePlanner.synthesize_plan()` expected a `.generate(...) -> str` method returning raw text.
+   - *Resolution*: Implemented `.generate(...)` convenience alias on both `GenerativeRouter` and `MockGenerativeProvider` defaulting to `AgentRole.PLANNER`.
+
+### 19.4 Implementation Details
+- **`omni_engine/contracts/router.py`**:
+  - `AgentRole`: `argument_writer`, `planner`, `replanner`, `finalizer`, `coding`.
+  - `ModelTier`: `fast`, `balanced`, `capable`.
+  - `ModelSovereigntyLevel`: `user_locked`, `user_preferred`, `auto`.
+  - `RoleRouteConfig`: Pydantic v2 contract with `extra="forbid"`, defining primary/fallback models, temperature, token limits, timeouts, and sovereignty levels.
+  - `RouterTelemetry`: Pydantic v2 contract with `extra="forbid"`, capturing role, requested model, selected provider/model, attempt counts, fallback status, diagnostic explanation, and execution latency.
+  - `DEFAULT_ROLE_CONFIGS`: Calibrated configurations mapping primary/fallback models across all 5 roles.
+- **`omni_engine/contracts/__init__.py`**: Exported all router contracts in `__all__`.
+- **`omni_engine/providers/base.py`**: Updated `GenerativeProvider` ABC signatures with `model` and `timeout`.
+- **`omni_engine/providers/generative.py`**: Implemented invocation-local model and timeout propagation in `OpenRouterProvider`.
+- **`omni_engine/providers/router.py`**:
+  - `MockGenerativeProvider`: Thread-safe, offline-capable in-memory mock provider supporting default responses, FIFO queue, per-model mappings (`set_model_response`, `set_model_error`), `.generate(...)` alias, invocation receipt logging, and health checks.
+  - `GenerativeRouter`:
+    - Candidate resolution supporting provider URI syntax (`provider:model`) and default provider routing.
+    - Strict user sovereignty enforcement (`USER_LOCKED` strictly blocking fallbacks, `USER_PREFERRED` cascading with telemetry, `AUTO` cascading across tier fallbacks).
+    - Recoverable error handling with fatal error fast-fail.
+    - Thread-safe telemetry history logging with capacity pruning under `threading.RLock()`.
+    - Drop-in compatibility with `GenerativeProvider(ABC)` and `.generate(...)` alias.
+- **`omni_engine/providers/__init__.py`**: Exported `GenerativeRouter` and `MockGenerativeProvider`.
+- **`omni_engine/planning/generative_planner.py`**: Defensively normalized capability spec access via `getattr(s, "id", getattr(s, "capability_id", ""))`.
+
+### 19.5 Test Evidence & Benchmark Metrics
+- **Targeted Router Test Suite (`tests/test_l17_generative_router.py`)**:
+  - `test_default_text_and_history`: Default mock response and invocation logging.
+  - `test_fifo_queue_text_and_exceptions`: Multi-step FIFO queue simulation with exceptions.
+  - `test_per_model_responses_and_errors`: Per-model mapped responses and simulated errors.
+  - `test_structured_validation`: Valid schema JSON extraction and validation.
+  - `test_structured_validation_failure`: Malformed JSON raising `SCHEMA_VIOLATION`.
+  - `test_generate_alias_and_health_check`: `.generate(...)` alias and health receipt.
+  - `test_dispatch_all_five_roles`: Clean dispatch and telemetry across all 5 roles.
+  - `test_typed_telemetry_methods`: Strongly typed tuple methods for text and structured generation.
+  - `test_user_locked_strictly_forbids_fallback`: `USER_LOCKED` fails immediately without fallback attempts.
+  - `test_user_preferred_cascades_with_telemetry`: `USER_PREFERRED` cascades to fallback with explicit diagnostic telemetry.
+  - `test_auto_tier_cascades_transparently`: `AUTO` cascades dynamically across candidate models.
+  - `test_pin_model_validation`: Unregistered provider raises `ValueError` immediately.
+  - `test_unpin_restores_auto`: Unpinning restores `AUTO` sovereignty.
+  - `test_structured_schema_violation_cascade`: Schema violation cascades from fast model to capable model.
+  - `test_fatal_error_aborts_cascade_immediately`: Non-recoverable fatal errors (`CANCELLED`) abort without fallback.
+  - `test_all_candidates_exhausted_raises_process_failed`: Exhausted candidates raise `PROCESS_FAILED`.
+  - `test_isinstance_generative_provider`: Router satisfies `isinstance(GenerativeProvider)`.
+  - `test_standard_generate_text`: Standard `generate_text` defaults to `AgentRole.PLANNER`.
+  - `test_standard_generate_structured`: Standard `generate_structured` defaults to `AgentRole.PLANNER`.
+  - `test_generate_alias_for_generative_planner`: `.generate(...)` alias returns text.
+  - `test_generative_planner_integration`: End-to-end integration test proving `GenerativePlanner` seamlessly synthesizes DAG plans using `GenerativeRouter`.
+  - `test_provider_uri_scheme_resolution`: Provider URI syntax (`provider:model`) routes correctly.
+  - `test_multi_threaded_concurrency_safety`: 40 concurrent invocations across 4 threads with zero race conditions.
+  - Result: **23 / 23 tests passing in 0.21s**.
+- **Full Repository Regression Suite**:
+  - Ran `python -m unittest discover -s tests -p "test_*.py"`.
+  - Result: **585 / 585 passed (+ 47 subtests = 632 checks) in 280.62s (100% pass rate)** across all 31 test files.
+
+### 19.6 Adversarial Diff Review
+- Reviewer: Independent Adversarial Software Reviewer (Subagent `e7446e3e-4733-485c-9b6b-95e1fe9ec1d7`).
+- Verdict: **PASS (APPROVED WITHOUT BLOCKERS)**.
+- Findings: All 3 plan review blockers confirmed resolved; thread safety verified; user sovereignty hierarchy strictly upheld; drop-in compatibility verified; zero regressions.
+
+### 19.7 Non-Switching Boundary Invariant
+- Command: `git diff origin/main -- omni_agent.py omni_engine/planner.py`.
+- Result: **EXACTLY 0 DIFFS**.
+
+### 19.8 GitHub Actions CI Verification
+- Commit `0133b35` (`L17: role-aware generative provider router`) pushed to `origin/laya-autonomous-v2`.
+- GitHub Actions CI Run `37236418045`:
+  - `Deterministic Test Suite`: **Passed in 4m 18s (585 tests passed, 0 failures, 0 errors)**.
+  - `Non-Switching Boundary Check`: **Passed in 4s (0 diffs)**.
+  - **100% GREEN ON REMOTE CI**.
+
+### 19.9 Documentation Synchronization Record
+In accordance with the permanent documentation invariant in `AGENTS.md`, the following canonical documents were updated and synchronized with implementation truth:
+1. `tasks/ACTIVE_PLAN.md`: Marked Step 15 (L17) as COMPLETED & VERIFIED; added Step 16 (L17.5 Real Cloud Provider Integration) as ACTIVE; updated baseline commit to `0133b35` and test count to 585.
+2. `tasks/MASTER_PLAN.md`: Marked L17 as COMPLETED & VERIFIED; added L17.5 Real Cloud Provider Integration; updated test count to 585.
+3. `LAYA_BUILD_STATE.md`: Updated header and baseline commit to `0133b35`; added Section 1 item 23 for L17; updated test suite breakdown across all 31 test files (585 passed); cleared blockers; updated active milestone to L17.5.
+4. `HANDOFF.md`: Updated header to L17 Completed — Active on L17.5; added L17 to What We Have Built; updated test file list (added `test_l17_generative_router.py`); updated Operational Boundary & Next Phase with L17 completed and L17.5 active.
+5. `tasks/DECISIONS.md`: Recorded ADR-022 (`ADR_L17_GENERATIVE_ROUTER.md`).
+6. `END_TO_END_EXECUTION_LOG.md`: Master cumulative engineering record updated with Section 19 and dashboard metrics.
+
+### 19.10 Checkpoint L17 Final Status & Transition to L17.5
+- **Checkpoint L17 is Officially PASSED, FULLY VERIFIED, and 100% GREEN ON CI**.
+- **Active Checkpoint Advanced**: **Checkpoint L17.5: Real Cloud Provider Integration**.
+
+---
+
 
 

@@ -145,8 +145,10 @@ This guarantees that future multi-agent coordination or supervisor routing can b
   - Bounded recovery loop with anti-oscillation checks against `previous_failures`; topological BFS blast radius isolation capturing failed step and transitive downstream dependents while preserving independent branches; completed step receipts and `OperationLedger` mutation records preserved without duplicate side-effects; 10-pass `DeterministicPlanValidator` firewall verification on grafted sub-DAGs; non-critical step silent failure tolerance (`can_fail_silently=True`); automatic replanning integration in Kahn coordinator loop; 11 unit/integration tests passing in 0.88s. Full repository suite: **562 passed (+ 47 subtests = 609 checks); verified on GitHub Actions CI**.
 
 ### Phase V: Advanced Subsystems (L17 – L21)
-- [ ] **L17 — Role-Aware Generative Provider Router**:
-  - Swappable model routing for `ARGUMENT_WRITER`, `PLANNER`, `REPLANNER`, `FINALIZER`, and `CODING`.
+- [x] **L17 — Role-Aware Generative Provider Router (COMPLETED & VERIFIED)**:
+  - Role-aware generative routing across 5 distinct roles (`ARGUMENT_WRITER`, `PLANNER`, `REPLANNER`, `FINALIZER`, `CODING`); performance tier calibration (`FAST`, `BALANCED`, `CAPABLE`); deterministic user sovereignty hierarchy (`USER_LOCKED`, `USER_PREFERRED`, `AUTO`); recoverable cascading fallback lifecycle (`RATE_LIMITED`, `TIMEOUT`, `NETWORK_ERROR`, `UNCONFIGURED`, structured `SCHEMA_VIOLATION`); granular `RouterTelemetry` emitted on every invocation; drop-in `GenerativeProvider(ABC)` compatibility; thread-safe offline testing via `MockGenerativeProvider`. 23/23 unit and integration tests passing in 0.21s. Full repository suite: **585 passed (+ 47 subtests = 632 checks); verified on GitHub Actions CI Run 37236418045**.
+- [ ] **L17.5 — Real Cloud Provider Integration (ACTIVE)**:
+  - Direct cloud vendor integrations for Anthropic, OpenAI, and DeepSeek with native JSON schema extraction, structured health checks, and proxy fallback cascades.
 - [ ] **L18 — Modular Browser Capability Rebuild**:
   - Rebuild Playwright Edge into atomic, session-backed primitives (`navigate`, `snapshot`, `click`, `type`, `extract`, `screenshot`, `tabs`).
 - [ ] **L19 — Memory V2 (Working, Episodic, Semantic, Procedural)**:

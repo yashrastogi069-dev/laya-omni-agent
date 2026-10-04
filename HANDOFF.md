@@ -1,7 +1,20 @@
-# HANDOFF.md — Operational Continuation Guide (Checkpoint L16 Controlled Replanner Completed — Active on L17 Role-Aware Generative Provider Router)
+# HANDOFF.md — Operational Continuation Guide (Checkpoint L17 Generative Router Completed — Active on L17.5 Real Cloud Provider Integration)
 
 ## What We Have Built (Current State)
-A **trustworthy pre-execution control plane, provider broker, five complete real capability execution engines, persisted SQLite Quest runtime, Operation Ledger with exactly-once mutation semantics, Structured DAG Planner with template-first precedence and building-block augmentation, 10-Pass Deterministic Plan Validator Firewall, Deterministic DAG Executor, Evidence-Based Completion Engine & Physical Domain Verifiers, Controlled Replanner & Recovery Loop, Hardened Adversarial Durability Gate, and Production V2 Operator CLI** powered by:
+A **trustworthy pre-execution control plane, provider broker, five complete real capability execution engines, persisted SQLite Quest runtime, Operation Ledger with exactly-once mutation semantics, Structured DAG Planner with template-first precedence and building-block augmentation, 10-Pass Deterministic Plan Validator Firewall, Deterministic DAG Executor, Evidence-Based Completion Engine & Physical Domain Verifiers, Controlled Replanner & Recovery Loop, Role-Aware Generative Provider Router with User Sovereignty, Hardened Adversarial Durability Gate, and Production V2 Operator CLI** powered by:
+- **Checkpoint L17: Role-Aware Generative Provider Router (COMPLETED & FULLY VERIFIED)**:
+  - ADR-022: Established role taxonomy (`ARGUMENT_WRITER`, `PLANNER`, `REPLANNER`, `FINALIZER`, `CODING`), model tiers (`FAST`, `BALANCED`, `CAPABLE`), deterministic user sovereignty hierarchy (`USER_LOCKED`, `USER_PREFERRED`, `AUTO`), recoverable cascading fallback lifecycle, and drop-in `GenerativeProvider(ABC)` compatibility. Recorded in `tasks/DECISIONS.md`.
+  - Strongly Typed Router Contracts: `AgentRole`, `ModelTier`, `ModelSovereigntyLevel`, `RoleRouteConfig`, `RouterTelemetry`, and calibrated `DEFAULT_ROLE_CONFIGS` (`extra="forbid"`). Exported in `omni_engine/contracts/__init__.py`.
+  - Provider Foundation Hardening: Updated `GenerativeProvider` ABC in `omni_engine/providers/base.py` and `OpenRouterProvider` in `omni_engine/providers/generative.py` to accept per-invocation `model` and `timeout` arguments without mutating instance state, completely eliminating cross-thread concurrency races.
+  - MockGenerativeProvider & GenerativeRouter Engine: Implemented `MockGenerativeProvider` (thread-safe, in-memory scripted and queued mock) and `GenerativeRouter` in `omni_engine/providers/router.py`. Features:
+    - Role-based routing with calibrated default parameters (temperatures, token budgets, timeout deadlines).
+    - Candidate resolution supporting provider URI scheme (`provider:model`).
+    - Deterministic User Sovereignty: `USER_LOCKED` strictly prevents fallbacks and fails fast; `USER_PREFERRED` cascades to fallbacks on recoverable errors and logs explicit telemetry; `AUTO` dynamically cascades across tier fallbacks.
+    - Recoverable error classification (`RATE_LIMITED`, `TIMEOUT`, `NETWORK_ERROR`, `SERVICE_UNAVAILABLE`, `UNCONFIGURED`, and structured `SCHEMA_VIOLATION` permit cascading; fatal errors abort immediately).
+    - `GenerativeProvider(ABC)` drop-in compatibility (standard calls default to `AgentRole.PLANNER`) and `.generate(...)` alias for `GenerativePlanner`.
+    - Granular `RouterTelemetry` emitted and attached to `GenerationResult.metadata["router_telemetry"]`, with dedicated typed methods `generate_text_with_telemetry` and `generate_structured_with_telemetry`.
+  - Adversarial Diff Review: **PASS (Zero blocking defects)** (Subagent `e7446e3e-4733-485c-9b6b-95e1fe9ec1d7`).
+  - Unit test suite: `tests/test_l17_generative_router.py` (23/23 passed in 0.21s). Full repository suite: **585 automated tests (+ 47 subtests = 632 checks) passing across all 31 test files; verified on GitHub Actions CI Run 37236418045**.
 - **Checkpoint L16: Controlled Replanner & Recovery Loop (COMPLETED & FULLY VERIFIED)**:
   - ADR-021: Established bounded recovery loop, anti-oscillation checks against `previous_failures`, BFS blast radius isolation, idempotency preservation, replacement sub-DAG grafting, and silent failure support. Recorded in `tasks/DECISIONS.md`.
   - Strongly Typed Replanning Contracts: `ReplanTrigger`, `ReplanScope`, `ReplanRequest`, `ReplanResult` (`extra="forbid"`). Exported in `omni_engine/contracts/__init__.py`. Added `PlanType.REPLAN_RECOVERED` in `omni_engine/contracts/plan.py` and `QuestEventEnum.PLAN_REVISED` in `omni_engine/contracts/quest.py`. Updated `VALID_QUEST_TRANSITIONS[QuestStatus.AWAITING_VERIFICATION]` to include `QuestStatus.RUNNING`.
@@ -155,6 +168,7 @@ A **trustworthy pre-execution control plane, provider broker, five complete real
   - `tests/test_l14_executor.py` (17 tests)
   - `tests/test_l15_verification.py` (12 tests)
   - `tests/test_l16_replanner.py` (11 tests)
+  - `tests/test_l17_generative_router.py` (23 tests)
   - `tests/test_l1_repairs.py` (12 tests)
   - `tests/test_l2_1_reconciliation.py` (15 tests)
   - `tests/test_l2_contracts.py` (18 tests)
@@ -179,9 +193,9 @@ A **trustworthy pre-execution control plane, provider broker, five complete real
 ---
 
 ## Operational Boundary & Next Phase
-- **Completed Milestone Goal**: `L16 Controlled Replanner & Recovery Loop`.
-- **Status**: **COMPLETE & FULLY VERIFIED (100% Pass Rate across 562 automated tests + 47 subtests = 609 checks; verified on GitHub Actions CI Run 37234539308)**.
-- **Hard Stop Boundary**: Sequence: L16 (COMPLETED) → L17 (ACTIVE) → L17.5 → L18 → **HARD STOP** (Do NOT start L19 Memory V2). 0 diffs in `omni_agent.py` and `omni_engine/planner.py`.
+- **Completed Milestone Goal**: `L17 Role-Aware Generative Provider Router`.
+- **Status**: **COMPLETE & FULLY VERIFIED (100% Pass Rate across 585 automated tests + 47 subtests = 632 checks; verified on GitHub Actions CI Run 37236418045)**.
+- **Hard Stop Boundary**: Sequence: L16 (COMPLETED) → L17 (COMPLETED) → L17.5 (ACTIVE) → L18 → **HARD STOP** (Do NOT start L19 Memory V2). 0 diffs in `omni_agent.py` and `omni_engine/planner.py`.
 - **Milestone Sequence (All Completed)**:
   - RV0: Live Reality Gate across capability engines (System 1, Research, Browser, Windows Desktop, n8n, Antigravity with dirty worktree test) — **PASSED**.
   - L10: Persisted SQLite Quest Engine (`Quest`, `QuestStep`, `QuestEvent`) — **PASSED**.
@@ -194,6 +208,7 @@ A **trustworthy pre-execution control plane, provider broker, five complete real
   - L14.3: Practical Runtime Integration & Operator-Control Closure (PRACT-001..036, ObjectiveDecomposer, Template-as-Building-Block, SessionManager, SemanticArgumentValidator, Production V2 Operator CLI, cross-mount Windows resilience) — **PASSED**.
   - L15: Evidence-Based Verifier & Completion Engine (ADR-020, strongly typed contracts, 8 deterministic domain verifiers, SQLite verification store, ObjectiveCompletionEngine, cryptographic evidence hash, negative constraint audit) — **PASSED**.
   - L16: Controlled Replanner & Recovery Loop (ADR-021, strongly typed replanning contracts, blast radius containment, anti-oscillation attempt budgets, sub-DAG grafting, silent failure tolerance, executor coordinator loop integration) — **PASSED**.
-- **Next Milestone**: **L17 Role-Aware Generative Provider Router** (currently active).
+  - L17: Role-Aware Generative Provider Router (ADR-022, strongly typed router contracts, model tiers, deterministic user sovereignty hierarchy, recoverable cascading fallbacks, drop-in GenerativeProvider compatibility, MockGenerativeProvider) — **PASSED**.
+- **Next Milestone**: **L17.5 Real Cloud Provider Integration** (currently active).
 
 

@@ -80,14 +80,19 @@ class OpenRouterProvider(GenerativeProvider):
         system_prompt: Optional[str] = None,
         temperature: float = 0.7,
         max_tokens: int = 2000,
+        model: Optional[str] = None,
+        timeout: Optional[float] = None,
     ) -> GenerationResult:
         """Sends chat completion request and returns normalized GenerationResult."""
+        target_model = model or self.model_id
+        target_timeout = float(timeout) if timeout is not None else self.timeout
+
         if not self.is_configured or self._client is None:
             raise ProviderError(
                 code=ErrorCode.UNCONFIGURED,
                 message="OpenRouter provider is unconfigured. Set OPENROUTER_API_KEY.",
                 provider_id=self.provider_id,
-                model_id=self.model_id,
+                model_id=target_model,
             )
 
         messages = []
@@ -98,11 +103,11 @@ class OpenRouterProvider(GenerativeProvider):
         t0 = time.perf_counter()
         try:
             resp = self._client.chat.completions.create(
-                model=self.model_id,
+                model=target_model,
                 messages=messages,
                 temperature=temperature,
                 max_tokens=max_tokens,
-                timeout=self.timeout,
+                timeout=target_timeout,
             )
             t1 = time.perf_counter()
             latency_ms = round((t1 - t0) * 1000, 3)
@@ -112,7 +117,7 @@ class OpenRouterProvider(GenerativeProvider):
                     code=ErrorCode.PROCESS_FAILED,
                     message="OpenRouter returned empty completion choices.",
                     provider_id=self.provider_id,
-                    model_id=self.model_id,
+                    model_id=target_model,
                 )
 
             choice = resp.choices[0]
@@ -121,7 +126,7 @@ class OpenRouterProvider(GenerativeProvider):
             return GenerationResult(
                 text=choice.message.content or "",
                 provider_id=self.provider_id,
-                model_id=self.model_id,
+                model_id=target_model,
                 latency_ms=latency_ms,
                 prompt_tokens=getattr(usage, "prompt_tokens", None) if usage else None,
                 completion_tokens=getattr(usage, "completion_tokens", None) if usage else None,
@@ -143,9 +148,9 @@ class OpenRouterProvider(GenerativeProvider):
             raise ProviderError(
                 code=code,
                 message=f"OpenRouter generation failed: {e}",
-                details={"model": self.model_id},
+                details={"model": target_model},
                 provider_id=self.provider_id,
-                model_id=self.model_id,
+                model_id=target_model,
             )
 
     def generate_structured(
@@ -155,6 +160,8 @@ class OpenRouterProvider(GenerativeProvider):
         system_prompt: Optional[str] = None,
         temperature: float = 0.2,
         max_tokens: int = 2000,
+        model: Optional[str] = None,
+        timeout: Optional[float] = None,
     ) -> T:
         """Generates structured Pydantic object, extracting and validating JSON."""
         schema_json = json.dumps(response_model.model_json_schema(), indent=2)
@@ -167,6 +174,8 @@ class OpenRouterProvider(GenerativeProvider):
             system_prompt=system_instruction,
             temperature=temperature,
             max_tokens=max_tokens,
+            model=model,
+            timeout=timeout,
         )
 
         cleaned_json = extract_json_from_text(gen_result.text)

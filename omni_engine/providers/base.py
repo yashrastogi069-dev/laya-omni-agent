@@ -133,6 +133,8 @@ class GenerativeProvider(ABC):
         system_prompt: Optional[str] = None,
         temperature: float = 0.7,
         max_tokens: int = 2000,
+        model: Optional[str] = None,
+        timeout: Optional[float] = None,
     ) -> GenerationResult:
         """Generates raw text from model."""
         pass
@@ -145,6 +147,8 @@ class GenerativeProvider(ABC):
         system_prompt: Optional[str] = None,
         temperature: float = 0.2,
         max_tokens: int = 2000,
+        model: Optional[str] = None,
+        timeout: Optional[float] = None,
     ) -> T:
         """Generates a structured Pydantic object, extracting and validating JSON."""
         pass

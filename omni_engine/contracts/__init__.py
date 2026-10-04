@@ -192,6 +192,14 @@ from .replanning import (
     ReplanRequest,
     ReplanResult,
 )
+from .router import (
+    AgentRole,
+    ModelTier,
+    ModelSovereigntyLevel,
+    RoleRouteConfig,
+    RouterTelemetry,
+    DEFAULT_ROLE_CONFIGS,
+)
 
 __all__ = [
     # Base
@@ -359,6 +367,13 @@ __all__ = [
     "ReplanScope",
     "ReplanRequest",
     "ReplanResult",
+    # Role-Aware Generative Provider Router (L17)
+    "AgentRole",
+    "ModelTier",
+    "ModelSovereigntyLevel",
+    "RoleRouteConfig",
+    "RouterTelemetry",
+    "DEFAULT_ROLE_CONFIGS",
 ]
 
 

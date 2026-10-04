@@ -64,12 +64,13 @@ JSON SCHEMA:
         
         specs = self.registry.list_specs()
         if allowed_capabilities:
-            specs = [s for s in specs if s.capability_id in allowed_capabilities]
+            specs = [s for s in specs if getattr(s, "id", getattr(s, "capability_id", "")) in allowed_capabilities]
 
         lines = []
         for s in specs:
+            cap_id = getattr(s, "id", getattr(s, "capability_id", ""))
             props = list((s.input_schema.get("properties") or {}).keys())
-            lines.append(f"- {s.capability_id}: {s.description} (params: {props})")
+            lines.append(f"- {cap_id}: {s.description} (params: {props})")
         return "\n".join(lines)
 
     @staticmethod

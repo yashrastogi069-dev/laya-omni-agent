@@ -264,4 +264,18 @@
   5. **Anti-Oscillation & Budget Bounds**: Hard cap on replanning attempts (`max_replans=3`, `max_replan_depth=2`) and failure-fingerprint checking preventing identical failed steps from repeating.
   6. **Support for can_fail_silently**: In Pass 9 of `DeterministicPlanValidator`, support `can_fail_silently=True` for optional steps without failing the quest.
 
+---
+
+## ADR-022: Role-Aware Generative Provider Router (L17)
+- **Date**: 2026-10-05
+- **Status**: ACCEPTED
+- **Problem**: Monolithic provider calls use a single global model for all generative needs, ignoring role-specific latency/reasoning trade-offs and lacking automatic fallback when remote models fail or are rate-limited.
+- **Decision**:
+  1. **Agent Role Taxonomy**: Formally define 5 specialized roles (`ARGUMENT_WRITER`, `PLANNER`, `REPLANNER`, `FINALIZER`, `CODING`) with calibrated default temperatures, token budgets, and timeout constraints.
+  2. **Model Performance Tiers**: Structure routing across `FAST` (<1s API latency, schema adherence priority), `BALANCED` (reasoning workhorse), and `CAPABLE` (frontier intelligence and code generation).
+  3. **User Sovereignty Hierarchy**: Enforce `USER_LOCKED` (strict zero-fallback constraint), `USER_PREFERRED` (fallback allowed with required telemetry), and `AUTO` (dynamic tier optimization).
+  4. **Deterministic Cascading Fallbacks**: Cascade through candidate models upon recoverable provider failures (`RATE_LIMITED`, `TIMEOUT`, `NETWORK_ERROR`, `UNCONFIGURED`), logging granular `RouterTelemetry`.
+  5. **Contract Drop-In Invariant**: `GenerativeRouter` implements `GenerativeProvider(ABC)`, maintaining backward compatibility while providing role-aware dispatch methods.
+  6. **Mock Provider Integration**: Equip `MockGenerativeProvider` for 100% offline, deterministic testing with programmable returns and error simulation.
+
 

@@ -14,12 +14,15 @@ from .base import (
 from .system1 import JevProvider, LayaProvider, get_shared_laya_router
 from .generative import OpenRouterProvider, extract_json_from_text
 from .broker import SystemOneBroker
+from .router import GenerativeRouter, MockGenerativeProvider
 
 __all__ = [
     "GenerationResult",
     "GenerativeProvider",
+    "GenerativeRouter",
     "JevProvider",
     "LayaProvider",
+    "MockGenerativeProvider",
     "OpenRouterProvider",
     "ProviderError",
     "ProviderHealth",

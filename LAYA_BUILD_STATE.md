@@ -1,11 +1,11 @@
 # LAYA_BUILD_STATE.md — Current Ground Truth State
 
-**Last Updated**: 2026-09-26T07:45:00+05:30  
+**Last Updated**: 2026-10-04T22:35:00+05:30  
 **Current Branch**: `laya-autonomous-v2`  
-**Active Milestone Goal**: `L14.2 RUNTIME CLOSURE, ADVERSARIAL DURABILITY & EVIDENCE INTEGRITY GATE (COMPLETED & FULLY VERIFIED) — HARD STOP ENFORCED`  
-**Baseline Verified Commit**: Staged for L14.2 commit (`feat(l14.2): runtime closure, adversarial durability and evidence integrity`) on `laya-autonomous-v2`  
-**Last Passing Test Suite**: All 27 test files across L0–L14.2:
-`tests/test_foundation_broker.py`, `tests/test_l0_baselines.py`, `tests/test_l10_quest.py`, `tests/test_l11_operation_ledger.py`, `tests/test_l12_planner.py`, `tests/test_l13_validator.py`, `tests/test_l14_1_runtime_integrity.py`, `tests/test_l14_2_durability.py`, `tests/test_l14_executor.py`, `tests/test_l1_repairs.py`, `tests/test_l2_1_reconciliation.py`, `tests/test_l2_contracts.py`, `tests/test_l3_capabilities.py`, `tests/test_l4_providers.py`, `tests/test_l5_decision_fabric.py`, `tests/test_l6a_routing.py`, `tests/test_l6b_skill_routing.py`, `tests/test_l7_5_calibration.py`, `tests/test_l7_skills.py`, `tests/test_l8_arguments.py`, `tests/test_l9_policy.py`, `tests/test_r1_research.py`, `tests/test_r2_browser.py`, `tests/test_r3_desktop.py`, `tests/test_r4_n8n.py`, `tests/test_r5_developer.py`, `tests/test_rv0_reality_gate.py` (**517 automated tests passing across 27 test files (100% pass rate) (+ 47 subtests = 564 total checks)**)  
+**Active Milestone Goal**: `L14.3 PRACTICAL RUNTIME INTEGRATION & OPERATOR-CONTROL CLOSURE (COMPLETED & FULLY VERIFIED) — PREPARED FOR L15`  
+**Baseline Verified Commit**: Staged for L14.3 commit (`feat(l14.3): practical runtime integration and operator-control closure`) on `laya-autonomous-v2`  
+**Last Passing Test Suite**: All 28 test files across L0–L14.3:
+`tests/test_foundation_broker.py`, `tests/test_l0_baselines.py`, `tests/test_l10_quest.py`, `tests/test_l11_operation_ledger.py`, `tests/test_l12_planner.py`, `tests/test_l13_validator.py`, `tests/test_l14_1_runtime_integrity.py`, `tests/test_l14_2_durability.py`, `tests/test_l14_3_practical.py`, `tests/test_l14_executor.py`, `tests/test_l1_repairs.py`, `tests/test_l2_1_reconciliation.py`, `tests/test_l2_contracts.py`, `tests/test_l3_capabilities.py`, `tests/test_l4_providers.py`, `tests/test_l5_decision_fabric.py`, `tests/test_l6a_routing.py`, `tests/test_l6b_skill_routing.py`, `tests/test_l7_5_calibration.py`, `tests/test_l7_skills.py`, `tests/test_l8_arguments.py`, `tests/test_l9_policy.py`, `tests/test_r1_research.py`, `tests/test_r2_browser.py`, `tests/test_r3_desktop.py`, `tests/test_r4_n8n.py`, `tests/test_r5_developer.py`, `tests/test_rv0_reality_gate.py` (**538 automated tests passing across 28 test files (100% pass rate) (+ 47 subtests = 585 total checks)**)  
 **Mission Role**: Complete Standalone Autonomous Operating Agent.
 
 ---
@@ -221,6 +221,22 @@ The repository contains a standalone prototype CLI (`laya_agent.py` / `omni_engi
     - **Deterministic CI Workflow**: GitHub Actions workflow `.github/workflows/ci.yml` verifying legacy 0-diff boundary and discovering tests.
     - **LangGraph Architectural Research (Section 10)**: Rigorous architectural evaluation classifying 12 patterns (ADOPT/ADAPT/REFERENCE/REJECT). Strict rule upheld: LangGraph is NOT installed in LAYA core.
     - **Comprehensive Test Suite**: Created `tests/test_l14_2_durability.py` (36 unit/adversarial tests, 100% pass rate in 8.16s). Full repository suite: **517 passed across 27 test files (100% pass rate) (+ 47 subtests = 564 total checks)**.
+29. **Checkpoint L14.3 Milestone Reached (Practical Runtime Integration & Operator-Control Closure)**:
+    - **Canonical Practical Findings Ledger**: Documented findings `PRACT-001` through `PRACT-036` in `tasks/PRACTICAL_FINDINGS.md` linking directly to `END_TO_END_EXECUTION_LOG.md`.
+    - **Syntactic Objective Decomposition**: Implemented `ObjectiveDecomposer` in `omni_engine/planning/decomposer.py` and typed `ObjectiveSpec` / `RequirementItem` in `omni_engine/contracts/objective.py` (`extra="forbid"`). Isolates compound intent clauses and extracts ports, paths, URLs, process names, and commands.
+    - **Template-as-Building-Block Augmentation**: Implemented `_augment_plan_for_objective` in `omni_engine/planning/engine.py`. Generates fast template DAGs first, then injects typed steps (`file_write`, `browser_screenshot`, `desktop.service_health`, `n8n.list_workflows`) for uncovered requirements to guarantee 100% pre-execution objective coverage without unbounded LLM calls.
+    - **Session Continuity & Referent Binding**: Implemented `SessionManager` in `omni_engine/session/manager.py` enabling interactive operator continuations (e.g. `yes`/`no` or missing parameters) within active paused quests without restarting planning. Deterministically binds conversational referents (`"this"`, `"the results"`) to previous step outputs.
+    - **Deep Semantic Argument Validation**: Implemented `SemanticArgumentValidator` in `omni_engine/arguments/validator.py` enforcing strict semantic checks on URLs (blocking nested schemes like `https://https://`), TCP/UDP ports (1–65535), normalized filesystem paths (preserving POSIX format), process targets, and workflow IDs.
+    - **Skill Input Resolution & Registry Normalization**: Normalized `cap_id` extraction in `omni_engine/arguments/resolver.py` supporting both `CapabilitySpec` and `SkillManifest`. Added deterministic slot extraction for skill inputs (`inspect_repository`, `perform_git_inspection`, `research_topic`) and filtered cross-clause parameters in `template_planner.py`.
+    - **Infrastructure Metadata Stripping**: Updated `_strip_infrastructure_args` in `omni_engine/capabilities/adapters.py` to strip execution metadata (`idempotency_key`, `quest_id`, `step_id`, `session_id`) before invoking legacy tool functions (`tool_launch_app`), eliminating `TypeError: unexpected keyword argument`.
+    - **Stale Confirmation Error Hygiene**: Updated `omni_engine/quest/engine.py` to clear stale confirmation prompts from `step.error` upon transitioning to `RUNNING` or `COMPLETED`.
+    - **Truthful Research Telemetry & Candidate Backfilling**: Updated `PageFetcher` and `DeepResearchEngine` to record truthful fetch telemetry (`attempted_methods`, `successful_method`, `errors_by_method`). Backfilled candidate URLs upon fetch failures without depleting the page budget.
+    - **Rule-0 Secret-Bearing File Protection**: Added `is_secret_bearing_file` in `omni_engine/policy/rules.py` and Stage 0 hard `DENY` in `omni_engine/policy/engine.py` for reading or writing sensitive credentials (`.env*`, `keys.env`, `keys`, `id_rsa`, `*.pem`), immune to user confirmation.
+    - **Calibrated Browser Navigation Risk**: Reduced base risk of ordinary browser navigation to `0.15` in `PolicyEngine`, allowing automated browse under `LOCAL_OPERATOR` without false-positive pauses while retaining strict gating for financial actions.
+    - **Production V2 Operator CLI**: Implemented `laya_v2_cli.py` assembling the complete V2 autonomous stack with dry-run, verbose logging, and interactive REPL mode; converted `v2_cli_test.py` into a thin legacy shim with `DeprecationWarning`.
+    - **CI Hard Boundary Gate**: Added dedicated `boundary-check` job to `.github/workflows/ci.yml`.
+    - **Adversarial Diff Review**: **PASS (Zero critical defects, 100% invariant adherence, 0 boundary diffs)** (Subagent `3166c59b-829e-4b4c-a968-382e2ec9c48e`).
+    - **Comprehensive Test Suite**: Created `tests/test_l14_3_practical.py` (21 regression tests, 100% pass rate in 6.46s). Full repository suite: **538 passed across 28 test files (100% pass rate) (+ 47 subtests = 585 total checks)**.
 
 ---
 

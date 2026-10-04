@@ -169,3 +169,40 @@ The execution runtime implements a multi-tier, crash-resilient control plane:
 6. **Policy SLA Distribution Proof**:
    - Deterministic policy latency proven via a 20-run statistical distribution asserting median < 2.0ms (sub-1ms SLA proof) in `tests/test_l9_policy.py`.
 
+---
+
+# SECTION 5: PRACTICAL RUNTIME INTEGRATION & OPERATOR CONTROL (L14.3)
+
+To ensure the components function as a single coherent objective-execution runtime in practical deployment, L14.3 adds the integration and operator-control layer:
+
+1. **Syntactic Objective Decomposer (`omni_engine/planning/decomposer.py`, `omni_engine/contracts/objective.py`)**:
+   - Decomposes complex, multi-intent prompts into typed `RequirementItem` entities.
+   - Deterministically isolates parameters, targets, filesystem paths, TCP/UDP ports, URLs, process targets, and shell commands.
+   - Evaluates requirement coverage (`RequirementCoverageState: UNCOVERED, PARTIAL, COVERED`).
+
+2. **Template-as-Building-Block Augmentation (`omni_engine/planning/engine.py`)**:
+   - Follows Invariant 3: uses template plans as initial fast building blocks without expensive LLM synthesis.
+   - For uncovered clauses, `_augment_plan_for_objective` automatically injects typed steps (`file_write`, `browser_screenshot`, `desktop.service_health`, `n8n.list_workflows`).
+   - Verifies the augmented DAG topology with cycle checks and topological ordering prior to persistence.
+
+3. **Session Continuity & Referent Binding (`omni_engine/session/manager.py`)**:
+   - Tracks operator conversational sessions across turns (`SessionManager`).
+   - Automatically detects confirmation keywords (`"yes"`, `"proceed"`, `"approved"`) and resumes paused Quests in place.
+   - Resolves linguistic referents (`"this"`, `"the results"`, `"that"`) by binding them to the previous step's execution receipts.
+
+4. **Deep Semantic Argument Validation (`omni_engine/arguments/validator.py`)**:
+   - Enforces deep semantic constraints on capability arguments before policy checks or ledger attempts.
+   - Rejects nested/double schemes (`https://https://...`), invalid TCP ports (1–65535), and control-character-laden workflow IDs.
+   - Canonicalizes filesystem paths while preserving POSIX `/` forward slashes for cross-platform portability.
+
+5. **Rule-0 Secret-Bearing File Protection (`omni_engine/policy/rules.py`, `omni_engine/policy/engine.py`)**:
+   - Identifies credential and secret-bearing files (`.env*`, `keys.env`, `keys`, `id_rsa`, `*.pem`, `credentials.json`).
+   - Stage 0 Rule-0 issues an inviolable `PolicyEffect.DENY` for both read and write operations on secret-bearing files, immune to user confirmation overrides.
+
+6. **Calibrated Browser Risk (`omni_engine/policy/engine.py`)**:
+   - Calibrates base risk for read-only browser navigation (`visual_browse`, `snapshot`, `screenshot`) to `0.15` (`ALLOW` under `LOCAL_OPERATOR` without false confirmation pauses), while retaining strict confirmation gates for financial or mutating browser interactions.
+
+7. **Production V2 Operator CLI (`laya_v2_cli.py`)**:
+   - Direct operator entry point wiring `ObjectiveDecomposer`, `HierarchicalRouter`, `ArgumentResolver`, `StructuredDAGPlanner`, `DeterministicPlanValidator`, `QuestEngine`, `PolicyEngine`, `OperationLedger`, `DeterministicDAGExecutor`, and `SessionManager`.
+   - Supports dry-run validation (`--dry-run`), verbose execution logging (`--verbose`), and interactive REPL mode.
+   - Converts `v2_cli_test.py` into a thin legacy shim with `DeprecationWarning`.

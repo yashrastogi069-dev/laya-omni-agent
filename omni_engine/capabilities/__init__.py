@@ -48,6 +48,7 @@ from .adapters import (
     make_download_file_adapter,
     make_clipboard_adapter,
     make_inspect_data_adapter,
+    make_launch_app_adapter,
 )
 
 __all__ = [
@@ -89,6 +90,7 @@ __all__ = [
     "make_download_file_adapter",
     "make_clipboard_adapter",
     "make_inspect_data_adapter",
+    "make_launch_app_adapter",
 ]
 
 

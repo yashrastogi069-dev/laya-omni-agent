@@ -48,6 +48,10 @@ SENSITIVE_FILE_NAMES = {
     ".env",
     ".env.local",
     ".env.production",
+    ".env.test",
+    ".env.development",
+    "keys",
+    "keys.env",
     "id_rsa",
     "id_ed25519",
     "id_ecdsa",
@@ -129,6 +133,30 @@ def canonicalize_path(raw_path: str, base_dir: Optional[str] = None) -> str:
     return os.path.normpath(resolved).lower()
 
 
+def is_secret_bearing_file(path_str: str) -> Tuple[bool, Optional[str]]:
+    """Checks whether a target path refers to a secret-bearing file (.env, keys.env, private keys, certs)."""
+    if not path_str or not isinstance(path_str, str):
+        return False, None
+
+    canon = canonicalize_path(path_str)
+    if not canon:
+        return False, None
+
+    basename = os.path.basename(canon)
+    if basename in SENSITIVE_FILE_NAMES or basename.startswith(".env") or basename in {"keys", "keys.env"}:
+        return True, f"Target file '{path_str}' matches sensitive credential/key pattern '{basename}'."
+
+    _, ext = os.path.splitext(basename)
+    if ext in SENSITIVE_EXTENSIONS:
+        return True, f"Target file '{path_str}' has sensitive certificate/key extension '{ext}'."
+
+    parts = set(canon.replace("/", "\\").split("\\"))
+    if parts.intersection({".ssh", ".env", ".aws", ".gnupg"}):
+        return True, f"Target path '{path_str}' contains sensitive credential directory."
+
+    return False, None
+
+
 def is_protected_path(path_str: str) -> Tuple[bool, Optional[str]]:
     """Checks whether a target path violates system protected path boundaries."""
     if not path_str:
@@ -147,14 +175,10 @@ def is_protected_path(path_str: str) -> Tuple[bool, Optional[str]]:
         if prot in canon or canon.startswith(prot):
             return True, f"Target path '{path_str}' is within protected system directory '{prot}'."
 
-    # Check sensitive filename patterns
-    basename = os.path.basename(canon)
-    if basename in SENSITIVE_FILE_NAMES:
-        return True, f"Target file '{path_str}' matches sensitive credential/key pattern '{basename}'."
-
-    _, ext = os.path.splitext(basename)
-    if ext in SENSITIVE_EXTENSIONS:
-        return True, f"Target file '{path_str}' has sensitive certificate/key extension '{ext}'."
+    # Check sensitive credential and secret-bearing file boundaries
+    is_sec, sec_reason = is_secret_bearing_file(canon)
+    if is_sec:
+        return True, sec_reason
 
     return False, None
 

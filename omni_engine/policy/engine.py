@@ -25,6 +25,7 @@ from omni_engine.contracts.enums import (
 )
 from omni_engine.contracts.policy import (
     ActionAssessment,
+    OperatorPolicyPreferences,
     PolicyDecision,
     PolicyEffect,
     PolicyRule,
@@ -33,6 +34,7 @@ from .rules import (
     canonicalize_path,
     is_protected_path,
     is_protected_process,
+    is_secret_bearing_file,
     scan_embedded_commands,
 )
 from .store import PolicyStore
@@ -210,6 +212,14 @@ class PolicyEngine:
 
         # 5. Calculate composite risk score in [0.0, 1.0]
         base_risk = BASE_ACTION_CLASS_RISK.get(spec.action_class, 0.50)
+        if spec.id == "visual_browse":
+            # PRACT-031: Ordinary browser navigation is safe read-only browsing
+            base_risk = 0.15
+        elif spec.id in ("browser_interact", "browser.interact"):
+            action = str(arguments.get("action") or "").lower()
+            if action in ("navigate", "snapshot", "extract") and not sensitive_targets:
+                base_risk = 0.15
+
         modifier = 0.0
 
         if sensitive_targets:
@@ -296,6 +306,7 @@ class PolicyEngine:
         user_confirmed: bool = False,
         session_context: Optional[Dict[str, Any]] = None,
         request_id: Optional[str] = None,
+        preferences: Optional[OperatorPolicyPreferences] = None,
     ) -> PolicyDecision:
         """Evaluates a proposed invocation and returns an authoritative PolicyDecision.
         
@@ -350,6 +361,24 @@ class PolicyEngine:
                             is_hard_invariant=True,
                             extra_metadata={"inviolable_tier": 0},
                         )
+
+        # 1b. Secret-Bearing File Inviolable Gate (PRACT-030: Applies to ALL capabilities including READ_ONLY)
+        for arg_key in ("filepath", "file_path", "path", "filename", "db_path", "save_path", "repo_path"):
+            arg_val = arguments.get(arg_key)
+            if arg_val and isinstance(arg_val, str):
+                is_sec, sec_reason = is_secret_bearing_file(arg_val)
+                if is_sec:
+                    return self._make_decision(
+                        request_id=req_id,
+                        capability_id=spec.id,
+                        effect=PolicyEffect.DENY,
+                        matched_rules=["RULE_0_PROTECTED_SECRET_FILES"],
+                        assessment=assessment,
+                        start_time=t0,
+                        denial_reason=f"Access to secret-bearing file '{arg_val}' is strictly forbidden by Rule-0 (PRACT-030): {sec_reason}",
+                        is_hard_invariant=True,
+                        extra_metadata={"inviolable_tier": 0, "secret_protection": True},
+                    )
 
         # 2. Protected System Paths (Windows, Program Files, .ssh, .env, root drives)
         if spec.action_class != ActionClass.READ_ONLY or spec.id in ("file_write", "developer.run_task", "developer_run_task"):
@@ -503,8 +532,18 @@ class PolicyEngine:
                 )
 
         # -------------------------------------------------------------------
-        # STAGE 3: CAPABILITY CONFIRMATION POLICY GATING
+        # STAGE 3: OPERATOR PREFERENCES & CAPABILITY CONFIRMATION GATING
         # -------------------------------------------------------------------
+        active_prefs = preferences
+        if active_prefs is None and session_context and "operator_preferences" in session_context:
+            pref_dict = session_context["operator_preferences"]
+            if isinstance(pref_dict, dict):
+                active_prefs = OperatorPolicyPreferences(**pref_dict)
+            elif isinstance(pref_dict, OperatorPolicyPreferences):
+                active_prefs = pref_dict
+        if active_prefs is None:
+            active_prefs = OperatorPolicyPreferences()
+
         if spec.confirmation_policy == ConfirmationPolicy.ALWAYS:
             if not user_confirmed:
                 prompt = f"Action '{spec.name}' has mandatory confirmation policy (ALWAYS). Confirm execution?"
@@ -517,6 +556,50 @@ class PolicyEngine:
                     start_time=t0,
                     confirmation_prompt=prompt,
                 )
+
+        # Contextual file overwrite check (PRACT-009)
+        if spec.id == "file_write" and active_prefs.confirm_file_overwrite and not user_confirmed:
+            dest = arguments.get("filepath") or arguments.get("file_path")
+            if dest and isinstance(dest, str) and os.path.exists(dest):
+                prompt = f"Target file '{dest}' already exists. Confirm overwrite?"
+                return self._make_decision(
+                    request_id=req_id,
+                    capability_id=spec.id,
+                    effect=PolicyEffect.REQUIRE_CONFIRMATION,
+                    matched_rules=["PREFERENCE_CONFIRM_FILE_OVERWRITE"],
+                    assessment=assessment,
+                    start_time=t0,
+                    confirmation_prompt=prompt,
+                    extra_metadata={"target_file": dest, "exists": True},
+                )
+
+        # Process kill confirmation preference
+        if spec.id in ("kill_process", "desktop.close_window") and active_prefs.confirm_process_kill and not user_confirmed:
+            target_proc = arguments.get("target") or arguments.get("pid") or arguments.get("title")
+            prompt = f"Action '{spec.name}' will terminate process/window '{target_proc}'. Confirm termination?"
+            return self._make_decision(
+                request_id=req_id,
+                capability_id=spec.id,
+                effect=PolicyEffect.REQUIRE_CONFIRMATION,
+                matched_rules=["PREFERENCE_CONFIRM_PROCESS_KILL"],
+                assessment=assessment,
+                start_time=t0,
+                confirmation_prompt=prompt,
+            )
+
+        # n8n activation confirmation preference
+        if spec.id in ("n8n.activate_workflow", "n8n_activate_workflow") and active_prefs.confirm_n8n_activation and not user_confirmed:
+            wf_id = arguments.get("workflow_id")
+            prompt = f"Workflow '{wf_id}' activation requested. Confirm activation to production?"
+            return self._make_decision(
+                request_id=req_id,
+                capability_id=spec.id,
+                effect=PolicyEffect.REQUIRE_CONFIRMATION,
+                matched_rules=["PREFERENCE_CONFIRM_N8N_ACTIVATION"],
+                assessment=assessment,
+                start_time=t0,
+                confirmation_prompt=prompt,
+            )
 
         elif spec.confirmation_policy == ConfirmationPolicy.POLICY_CONTROLLED:
             # Policy-controlled triggers confirmation if high-risk or destructive under lower autonomy

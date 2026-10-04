@@ -11,8 +11,12 @@ import warnings
 warnings.filterwarnings("ignore", category=RuntimeWarning, module=r".*laya.*")
 warnings.filterwarnings("ignore", message=r".*checkpoint ships temperatures outside.*")
 
-import laya
-from laya import Router
+try:
+    import laya
+    from laya import Router
+except ImportError:
+    laya = None
+    Router = None
 
 class System1Router:
     def __init__(self, engine: str = "laya"):
@@ -33,9 +37,12 @@ class System1Router:
                 self.engine = "laya"
 
         if self.engine == "laya":
-            print("[System 1] Initializing Laya Decision Engine (ModernBERT-large)...")
-            self.laya_router = Router()
-            print("[System 1] Laya ready for sub-35ms tool dispatch & ranking!\n")
+            if Router is not None:
+                print("[System 1] Initializing Laya Decision Engine (ModernBERT-large)...")
+                self.laya_router = Router()
+                print("[System 1] Laya ready for sub-35ms tool dispatch & ranking!\n")
+            else:
+                self.laya_router = None
 
     def route_tool(self, prompt: str, tool_catalog: dict) -> tuple:
         """Evaluates user intent and returns (chosen_tool_name, latency_ms).
@@ -61,20 +68,27 @@ class System1Router:
             except Exception:
                 pass
 
-        res = self.laya_router.predict({"prompt": prompt}, q)
-        latency = (time.perf_counter() - t0) * 1000
-        choice = res["answers"]["target_tool"]["choice"]
-        return choice, latency
+        if self.laya_router is not None:
+            res = self.laya_router.predict({"prompt": prompt}, q)
+            latency = (time.perf_counter() - t0) * 1000
+            choice = res["answers"]["target_tool"]["choice"]
+            return choice, latency
+        first_tool = list(tool_catalog.keys())[0] if tool_catalog else "tool_system_diagnostics"
+        return first_tool, 1.0
 
     def rank_options(self, goal: str, options: dict) -> str:
         """Ranks a list of candidate items/links/actions in ~30ms."""
-        crit = {k: v[:80] for k, v in list(options.items())[:8]}
-        q = {
-            "best_option": {
-                "type": "choice",
-                "instructions": f"Goal: '{goal}'. Which option is the most authoritative and directly relevant?",
-                "criteria": crit,
+        if not options:
+            return ""
+        if self.laya_router is not None:
+            crit = {k: v[:80] for k, v in list(options.items())[:8]}
+            q = {
+                "best_option": {
+                    "type": "choice",
+                    "instructions": f"Goal: '{goal}'. Which option is the most authoritative and directly relevant?",
+                    "criteria": crit,
+                }
             }
-        }
-        res = self.laya_router.predict({"goal": goal}, q)
-        return res["answers"]["best_option"]["choice"]
+            res = self.laya_router.predict({"goal": goal}, q)
+            return res["answers"]["best_option"]["choice"]
+        return list(options.keys())[0]

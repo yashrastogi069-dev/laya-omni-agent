@@ -169,4 +169,18 @@ In addition to the 23 source tools, LAYA provides high-level autonomous capabili
 | **dev** | `developer.git_diff` | Working tree git diff inspection within validated repository boundaries | `READ_ONLY` | `ADVISOR` | `NEVER` | `READ_ONLY` |
 | **dev** | `developer.inspect_code` | Read source file within repository boundary with path traversal prevention | `READ_ONLY` | `ADVISOR` | `NEVER` | `READ_ONLY` |
 
+---
 
+## 7. Semantic Argument Validation & Infrastructure Parameter Isolation (L14.3)
+
+Every capability invocation passes through two deterministic isolation gates:
+
+1. **Semantic Argument Validation (`omni_engine/arguments/validator.py`)**:
+   - Capabilities accepting URLs enforce single-scheme syntax, blocking nested or double schemes (e.g. `https://https://...`).
+   - Capabilities accepting network ports enforce positive integers in `[1, 65535]`.
+   - Capabilities accepting file paths canonicalize directory navigation while preserving cross-platform POSIX forward slashes when supplied.
+   - Capabilities operating on automation workflows reject control characters and path-traversal markers in IDs.
+
+2. **Infrastructure Parameter Isolation (`omni_engine/capabilities/adapters.py`)**:
+   - The execution runtime decorates invocations with control metadata: `idempotency_key`, `quest_id`, `step_id`, `session_id`, `operation_id`, `attempt_id`.
+   - Adapters explicitly strip `INFRASTRUCTURE_METADATA_KEYS` before passing keyword arguments to underlying capability implementations, guaranteeing legacy tools (e.g., `tool_launch_app`) never encounter unexpected parameter errors.

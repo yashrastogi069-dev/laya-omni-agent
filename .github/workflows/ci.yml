@@ -23,8 +23,13 @@ jobs:
       - name: Verify zero diffs on legacy entrypoints
         run: |
           echo "Verifying legacy omni_agent.py and omni_engine/planner.py are untouched..."
-          # Compare with origin/main or starting baseline
-          git diff origin/main -- omni_agent.py omni_engine/planner.py || true
+          DIFF_OUT=$(git diff origin/main -- omni_agent.py omni_engine/planner.py)
+          if [ -n "$DIFF_OUT" ]; then
+            echo "ERROR: Legacy boundary breached! Found modifications in omni_agent.py or omni_engine/planner.py:"
+            echo "$DIFF_OUT"
+            exit 1
+          fi
+          echo "Boundary check passed: zero diffs on legacy entrypoints."
 
   test-suite:
     name: Deterministic Test Suite
@@ -41,7 +46,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pydantic>=2.0 psutil pytest
+          pip install pydantic>=2.0 psutil pytest jsonschema beautifulsoup4 python-dotenv
 
       - name: Run fast deterministic unit & durability tests
         run: |

@@ -86,7 +86,7 @@ def tool_directory_tree(folder: str = "") -> str:
     target = os.path.join(WORKSPACE_ROOT, folder.strip()) if folder else WORKSPACE_ROOT
     tree_lines = []
     for root, dirs, files in os.walk(target):
-        dirs[:] = [d for d in dirs if d not in [".git", "__pycache__", ".system_generated"]]
+        dirs[:] = [d for d in dirs if d not in [".git", "__pycache__", ".system_generated", ".venv-test", ".pytest_cache", ".laya_v2_test"] and not d.startswith(".venv") and not d.startswith("venv")]
         level = root.replace(target, '').count(os.sep)
         indent = ' ' * 4 * level
         tree_lines.append(f"{indent}📂 {os.path.basename(root)}/")

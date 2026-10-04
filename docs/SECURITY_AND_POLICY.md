@@ -154,5 +154,20 @@ Autonomous coding and subagent orchestration introduce severe risks of infinite 
 8. **Policy Latency Benchmark Distribution Proof**:
    - Algorithmic latency SLA of the policy engine is proven by a 20-run statistical distribution asserting median < 2.0ms (sub-1ms typical SLA), eliminating single-sample wall-clock scheduler jitter.
 
+---
 
+## 9. Secret-Bearing File Protection & Calibrated Risk Floors (L14.3)
 
+1. **Inviolable Secret-Bearing File Defense (`omni_engine/policy/rules.py`, `omni_engine/policy/engine.py`)**:
+   - Capabilities that access filesystem paths (`file_read`, `file_write`, `developer.inspect_code`, etc.) are scanned against sensitive credential patterns via `is_secret_bearing_file()`:
+     - Environment configs: `.env`, `.env.*`, `keys.env`, `keys`
+     - SSH & Cryptographic keys: `id_rsa`, `id_ed25519`, `id_ecdsa`, `id_dsa`, `*.pem`, `*.key`, `*.pfx`, `*.p12`
+     - Application secrets: `credentials.json`, `service_account.json`
+   - Stage 0 Rule-0 evaluates secret-bearing checks before autonomy profile or confirmation checks.
+   - Any attempt to read or write a secret-bearing file produces an inviolable `PolicyEffect.DENY` (`is_hard_invariant=True`).
+   - Hard Rule-0 denials **CANNOT** be bypassed, even if `user_confirmed=True` or `autonomy_profile=WORKFLOW_AUTHORIZED`.
+
+2. **Calibrated Browser Risk Floors (`omni_engine/policy/engine.py`)**:
+   - Read-only browser navigation capabilities (`visual_browse`, `snapshot`, `screenshot`, `extract`) have calibrated base risk of `0.15`.
+   - Under `LOCAL_OPERATOR` autonomy, standard informative navigation executes without generating false-positive confirmation prompts.
+   - Browser actions with financial risk (payment keywords, checkout forms) or mutating interactions (`click`, `type`) escalate composite risk and strictly require explicit user confirmation.

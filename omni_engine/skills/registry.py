@@ -30,6 +30,11 @@ AUTONOMY_RANK: Dict[AutonomyProfile, int] = {
 }
 
 
+class SkillContractValidationError(ValueError):
+    """Raised when a SkillManifest violates capability contract validation."""
+    pass
+
+
 class SkillRegistry:
     """Thread-safe canonical registry managing reusable SkillManifest specifications."""
 
@@ -104,6 +109,52 @@ class SkillRegistry:
                             f"Skill '{manifest.skill_id}' declares autonomy profile '{manifest.applicable_autonomy.value}', "
                             f"which is weaker than {cap_kind} capability '{cap_id}' profile '{spec.minimum_autonomy_profile.value}'."
                         )
+
+            # 2c. Workflow step argument mapping & schema conformance validation
+            if manifest.workflow_template:
+                seen_step_ids: Set[str] = set()
+                skill_input_props = manifest.input_schema.get("properties", {}) if manifest.input_schema else {}
+
+                for step in manifest.workflow_template:
+                    if step.step_id in seen_step_ids:
+                        raise SkillContractValidationError(
+                            f"Skill '{manifest.skill_id}' has duplicate step_id '{step.step_id}' in workflow_template."
+                        )
+                    seen_step_ids.add(step.step_id)
+
+                    for dep_id in step.depends_on:
+                        if dep_id not in seen_step_ids or dep_id == step.step_id:
+                            raise SkillContractValidationError(
+                                f"Skill '{manifest.skill_id}' step '{step.step_id}' has invalid dependency '{dep_id}'. "
+                                f"Dependencies must reference strictly earlier steps."
+                            )
+
+                    spec = cap_reg.get_spec(step.capability_id)
+                    if spec is not None and spec.input_schema:
+                        cap_props = spec.input_schema.get("properties", {})
+                        cap_required = spec.input_schema.get("required", [])
+
+                        for mapped_arg, mapped_val in step.arg_mappings.items():
+                            if mapped_arg not in cap_props:
+                                raise SkillContractValidationError(
+                                    f"Skill '{manifest.skill_id}' step '{step.step_id}' maps unknown parameter '{mapped_arg}' "
+                                    f"not defined in capability '{step.capability_id}'."
+                                )
+                            if isinstance(mapped_val, str) and mapped_val.startswith("$inputs."):
+                                input_field = mapped_val[len("$inputs."):]
+                                if input_field not in skill_input_props:
+                                    raise SkillContractValidationError(
+                                        f"Skill '{manifest.skill_id}' step '{step.step_id}' references '$inputs.{input_field}', "
+                                        f"which is not declared in skill input_schema properties."
+                                    )
+
+                        for req_prop in cap_required:
+                            has_default = "default" in cap_props.get(req_prop, {})
+                            if req_prop not in step.arg_mappings and not has_default:
+                                raise SkillContractValidationError(
+                                    f"Skill '{manifest.skill_id}' step '{step.step_id}' omits mandatory parameter '{req_prop}' "
+                                    f"required by capability '{step.capability_id}' with no mapping or default."
+                                )
 
             # Store deepcopy to guarantee registry state isolation
             self._skills[manifest.skill_id] = manifest.model_copy(deep=True)

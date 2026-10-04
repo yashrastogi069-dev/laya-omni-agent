@@ -66,6 +66,9 @@ DOMAIN_KEYWORD_MAP: Dict[str, Set[str]] = {
         "expression", "arithmetic", "inspect", "csv", "json", "dataset",
         "dataframe", "inspect_data", "safe_math"
     },
+    "automation": {
+        "automation", "n8n", "workflow", "workflows", "trigger", "webhook", "pipeline", "active_workflow"
+    },
 }
 
 # Explicit capability pin mapping: regex patterns to capability ID
@@ -81,15 +84,17 @@ CAPABILITY_PIN_MAP: List[Tuple[re.Pattern, str]] = [
     (re.compile(r"\b(directory\s+tree|list\s+files|dir\s+tree|folder\s+structure)\b", re.IGNORECASE), "directory_tree"),
     (re.compile(r"\b(run\s+python|python\s+script|execute\s+python|run_python)\b", re.IGNORECASE), "run_python"),
     (re.compile(r"\b(git\s+status|git\s+diff|git\s+log|git\s+branch|git\s+repo|git\b)\b", re.IGNORECASE), "git_status"),
-    # OS domain
+    # OS / Desktop domain
     (re.compile(r"\b(system\s+diagnostics|system\s+health|cpu\s+load|ram\s+usage|battery|disk\s+space)\b", re.IGNORECASE), "system_diagnostics"),
     (re.compile(r"\b(list\s+processes|running\s+processes|tasklist|ps\b)\b", re.IGNORECASE), "list_processes"),
     (re.compile(r"\b(kill\s+process|terminate\s+process|kill\s+pid|stop\s+process|taskkill)\b", re.IGNORECASE), "kill_process"),
-    (re.compile(r"\b(launch\s+app|open\s+app|start\s+program|launch_app)\b", re.IGNORECASE), "launch_app"),
+    (re.compile(r"\b(launch\s+(?:notepad|calculator|calc|vscode|code|app)|open\s+(?:notepad|calculator|calc|vscode|code|app)|start\s+program|launch_app)\b", re.IGNORECASE), "desktop.launch_app"),
     (re.compile(r"\b(desktop\s+screenshot|screen\s+capture|take\s+screenshot)\b", re.IGNORECASE), "desktop_screenshot"),
     (re.compile(r"\b(clipboard|copy\s+to\s+clipboard|paste\s+from\s+clipboard)\b", re.IGNORECASE), "clipboard"),
     (re.compile(r"\b(powershell|pwsh\b|run\s+powershell|shell\s+command)\b", re.IGNORECASE), "powershell"),
     (re.compile(r"\b(ping\b|ping\s+test|ping\s+host|connectivity\s+check)\b", re.IGNORECASE), "ping_test"),
+    # Local service health (specifically prevents web_search hijack of local n8n service)
+    (re.compile(r"\b(check\s+(?:whether\s+)?(?:my\s+)?local\s+n8n\s+service|local\s+n8n.*port\s+5678|n8n.*reachable\s+on\s+port\s+5678|port\s+5678\s+health)\b", re.IGNORECASE), "desktop.service_health"),
     # Web domain
     (re.compile(r"\b(web\s+search|search\s+the\s+web|google\s+for|search\s+tavily)\b", re.IGNORECASE), "web_search"),
     (re.compile(r"\b(scrape\b|scrape\s+url|extract\s+text\s+from\s+url|read\s+webpage)\b", re.IGNORECASE), "scrape_url"),
@@ -98,7 +103,53 @@ CAPABILITY_PIN_MAP: List[Tuple[re.Pattern, str]] = [
     # Browser domain
     (re.compile(r"\b(visual\s+browse|navigate\s+to|open\s+browser|browse\s+page)\b", re.IGNORECASE), "visual_browse"),
     (re.compile(r"\b(browser\s+screenshot|capture\s+browser)\b", re.IGNORECASE), "browser_screenshot"),
+    # Automation domain (n8n)
+    (re.compile(r"\b(list\s+(?:my\s+)?n8n\s+workflows|n8n\s+workflows|list\s+workflows)\b", re.IGNORECASE), "n8n.list_workflows"),
+    (re.compile(r"\b(get\s+(?:n8n\s+)?workflow(?:\s+id)?)\b", re.IGNORECASE), "n8n.get_workflow"),
+    (re.compile(r"\b(validate\s+(?:n8n\s+)?workflow(?:\s+id)?)\b", re.IGNORECASE), "n8n.validate_workflow"),
+    (re.compile(r"\b(get\s+(?:n8n\s+)?execution(?:\s+id)?|execution\s+status)\b", re.IGNORECASE), "n8n.get_execution_status"),
+    (re.compile(r"\b(create\s+(?:n8n\s+)?workflow|draft\s+workflow)\b", re.IGNORECASE), "n8n.create_workflow"),
+    (re.compile(r"\b(activate\s+(?:n8n\s+)?workflow)\b", re.IGNORECASE), "n8n.activate_workflow"),
+    (re.compile(r"\b(trigger\s+(?:n8n\s+)?workflow)\b", re.IGNORECASE), "n8n.trigger_workflow"),
 ]
+
+# Canonical capability family mapping for alias deduplication (PRACT-006 & Section 16)
+CAPABILITY_FAMILY_CANONICAL: Dict[str, str] = {
+    "launch_app": "desktop.launch_app",
+    "desktop.launch_app": "desktop.launch_app",
+    "list_windows": "desktop.list_windows",
+    "desktop.list_windows": "desktop.list_windows",
+    "focus_window": "desktop.focus_window",
+    "desktop.focus_window": "desktop.focus_window",
+    "close_window": "desktop.close_window",
+    "desktop.close_window": "desktop.close_window",
+    "service_health": "desktop.service_health",
+    "desktop.service_health": "desktop.service_health",
+    "send_keys": "desktop.send_keys",
+    "desktop.send_keys": "desktop.send_keys",
+    "web_search": "web_search",
+    "deep_research": "research.deep",
+    "research.deep": "research.deep",
+    "visual_browse": "visual_browse",
+    "browser.interact": "browser.interact",
+    "browser.perform_task": "browser.perform_task",
+    "browser_screenshot": "browser_screenshot",
+    "n8n_list_workflows": "n8n.list_workflows",
+    "n8n.list_workflows": "n8n.list_workflows",
+    "n8n_get_workflow": "n8n.get_workflow",
+    "n8n.get_workflow": "n8n.get_workflow",
+    "n8n_validate_workflow": "n8n.validate_workflow",
+    "n8n.validate_workflow": "n8n.validate_workflow",
+    "n8n_create_workflow": "n8n.create_workflow",
+    "n8n.create_workflow": "n8n.create_workflow",
+    "n8n_activate_workflow": "n8n.activate_workflow",
+    "n8n.activate_workflow": "n8n.activate_workflow",
+    "n8n_trigger_workflow": "n8n.trigger_workflow",
+    "n8n.trigger_workflow": "n8n.trigger_workflow",
+    "n8n_get_execution_status": "n8n.get_execution_status",
+    "n8n.get_execution_status": "n8n.get_execution_status",
+}
+
 
 # Tokens excluded from matching skills on their own to prevent false-positive skill locking
 GENERIC_SINGLE_TOKENS: Set[str] = {
@@ -367,7 +418,7 @@ class HierarchicalRouter:
         if candidate_domains and candidate_domains[0] == "general":
             candidate_domains = [d for d in candidate_domains if d != "general"]
             if not candidate_domains:
-                candidate_domains = ["web", "dev", "os", "data", "browser"]
+                candidate_domains = ["web", "dev", "os", "data", "browser", "automation"]
             is_fail_open = True
             fallback_reasons.append("general_domain_promoted_technical")
 
@@ -427,7 +478,7 @@ class HierarchicalRouter:
                 active_domains = [list(keyword_detected_domains)[0]]
 
         if not active_domains:
-            active_domains = ["web", "dev", "os", "data", "browser"]
+            active_domains = ["web", "dev", "os", "data", "browser", "automation"]
             is_fail_open = True
             fallback_reasons.append("empty_candidate_domains_fallback")
 
@@ -439,10 +490,20 @@ class HierarchicalRouter:
         pinned_caps: Dict[str, CapabilityCandidate] = {}
         for pattern, cap_id in CAPABILITY_PIN_MAP:
             if pattern.search(prompt_lower):
-                spec = self.registry.get_spec(cap_id)
+                resolved_id = cap_id
+                if not self.registry.has(resolved_id):
+                    # Check alternate alias in canonical family map
+                    for k, v in CAPABILITY_FAMILY_CANONICAL.items():
+                        if k == cap_id and self.registry.has(v):
+                            resolved_id = v
+                            break
+                        if v == cap_id and self.registry.has(k):
+                            resolved_id = k
+                            break
+                spec = self.registry.get_spec(resolved_id)
                 if spec is not None:
-                    pinned_caps[cap_id] = CapabilityCandidate(
-                        capability_id=cap_id,
+                    pinned_caps[resolved_id] = CapabilityCandidate(
+                        capability_id=resolved_id,
                         domain=spec.domain,
                         score=self.calibration.deterministic_policy.pinned_capability_score,
                         rationale="explicit_keyword_pinned",
@@ -640,11 +701,14 @@ class HierarchicalRouter:
                 for _, cand in domain_scores[:remaining_capacity]:
                     final_candidates.append(cand)
 
-        # Deduplication
+        # Deduplication by canonical capability family (PRACT-006 & Section 16)
         deduped: List[CapabilityCandidate] = []
+        seen_families: Set[str] = set()
         seen_ids: Set[str] = set()
         for c in final_candidates:
-            if c.capability_id not in seen_ids:
+            family = CAPABILITY_FAMILY_CANONICAL.get(c.capability_id, c.capability_id)
+            if family not in seen_families and c.capability_id not in seen_ids:
+                seen_families.add(family)
                 seen_ids.add(c.capability_id)
                 deduped.append(c)
 

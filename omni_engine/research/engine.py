@@ -169,28 +169,38 @@ class DeepResearchEngine:
 
         telemetry.urls_discovered = len(candidate_urls)
 
-        # Step 2: Bounded crawl loop & evidence normalization
+        # Step 2: Bounded crawl loop & evidence normalization (PRACT-023: backfill from candidates)
         evidence_ledger: Dict[str, EvidenceItem] = {}
         ledger_passages: List[str] = []
-        urls_to_crawl: List[Tuple[str, int]] = [(u, 0) for u in candidate_urls[: b.max_total_pages]]
+        urls_to_crawl: List[Tuple[str, int]] = [(u, 0) for u in candidate_urls]
         consecutive_low_yield_rounds = 0
+        max_successful_pages = b.max_total_pages
+        max_fetch_attempts = b.max_total_pages * 3
+        successful_pages = 0
+        fetch_attempts = 0
 
         while urls_to_crawl and len(evidence_ledger) < 25:
             if (time.perf_counter() - t_start) >= b.max_wall_time_sec:
                 break
-            if telemetry.pages_crawled >= b.max_total_pages:
+            if successful_pages >= max_successful_pages:
+                break
+            if fetch_attempts >= max_fetch_attempts:
                 break
 
             current_url, current_depth = urls_to_crawl.pop(0)
             telemetry.urls_fetched += 1
+            fetch_attempts += 1
 
             page = self.fetcher.fetch(current_url)
-            telemetry.pages_crawled += 1
-            meth_name = str(page.get("method", FetchMethod.BS4))
+            meth_name = str(page.get("successful_method") or page.get("method") or "FAILED")
             telemetry.fetch_methods_used[meth_name] = telemetry.fetch_methods_used.get(meth_name, 0) + 1
 
             if not page.get("success") or not page.get("text"):
+                # PRACT-023: fetch failed; continue to next discovered URL without consuming page budget
                 continue
+
+            successful_pages += 1
+            telemetry.pages_crawled += 1
 
             # Shallow link expansion (depth <= 1)
             if current_depth < b.max_crawl_depth and len(urls_to_crawl) < b.max_total_pages:

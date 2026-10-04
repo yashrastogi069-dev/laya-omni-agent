@@ -265,6 +265,9 @@ class QuestEngine:
             updates["verification_receipt"] = verification_receipt
         if error is not None:
             updates["error"] = error
+        elif target_status in (StepStatus.COMPLETED, StepStatus.RUNNING, StepStatus.READY):
+            # PRACT-010: Clear stale confirmation prompt or error upon resumption or completion
+            updates["error"] = None
 
         updated_step = step.model_copy(update=updates)
 

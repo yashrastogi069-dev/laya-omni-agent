@@ -9,7 +9,8 @@ legacy error strings without false-positive masking on content-bearing tools (li
 or search_code).
 """
 
-from typing import Any, Callable, Dict, Optional, Tuple
+import inspect
+from typing import Any, Callable, Dict, Optional, Set, Tuple
 
 from omni_engine.contracts.enums import ErrorCode
 from omni_engine.contracts.capability import ToolError
@@ -179,14 +180,64 @@ def intercept_legacy_error_string(raw: str, capability_id: str) -> Optional[Tool
 # Specialized Tool Adapters (Normalizing All Kwarg Discrepancies)
 # ---------------------------------------------------------------------------
 
+INFRASTRUCTURE_METADATA_KEYS: Set[str] = {
+    "quest_id",
+    "step_id",
+    "operation_id",
+    "idempotency_key",
+    "attempt_id",
+    "attempt_number",
+    "session_context",
+    "execution_context",
+    "user_confirmed",
+}
+
+
+def _strip_infrastructure_args(func: Callable[..., Any], kwargs: Dict[str, Any]) -> Dict[str, Any]:
+    """Filters execution-control metadata from kwargs unless explicitly declared by func signature."""
+    try:
+        sig = inspect.signature(func)
+        has_var_keyword = any(p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values())
+        param_names = set(sig.parameters.keys())
+    except (ValueError, TypeError):
+        has_var_keyword = False
+        param_names = set()
+
+    cleaned: Dict[str, Any] = {}
+    for k, v in kwargs.items():
+        if k in INFRASTRUCTURE_METADATA_KEYS:
+            # Only pass if explicitly requested by name in a non-var parameter
+            if k in param_names and not has_var_keyword:
+                cleaned[k] = v
+        else:
+            if has_var_keyword or k in param_names or not param_names:
+                cleaned[k] = v
+    return cleaned
+
+
 def make_adapter(raw_func: Callable[..., Any], capability_id: str) -> Callable[..., Tuple[bool, Any]]:
-    """Generic adapter for tools where kwargs already match the underlying function."""
+    """Generic adapter for tools, automatically stripping infrastructure execution metadata."""
     def adapted_callable(**kwargs: Any) -> Tuple[bool, Any]:
-        raw_output = raw_func(**kwargs)
+        cleaned_kwargs = _strip_infrastructure_args(raw_func, kwargs)
+        raw_output = raw_func(**cleaned_kwargs)
         err = intercept_legacy_error_string(raw_output, capability_id)
         if err is not None:
             return False, err
         return True, {"output": raw_output}
+    return adapted_callable
+
+
+def make_launch_app_adapter(raw_func: Callable[..., Any], capability_id: str) -> Callable[..., Tuple[bool, Any]]:
+    """Maps schema 'app_name' -> tool_launch_app(app_name) and strips infrastructure metadata."""
+    def adapted_callable(**kwargs: Any) -> Tuple[bool, Any]:
+        app_name = kwargs.get("app_name") or kwargs.get("name") or kwargs.get("command") or ""
+        if not app_name:
+            return False, build_error(ErrorCode.INVALID_ARGUMENT, "Parameter 'app_name' is required.")
+        raw_output = raw_func(app_name=app_name)
+        err = intercept_legacy_error_string(raw_output, capability_id)
+        if err is not None:
+            return False, err
+        return True, {"output": raw_output, "app_name": app_name}
     return adapted_callable
 
 

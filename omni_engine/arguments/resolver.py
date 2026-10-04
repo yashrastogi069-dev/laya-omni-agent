@@ -147,7 +147,7 @@ class ArgumentResolver:
                 if c_match:
                     slots["content"] = _slot("content", c_match.group(1), ArgumentExtractionSource.DETERMINISTIC_REGEX)
 
-        elif capability_id == "search_code":
+        elif capability_id in ("search_code", "inspect_repository"):
             pat = extract_search_query(prompt)
             if pat:
                 slots["query"] = _slot("query", pat, ArgumentExtractionSource.DETERMINISTIC_REGEX)
@@ -155,6 +155,7 @@ class ArgumentResolver:
             path = extract_file_path(prompt)
             if path:
                 slots["path"] = _slot("path", path, ArgumentExtractionSource.DETERMINISTIC_REGEX)
+                slots["filepath"] = _slot("filepath", path, ArgumentExtractionSource.DETERMINISTIC_REGEX)
 
         elif capability_id == "directory_tree":
             path = extract_file_path(prompt)
@@ -163,22 +164,27 @@ class ArgumentResolver:
             else:
                 slots["path"] = _slot("path", ".", ArgumentExtractionSource.SCHEMA_DEFAULT)
 
-        elif capability_id == "git_status":
+        elif capability_id in ("git_status", "perform_git_inspection"):
             path = extract_file_path(prompt)
             slots["repo_path"] = _slot("repo_path", path or ".", ArgumentExtractionSource.DETERMINISTIC_REGEX if path else ArgumentExtractionSource.SCHEMA_DEFAULT)
+            q = extract_search_query(prompt)
+            if q:
+                slots["query"] = _slot("query", q, ArgumentExtractionSource.DETERMINISTIC_REGEX)
+                slots["pattern"] = _slot("pattern", q, ArgumentExtractionSource.DETERMINISTIC_REGEX)
 
         elif capability_id == "run_python":
             code = extract_python_code(prompt)
             if code:
                 slots["code"] = _slot("code", code, ArgumentExtractionSource.SYNTACTIC_AST)
 
-        # 2. Web domain tools
-        elif capability_id in ("web_search", "deep_research", "research.deep"):
+        # 2. Web domain tools & skills
+        elif capability_id in ("web_search", "deep_research", "research.deep", "research_topic"):
             q = extract_search_query(prompt) or prompt.strip()
             if q:
                 slots["query"] = _slot("query", q, ArgumentExtractionSource.DETERMINISTIC_REGEX)
+                slots["topic"] = _slot("topic", q, ArgumentExtractionSource.DETERMINISTIC_REGEX)
 
-        elif capability_id == "scrape_url":
+        elif capability_id in ("scrape_url", "browser_information_task"):
             url = extract_url(prompt)
             if url:
                 slots["url"] = _slot("url", url, ArgumentExtractionSource.DETERMINISTIC_REGEX)
@@ -497,7 +503,8 @@ class ArgumentResolver:
         required_fields = set(schema.get("required", []))
 
         # 1. Deterministic Extraction Pass
-        resolved_slots = self._extract_deterministic_slots(spec.id, prompt)
+        cap_id = getattr(spec, "id", None) or getattr(spec, "skill_id", "")
+        resolved_slots = self._extract_deterministic_slots(cap_id, prompt)
 
         # 2. Ingest parameters from explicit context if slot wasn't resolved by prompt
         if context:
@@ -577,12 +584,22 @@ class ArgumentResolver:
         arguments = {k: slot.value for k, slot in resolved_slots.items() if slot.is_resolved and k in properties}
         validation_errors: List[str] = []
 
-        for req_field in missing_slots:
-            validation_errors.append(f"Missing required argument '{req_field}' for capability '{spec.id}'")
+        # 6a. Semantic validation pass (PRACT-025 & Section 14)
+        from .validator import SemanticArgumentValidator, SemanticValidationError
+        try:
+            arguments = SemanticArgumentValidator.validate_arguments(cap_id, arguments)
+            for k, val in arguments.items():
+                if k in resolved_slots:
+                    resolved_slots[k].value = val
+        except SemanticValidationError as sve:
+            validation_errors.append(f"Semantic validation error for '{sve.field or cap_id}': {sve.message}")
 
-        is_valid = len(missing_slots) == 0
+        for req_field in missing_slots:
+            validation_errors.append(f"Missing required argument '{req_field}' for capability '{cap_id}'")
+
+        is_valid = len(missing_slots) == 0 and len(validation_errors) == 0
         clarification_needed = not is_valid
-        clarification_prompt = CLARIFICATION_PROMPTS.get(spec.id) if clarification_needed else None
+        clarification_prompt = CLARIFICATION_PROMPTS.get(cap_id) if clarification_needed else None
 
         if clarification_needed and clarification_prompt is None:
             missing_names = ", ".join(missing_slots)
@@ -594,7 +611,7 @@ class ArgumentResolver:
         return ArgumentResolutionEnvelope(
             schema_version="1.0.0",
             request_id=req_id,
-            capability_id=spec.id,
+            capability_id=cap_id,
             arguments=arguments,
             resolved_slots=resolved_slots,
             is_valid=is_valid,

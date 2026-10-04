@@ -5,6 +5,7 @@ Capability argument resolution, extraction sources, and schema validation.
 """
 
 from .resolver import ArgumentResolver, CLARIFICATION_PROMPTS
+from .validator import SemanticArgumentValidator, SemanticValidationError
 from .extractors import (
     extract_app_name,
     extract_clipboard_data,
@@ -23,6 +24,8 @@ from .extractors import (
 __all__ = [
     "ArgumentResolver",
     "CLARIFICATION_PROMPTS",
+    "SemanticArgumentValidator",
+    "SemanticValidationError",
     "extract_app_name",
     "extract_clipboard_data",
     "extract_file_path",

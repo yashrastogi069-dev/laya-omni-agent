@@ -13,9 +13,14 @@ pillow>=11.0.0
 
 # Live Web Search & Data Gathering
 tavily-python>=0.5.0
+beautifulsoup4>=4.12.0
 
 # System 2 Reasoning & Synthesis (Cloud API)
 openai>=1.60.0
+
+# Schema Validation & Env Loading
+jsonschema>=4.20.0
+python-dotenv>=1.0.0
 
 # Rich Terminal UI
 rich>=13.0.0

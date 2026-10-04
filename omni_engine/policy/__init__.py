@@ -10,6 +10,7 @@ from .rules import (
     canonicalize_path,
     is_protected_path,
     is_protected_process,
+    is_secret_bearing_file,
     scan_embedded_commands,
     SYSTEM_HARD_RULES,
 )
@@ -20,6 +21,7 @@ __all__ = [
     "canonicalize_path",
     "is_protected_path",
     "is_protected_process",
+    "is_secret_bearing_file",
     "scan_embedded_commands",
     "SYSTEM_HARD_RULES",
 ]

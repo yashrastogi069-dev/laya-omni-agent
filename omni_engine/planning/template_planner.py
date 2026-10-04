@@ -64,14 +64,28 @@ class SkillTemplatePlanner:
                     input_key = source_expr[len("$inputs."):]
                     if input_key in user_args:
                         step_args[target_param] = user_args[input_key]
+                    elif target_param in user_args:
+                        step_args[target_param] = user_args[target_param]
+                    elif target_param == "query" and "pattern" in user_args:
+                        step_args[target_param] = user_args["pattern"]
+                    elif target_param == "pattern" and "query" in user_args:
+                        step_args[target_param] = user_args["query"]
                 elif source_expr.startswith("$steps."):
                     # Dynamic inter-step references are preserved for runtime evaluation
                     step_args[target_param] = source_expr
 
             # Fallback direct parameter overlay if not specified in mappings
+            # Ensure capability properties are respected to prevent clause argument contamination (PRACT-027)
+            allowed_props = None
+            if self.capability_registry and self.capability_registry.has(step_tpl.capability_id):
+                spec = self.capability_registry.get_spec(step_tpl.capability_id)
+                if spec and spec.input_schema and "properties" in spec.input_schema:
+                    allowed_props = set(spec.input_schema["properties"].keys())
+
             for k, v in user_args.items():
                 if k not in step_args:
-                    step_args[k] = v
+                    if allowed_props is None or k in allowed_props:
+                        step_args[k] = v
 
             # 2. Build PlanStep
             timeout_s = 60.0

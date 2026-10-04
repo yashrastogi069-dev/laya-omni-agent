@@ -60,3 +60,13 @@ escalations/*
 !escalations/.gitkeep
 *.png
 *.db
+
+# Local secrets
+keys
+.env
+*.env
+
+# Local test runs
+.laya_v2_test/
+.venv-test/
+.venv*/

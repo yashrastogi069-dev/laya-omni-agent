@@ -114,28 +114,49 @@ class PageFetcher:
                 "method": FetchMethod.MOCK_FIXTURE,
                 "success": True,
                 "error": None,
+                "attempted_methods": [FetchMethod.MOCK_FIXTURE.value],
+                "successful_method": FetchMethod.MOCK_FIXTURE.value,
+                "errors_by_method": {},
             }
 
+        attempted_methods = []
+        errors_by_method = {}
+
         # Tier 1: Scrapling StealthyFetcher / Fetcher
+        attempted_methods.append(FetchMethod.SCRAPLING.value)
         res = self._fetch_via_scrapling(canon_url, domain)
-        if res["success"]:
+        if res.get("success"):
+            res["attempted_methods"] = attempted_methods
+            res["successful_method"] = FetchMethod.SCRAPLING.value
+            res["errors_by_method"] = errors_by_method
             return res
+        else:
+            errors_by_method[FetchMethod.SCRAPLING.value] = res.get("error", "Scrapling fetch failed")
 
         # Tier 2: Urllib + BeautifulSoup / Regex fallback
+        attempted_methods.append(FetchMethod.BS4.value)
         res = self._fetch_via_urllib_bs4(canon_url, domain)
-        if res["success"]:
+        if res.get("success"):
+            res["attempted_methods"] = attempted_methods
+            res["successful_method"] = FetchMethod.BS4.value
+            res["errors_by_method"] = errors_by_method
             return res
+        else:
+            errors_by_method[FetchMethod.BS4.value] = res.get("error", "Urllib/BS4 fetch failed")
 
-        # Tier 3: Failure envelope
+        # Tier 3: Failure envelope (PRACT-018, PRACT-024: truthful failure telemetry)
         return {
             "url": canon_url,
             "domain": domain,
             "title": "",
             "text": "",
             "links": [],
-            "method": FetchMethod.SCRAPLING,
+            "method": None,
             "success": False,
             "error": res.get("error", "All extraction tiers failed"),
+            "attempted_methods": attempted_methods,
+            "successful_method": None,
+            "errors_by_method": errors_by_method,
         }
 
     def _fetch_via_scrapling(self, url: str, domain: str) -> Dict[str, Any]:

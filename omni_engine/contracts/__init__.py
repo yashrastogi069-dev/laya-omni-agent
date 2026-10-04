@@ -60,6 +60,7 @@ from .policy import (
     ActionAssessment,
     PolicyRule,
     PolicyDecision,
+    OperatorPolicyPreferences,
 )
 from .broker import (
     ProviderSelectionMode,
@@ -171,6 +172,11 @@ from .execution import (
     StepExecutionReceipt,
     QuestExecutionSummary,
 )
+from .objective import (
+    RequirementCoverageState,
+    RequirementItem,
+    ObjectiveSpec,
+)
 
 __all__ = [
     # Base
@@ -221,6 +227,7 @@ __all__ = [
     "ActionAssessment",
     "PolicyRule",
     "PolicyDecision",
+    "OperatorPolicyPreferences",
     # Broker
     "ProviderSelectionMode",
     "BrokerRoutingOutcome",
@@ -320,6 +327,10 @@ __all__ = [
     "PolicyBlockedExecutionError",
     "StepExecutionReceipt",
     "QuestExecutionSummary",
+    # Objective Decomposition (L14.3)
+    "RequirementCoverageState",
+    "RequirementItem",
+    "ObjectiveSpec",
 ]
 
 

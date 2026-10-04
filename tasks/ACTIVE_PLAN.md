@@ -1,11 +1,11 @@
-# ACTIVE_PLAN.md — Active Milestone: RV0 Reality Gate → L10–L14 Autonomous Runtime
+# ACTIVE_PLAN.md — Active Milestone: RV0 Reality Gate → L10–L14.3 Autonomous Runtime
 
-## Current Active Checkpoint: L14.2 — Runtime Closure, Adversarial Durability & Evidence Integrity Gate (COMPLETED)
+## Current Active Checkpoint: L14.3 — Practical Runtime Integration & Operator-Control Closure (COMPLETED)
 
-- **Milestone Scope**: RV0 → L10 Quest → L11 Operation Ledger → L12 Planner → L13 Validator → L14 Executor → L14.1 Runtime Hardening → L14.2 Adversarial Durability.
+- **Milestone Scope**: RV0 → L10 Quest → L11 Operation Ledger → L12 Planner → L13 Validator → L14 Executor → L14.1 Runtime Hardening → L14.2 Adversarial Durability → L14.3 Practical Runtime Integration.
 - **Target Branch**: `laya-autonomous-v2`
-- **Baseline Verified Commit**: Staged for L14.2 commit (509 automated tests + 47 subtests = 556 checks passing, 0 failures).
-- **Hard Stop Boundary**: **HARD STOP IMMEDIATELY AFTER L14.2**. Do NOT begin L15 Completion Verifier, L16 Replanner, Memory V2, automation scheduling, MCP expansion, canary promotion, or legacy retirement.
+- **Baseline Verified Commit**: Staged for L14.3 commit (538 automated tests + 47 subtests = 585 checks passing, 0 failures).
+- **Hard Stop Boundary**: **HARD STOP IMMEDIATELY AFTER L14.3**. Do NOT begin L15 Completion Verifier, L16 Replanner, Memory V2, automation scheduling, MCP expansion, canary promotion, or legacy retirement until explicitly commanded.
 - **Permanent Invariants**:
   1. `END_TO_END_EXECUTION_LOG.md` is the master cumulative engineering record (must record research, plans, diffs, tests, reviews, repairs, decisions, and documentation updates).
   2. Legacy non-switching boundary: `omni_agent.py` and `omni_engine/planner.py` remain 100% untouched (0 diffs).
@@ -184,7 +184,41 @@
 - [x] **Final Test Suite & Hard Stop**:
   - Full test suite: 517 automated tests + 47 subtests = 564 checks passing across all 27 test files (100% pass rate).
   - Non-switching boundary: `omni_agent.py` and `omni_engine/planner.py` have **0 diffs**.
-  - **HARD STOP STRICTLY ENFORCED**: Zero implementation of L15 (Completion Verifier), L16 (Controlled Replanner), Memory V2, or legacy retirement.
+  - **HARD STOP STRICTLY ENFORCED FOR L14.2**: Proceed to L14.3 Practical Runtime Integration.
 
-
-
+### Step 12: L14.3 — Practical Runtime Integration & Operator-Control Closure (COMPLETED)
+- [x] **Canonical Practical Findings Ledger**: Recorded and tracked all 36 findings `PRACT-001` through `PRACT-036` in `tasks/PRACTICAL_FINDINGS.md` and linked from `END_TO_END_EXECUTION_LOG.md`.
+- [x] **Objective Decomposition (`omni_engine/planning/decomposer.py`, `omni_engine/contracts/objective.py`)**:
+  - Deterministic syntactic decomposition of compound user requests into typed `RequirementItem`s.
+  - Multi-intent isolation and entity extraction (ports, paths, URLs, process names) for Prompts A through G.
+- [x] **Template-as-Building-Block Augmentation (`omni_engine/planning/engine.py`)**:
+  - Template plans derived first without LLM calls (Invariant 3).
+  - Uncovered clauses augmented with deterministic typed steps (`file_write`, `browser_screenshot`, `desktop.service_health`, `n8n.list_workflows`) guaranteeing 100% pre-execution objective coverage.
+- [x] **Session Continuity & Referent Binding (`omni_engine/session/manager.py`)**:
+  - Interactive continuation on active quests upon approval/input without re-planning from scratch.
+  - Deterministic referent resolution (`"this"`, `"the results"`) bound to previous step outputs.
+- [x] **Semantic Argument Validation (`omni_engine/arguments/validator.py`)**:
+  - Deep semantic validation for URLs (nested scheme `https://https://` rejection), TCP/UDP ports (1–65535), normalized paths, process targets, and workflow IDs.
+- [x] **Skill Input Resolution & Registry Aliases (`omni_engine/arguments/resolver.py`)**:
+  - Resolved `cap_id` normalization supporting both `CapabilitySpec` (`.id`) and `SkillManifest` (`.skill_id`).
+  - Added deterministic parameter extraction for skill inputs (`inspect_repository`, `perform_git_inspection`, `research_topic`).
+- [x] **Infrastructure Metadata Stripping (`omni_engine/capabilities/adapters.py`)**:
+  - Filtered `INFRASTRUCTURE_METADATA_KEYS` (`idempotency_key`, `quest_id`, `step_id`, `session_id`) from kwargs before invoking legacy capability tools (`tool_launch_app`).
+- [x] **Stale Confirmation Error Hygiene (`omni_engine/quest/engine.py`)**:
+  - Resumed/completed steps clear stale confirmation text from `step.error` on transition to `RUNNING` or `COMPLETED`.
+- [x] **Truthful Research Telemetry & Backfilling (`omni_engine/research/fetcher.py`, `engine.py`)**:
+  - Telemetry truthfully logs attempted and successful fetch methods.
+  - Page fetch failures backfill from remaining candidate URLs without burning the successful page budget.
+- [x] **Secret-Bearing File Protection (`omni_engine/policy/rules.py`, `engine.py`)**:
+  - Stage 0 Rule-0 inviolable hard `DENY` on reading/writing secret-bearing files (`.env*`, `keys.env`, `keys`, `id_rsa`, `*.pem`).
+- [x] **Calibrated Browser Navigation Risk (`omni_engine/policy/engine.py`)**:
+  - Ordinary read-only browser navigation base risk set to `0.15` (`ALLOW` under `LOCAL_OPERATOR` without false confirmation pause).
+- [x] **Production V2 Operator CLI (`laya_v2_cli.py`)**:
+  - Complete CLI wiring all V2 autonomous components with dry-run, verbose logging, and interactive REPL mode.
+  - `v2_cli_test.py` converted to a thin legacy shim with `DeprecationWarning`.
+- [x] **CI Hard Boundary Gate (`.github/workflows/ci.yml`)**:
+  - Dedicated `boundary-check` job failing hard on any diffs against legacy entrypoints.
+- [x] **Test Verification**:
+  - 21 targeted practical regression tests in `tests/test_l14_3_practical.py` (100% passing).
+  - Full test suite: 538 tests passing across all 28 test files.
+- [x] **HARD STOP ENFORCED**: Complete Checkpoint L14.3. Do NOT begin L15 (Completion Verifier & Evidence Verification) until explicitly commanded.

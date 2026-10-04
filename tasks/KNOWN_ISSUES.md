@@ -94,3 +94,44 @@
   10. *Anti-Decorative Fields*: Pass 9 rejects `can_fail_silently=True` with explicit L16 replanner deferral note (`test_h1`).
   11. *Policy Latency Benchmark Distribution Proof*: Replaced fastest-of-five with a 20-run distribution verifying median < 2.0ms (sub-1ms SLA proof) in `tests/test_l9_policy.py`.
 - **Regression Test**: `tests/test_l14_2_durability.py` (36 adversarial tests, 100% passing) and `tests/test_l9_policy.py` (26 tests, 100% passing). Total repository suite: 517 automated tests (+ 47 subtests = 564 checks) passing across 27 test files.
+
+---
+
+### ISSUE-10: Practical Runtime Integration & Operator-Control Closure (PRACT-001 through PRACT-036)
+- **Severity**: HIGH
+- **Status**: **RESOLVED & FULLY VERIFIED (Checkpoint L14.3)**
+- **Description**: Real manual end-to-end evaluation exposed 36 integration defects that isolated unit tests did not detect:
+  - Local System 1 CPU latency on 8 GB RAM host (`PRACT-001`).
+  - Misclassification of desktop and compound tasks (`PRACT-003`).
+  - Infrastructure metadata leakage (`idempotency_key`, etc.) into legacy tools (`PRACT-004`).
+  - Capability aliases consuming candidate slots (`PRACT-006`).
+  - Missing query argument in `perform_git_inspection` template (`PRACT-007`).
+  - Resumed step retaining stale confirmation text in `error` (`PRACT-010`).
+  - Missing-input clarification abandoning active intention (`PRACT-011`).
+  - Imperative capability request hijacking (`PRACT-013`).
+  - Tavily/search exceptions swallowed into empty arrays (`PRACT-017`).
+  - Fetch failure telemetry masking actual failed tiers (`PRACT-018`, `PRACT-024`).
+  - Multi-intent compound objectives dropping uncovered clauses in template-first plans (`PRACT-022`, `PRACT-032`–`PRACT-035`).
+  - Page fetch failures depleting discovery budget (`PRACT-023`).
+  - Nested/malformed URLs (`https://https://...`) passing argument validation (`PRACT-025`).
+  - Lack of first-class automation routing domain (`PRACT-026`).
+  - Cross-clause argument contamination in compound objectives (`PRACT-027`).
+  - Lack of conversational session continuation and referent binding (`PRACT-028`).
+  - Temporary `v2_cli_test.py` bypassing planner for skills (`PRACT-029`).
+  - Vulnerability on secret-bearing files (`.env`, `keys.env`, `keys`, `id_rsa`, `*.pem`) (`PRACT-030`).
+  - Ordinary browser navigation over-classified as high-risk `SYSTEM_ACTION` (`PRACT-031`).
+  - Skill selection falsely assumed to cover full user goal (`PRACT-036`).
+- **Resolution**:
+  1. *Syntactic Objective Decomposition*: `ObjectiveDecomposer` parses compound inputs into typed `RequirementItem`s, isolating entities, ports, URLs, paths, and processes.
+  2. *Template-as-Building-Block Augmentation*: `StructuredDAGPlanner` derives template plans first, then augments uncovered clauses with deterministic typed steps (`file_write`, `browser_screenshot`, `desktop.service_health`, `n8n.list_workflows`), achieving 100% pre-execution objective coverage.
+  3. *Session Continuity & Referent Resolution*: `SessionManager` binds conversational referents (`"this"`, `"the results"`) and handles interactive resume/clarification on active quests.
+  4. *Deep Semantic Argument Validation*: `SemanticArgumentValidator` enforces URL scheme integrity (blocking double-schemes), port ranges (1–65535), normalized paths (preserving POSIX format), process targets, and workflow IDs.
+  5. *Skill Input Parameter Extraction & Normalization*: `ArgumentResolver` supports both `CapabilitySpec` and `SkillManifest`, resolving required inputs and filtering out cross-clause parameters.
+  6. *Infrastructure Metadata Stripping*: `_strip_infrastructure_args` in `omni_engine/capabilities/adapters.py` filters execution metadata before calling legacy tools.
+  7. *Stale Error Hygiene*: Resumed/completed steps clear stale confirmation text from `step.error`.
+  8. *Truthful Fetch Telemetry & Backfilling*: `PageFetcher` accurately records attempted methods and fallback errors; candidate URLs are backfilled upon fetch failures without depleting the page budget.
+  9. *Rule-0 Secret-Bearing File Protection*: Stage 0 hard `DENY` for reading or writing sensitive credential files (`.env*`, `keys.env`, `keys`, `id_rsa`, `*.pem`), immune to user confirmation.
+  10. *Calibrated Browser Risk*: Ordinary read-only browser navigation base risk set to `0.15` (`ALLOW` under `LOCAL_OPERATOR` without false-positive pauses).
+  11. *Production V2 Operator CLI*: Created `laya_v2_cli.py` assembling the complete V2 autonomous stack; converted `v2_cli_test.py` into a thin legacy shim with `DeprecationWarning`.
+  12. *Hard Boundary CI Gate*: Added dedicated `boundary-check` job to `.github/workflows/ci.yml`.
+- **Regression Test**: `tests/test_l14_3_practical.py` (21 practical regression tests, 100% passing). Total repository suite: 538 automated tests (+ 47 subtests = 585 checks) passing across all 28 test files.

@@ -84,3 +84,16 @@ class PolicyDecision(BaseContractModel):
                 raise ValueError("PolicyDecision with effect=REQUIRE_CONFIRMATION requires a non-empty confirmation_prompt")
 
         return self
+
+
+class OperatorPolicyPreferences(BaseContractModel):
+    """User-controlled operator preferences for standard confirmations vs automatic allowances."""
+    allow_read_only_browser: bool = Field(default=True, description="Allow ordinary browser navigation and read operations without confirmation")
+    allow_browser_screenshot: bool = Field(default=True, description="Allow browser screenshot capture without confirmation")
+    allow_read_only_desktop: bool = Field(default=True, description="Allow window listing, service health, and diagnostics without confirmation")
+    allow_read_only_automation: bool = Field(default=True, description="Allow n8n listing, inspection, and validation without confirmation")
+    allow_file_creation: bool = Field(default=True, description="Allow creating new local files in workspace without confirmation under LOCAL_OPERATOR")
+    confirm_file_overwrite: bool = Field(default=True, description="Require explicit confirmation before overwriting an existing file")
+    confirm_process_kill: bool = Field(default=True, description="Require explicit confirmation before terminating a non-protected process")
+    confirm_n8n_activation: bool = Field(default=True, description="Require explicit confirmation before activating an n8n workflow")
+

@@ -2,12 +2,16 @@
 OmniEngine Package Initialization
 """
 
-from .system1 import System1Router
 from .system2 import System2Engine
 from .memory import OmniMemory
 from .planner import AutonomousPlanner
 from .tools import OMNI_TOOL_REGISTRY
 from . import contracts
+
+try:
+    from .system1 import System1Router
+except Exception:
+    System1Router = None
 
 __version__ = "2.0.0"
 __all__ = [

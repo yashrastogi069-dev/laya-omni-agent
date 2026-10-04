@@ -293,15 +293,23 @@ def extract_search_query(text: str) -> Optional[str]:
         if len(cand) >= 2:
             return cand
 
-    # Pattern: search [the web] for <query>
+    # Pattern: search [the web] for <query> / locate <query> / find <query>
     match = re.search(
-        r"""(?:search(?:\s+the\s+web|\s+tavily|\s+code|\s+google)?\s+for|google\s+for|find\s+pattern)\s+(.+)""",
+        r"""(?:search(?:\s+the\s+web|\s+tavily|\s+code|\s+google)?\s+for|google\s+for|find\s+pattern|locate(?:\s+the)?)\s+(.+)""",
         text,
         re.IGNORECASE,
     )
     if match:
-        query = match.group(1).strip().rstrip(".,;?'\"")
-        return query
+        raw_query = match.group(1).strip()
+        # Isolate search query: strip downstream composite clauses like ", extract ...", ", save result to ...", ", and analyze ..."
+        isolated = re.sub(
+            r"[,;]?\s*(?:extract|save|then|and\s+save|and\s+tell|and\s+analyze|and\s+identify|and\s+inspect).*$",
+            "",
+            raw_query,
+            flags=re.IGNORECASE,
+        )
+        query = isolated.strip().rstrip(".,;?'\"")
+        return query or raw_query.rstrip(".,;?'\"")
 
     return None
 

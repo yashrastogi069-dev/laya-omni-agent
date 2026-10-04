@@ -337,6 +337,29 @@ class TestL3CMutationDeclarativeWrappers(unittest.TestCase):
             if os.path.exists(temp_path):
                 os.remove(temp_path)
 
+    def test_file_write_cross_mount_resilience(self):
+        """Tests that file_write succeeds even across different Windows mounts where relpath raises ValueError."""
+        from unittest.mock import patch
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".txt") as tf:
+            temp_path = tf.name
+
+        try:
+            with patch("os.path.relpath", side_effect=ValueError("path is on mount 'C:', start on mount 'D:'")):
+                invocation = CapabilityInvocation(
+                    invocation_id="inv_fw_cross_drive",
+                    capability_id="file_write",
+                    arguments={"filepath": temp_path, "content": "Cross drive content"},
+                )
+                res = self.registry.invoke(invocation)
+                self.assertEqual(res.outcome, ToolOutcome.SUCCESS)
+                self.assertTrue(res.success)
+                with open(temp_path, "r", encoding="utf-8") as f:
+                    content = f.read()
+                self.assertEqual(content, "Cross drive content")
+        finally:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+
 
 class TestL3DLegacyCompatibilityAndNonSwitching(unittest.TestCase):
     """Tests L3D: Existing CLI / prototype functions remain untouched and operational."""

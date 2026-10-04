@@ -47,7 +47,11 @@ def tool_file_write(payload: str) -> str:
     try:
         with open(fpath, "w", encoding="utf-8") as f:
             f.write(content)
-        return f"✅ Written to `{os.path.relpath(fpath, WORKSPACE_ROOT)}` ({len(content)} chars)."
+        try:
+            display_path = os.path.relpath(fpath, WORKSPACE_ROOT)
+        except ValueError:
+            display_path = fpath
+        return f"✅ Written to `{display_path}` ({len(content)} chars)."
     except Exception as e:
         return f"Write error: {e}"
 

@@ -4,7 +4,7 @@
 
 - **Milestone Scope**: RV0 → L10 Quest → L11 Operation Ledger → L12 Planner → L13 Validator → L14 Executor → L14.1 Runtime Hardening → L14.2 Adversarial Durability → L14.3 Practical Runtime Integration.
 - **Target Branch**: `laya-autonomous-v2`
-- **Baseline Verified Commit**: Staged for L14.3 commit (538 automated tests + 47 subtests = 585 checks passing, 0 failures).
+- **Baseline Verified Commit**: `df45f8a` (`feat(l14.3): practical runtime integration and operator-control closure (PRACT-001..036)`) on `laya-autonomous-v2` (538 automated tests + 47 subtests = 585 checks passing, 0 failures).
 - **Hard Stop Boundary**: **HARD STOP IMMEDIATELY AFTER L14.3**. Do NOT begin L15 Completion Verifier, L16 Replanner, Memory V2, automation scheduling, MCP expansion, canary promotion, or legacy retirement until explicitly commanded.
 - **Permanent Invariants**:
   1. `END_TO_END_EXECUTION_LOG.md` is the master cumulative engineering record (must record research, plans, diffs, tests, reviews, repairs, decisions, and documentation updates).

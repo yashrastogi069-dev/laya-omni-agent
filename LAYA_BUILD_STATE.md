@@ -3,7 +3,7 @@
 **Last Updated**: 2026-10-04T22:35:00+05:30  
 **Current Branch**: `laya-autonomous-v2`  
 **Active Milestone Goal**: `L14.3 PRACTICAL RUNTIME INTEGRATION & OPERATOR-CONTROL CLOSURE (COMPLETED & FULLY VERIFIED) — PREPARED FOR L15`  
-**Baseline Verified Commit**: Staged for L14.3 commit (`feat(l14.3): practical runtime integration and operator-control closure`) on `laya-autonomous-v2`  
+**Baseline Verified Commit**: `df45f8a` (`feat(l14.3): practical runtime integration and operator-control closure (PRACT-001..036)`) on `laya-autonomous-v2`  
 **Last Passing Test Suite**: All 28 test files across L0–L14.3:
 `tests/test_foundation_broker.py`, `tests/test_l0_baselines.py`, `tests/test_l10_quest.py`, `tests/test_l11_operation_ledger.py`, `tests/test_l12_planner.py`, `tests/test_l13_validator.py`, `tests/test_l14_1_runtime_integrity.py`, `tests/test_l14_2_durability.py`, `tests/test_l14_3_practical.py`, `tests/test_l14_executor.py`, `tests/test_l1_repairs.py`, `tests/test_l2_1_reconciliation.py`, `tests/test_l2_contracts.py`, `tests/test_l3_capabilities.py`, `tests/test_l4_providers.py`, `tests/test_l5_decision_fabric.py`, `tests/test_l6a_routing.py`, `tests/test_l6b_skill_routing.py`, `tests/test_l7_5_calibration.py`, `tests/test_l7_skills.py`, `tests/test_l8_arguments.py`, `tests/test_l9_policy.py`, `tests/test_r1_research.py`, `tests/test_r2_browser.py`, `tests/test_r3_desktop.py`, `tests/test_r4_n8n.py`, `tests/test_r5_developer.py`, `tests/test_rv0_reality_gate.py` (**538 automated tests passing across 28 test files (100% pass rate) (+ 47 subtests = 585 total checks)**)  
 **Mission Role**: Complete Standalone Autonomous Operating Agent.

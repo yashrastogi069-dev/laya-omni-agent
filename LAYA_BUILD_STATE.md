@@ -1,11 +1,11 @@
 # LAYA_BUILD_STATE.md — Current Ground Truth State
 
-**Last Updated**: 2026-10-05T03:30:00+05:30  
+**Last Updated**: 2026-10-05T04:00:00+05:30  
 **Current Branch**: `laya-autonomous-v2`  
-**Active Milestone Goal**: `L18 MODULAR BROWSER CAPABILITY REBUILD (ACTIVE) — L17.5 REAL CLOUD PROVIDER INTEGRATION COMPLETED & VERIFIED`  
-**Baseline Verified Commit**: `49e220f` (`L17.5: real cloud provider integration (OpenAI, Anthropic, DeepSeek)`) on `laya-autonomous-v2`  
-**Last Passing Test Suite**: All 32 test files across L0–L17.5:
-`tests/test_foundation_broker.py`, `tests/test_l0_baselines.py`, `tests/test_l10_quest.py`, `tests/test_l11_operation_ledger.py`, `tests/test_l12_planner.py`, `tests/test_l13_validator.py`, `tests/test_l14_1_runtime_integrity.py`, `tests/test_l14_2_durability.py`, `tests/test_l14_3_practical.py`, `tests/test_l14_executor.py`, `tests/test_l15_verification.py`, `tests/test_l16_replanner.py`, `tests/test_l17_generative_router.py`, `tests/test_l17_5_cloud_providers.py`, `tests/test_l1_repairs.py`, `tests/test_l2_1_reconciliation.py`, `tests/test_l2_contracts.py`, `tests/test_l3_capabilities.py`, `tests/test_l4_providers.py`, `tests/test_l5_decision_fabric.py`, `tests/test_l6a_routing.py`, `tests/test_l6b_skill_routing.py`, `tests/test_l7_5_calibration.py`, `tests/test_l7_skills.py`, `tests/test_l8_arguments.py`, `tests/test_l9_policy.py`, `tests/test_r1_research.py`, `tests/test_r2_browser.py`, `tests/test_r3_desktop.py`, `tests/test_r4_n8n.py`, `tests/test_r5_developer.py`, `tests/test_rv0_reality_gate.py` (**603 automated tests passing across 32 test files (100% pass rate) (+ 47 subtests = 650 total checks)**).  
+**Active Milestone Goal**: `L18 MODULAR BROWSER CAPABILITY REBUILD (COMPLETED & VERIFIED) — HARD STOP ENFORCED`  
+**Baseline Verified Commit**: `51abcf9` (`L18: modular browser capability rebuild (navigate, snapshot, click, type, extract, screenshot, tabs)`) on `laya-autonomous-v2`  
+**Last Passing Test Suite**: All 33 test files across L0–L18:
+`tests/test_foundation_broker.py`, `tests/test_l0_baselines.py`, `tests/test_l10_quest.py`, `tests/test_l11_operation_ledger.py`, `tests/test_l12_planner.py`, `tests/test_l13_validator.py`, `tests/test_l14_1_runtime_integrity.py`, `tests/test_l14_2_durability.py`, `tests/test_l14_3_practical.py`, `tests/test_l14_executor.py`, `tests/test_l15_verification.py`, `tests/test_l16_replanner.py`, `tests/test_l17_generative_router.py`, `tests/test_l17_5_cloud_providers.py`, `tests/test_l18_modular_browser.py`, `tests/test_l1_repairs.py`, `tests/test_l2_1_reconciliation.py`, `tests/test_l2_contracts.py`, `tests/test_l3_capabilities.py`, `tests/test_l4_providers.py`, `tests/test_l5_decision_fabric.py`, `tests/test_l6a_routing.py`, `tests/test_l6b_skill_routing.py`, `tests/test_l7_5_calibration.py`, `tests/test_l7_skills.py`, `tests/test_l8_arguments.py`, `tests/test_l9_policy.py`, `tests/test_r1_research.py`, `tests/test_r2_browser.py`, `tests/test_r3_desktop.py`, `tests/test_r4_n8n.py`, `tests/test_r5_developer.py`, `tests/test_rv0_reality_gate.py` (**623 automated tests passing across 33 test files (100% pass rate) (+ 47 subtests = 670 total checks)**).  
 **Mission Role**: Complete Standalone Autonomous Operating Agent.
 
 ---
@@ -277,6 +277,17 @@ The repository contains a standalone prototype CLI (`laya_agent.py` / `omni_engi
       - `build_standard_generative_router`: Factory instantiating direct cloud providers alongside OpenRouter and Mock providers in `GenerativeRouter`.
     - **Adversarial Diff Review**: **PASS (Zero blocking defects)** (Subagent `cae1ba2e-74b6-442b-a39e-2e419de6cc59`).
     - **Comprehensive Test Suite**: Created `tests/test_l17_5_cloud_providers.py` (18 unit and integration tests, 100% pass rate in 3.23s). Full repository suite: **603 passed across 32 test files (+ 47 subtests = 650 total checks)**.
+29. **Checkpoint L18 Milestone Reached (Modular Browser Capability Rebuild)**:
+    - **ADR-024**: Authored `docs/research/ADR_L18_MODULAR_BROWSER.md` establishing the rebuild of Playwright browser capabilities into 7 discrete, session-backed primitives (`browser.navigate`, `browser.snapshot`, `browser.click`, `browser.type`, `browser.extract`, `browser.screenshot`, `browser.tabs`) with dotless aliases; bounded multi-tab management with strict `max_tabs=5`; DOM element indexing with form attribute scanning and financial tagging; script injection defense via CDP dictionary parameter binding; and PolicyEngine financial safety gating. Recorded in `tasks/DECISIONS.md`.
+    - **Modular Contracts**: Implemented in `omni_engine/contracts/browser.py` with `TabAction`, `TabInfo`, `BrowserTabsRequest`, `BrowserTabsResult`, `BrowserExtractRequest`, `BrowserExtractResult`, `BrowserNavigateRequest`, `BrowserNavigateResult`, `BrowserClickRequest`, `BrowserClickResult`, `BrowserTypeRequest`, `BrowserTypeResult`, `BrowserScreenshotModularRequest`, and `BrowserScreenshotModularResult` (`extra="forbid"`, `validate_assignment=True`). Exported in `omni_engine/contracts/__init__.py`.
+    - **Session Substrate & Multi-Tab Decoupling**: Implemented in `omni_engine/browser/session.py` with bounded multi-tab management (`max_tabs=5`), low-memory flags (`--renderer-process-limit=4`, `--max-old-space-size=512`, `--disable-dev-shm-usage`, `--no-sandbox`, `--disable-gpu`, `--disable-extensions`), `_prune_dead_pages()` auto-pruning closed or crashed pages (REV-L18-03), last tab close protection (REV-L18-04), and safe page closing with `run_before_unload=False`.
+    - **DOM Action Indexer Financial Detection**: Enhanced `omni_engine/browser/indexer.py` with form attribute scanning (`name`, `elem_id`, `placeholder`, `autocomplete`) and regex detection for credit card and financial keywords (REV-L18-07).
+    - **Modular Browser Driver**: Implemented in `omni_engine/browser/driver.py` with `extract()` using CDP parameter dictionary binding in `page.evaluate(_EXTRACT_SCRIPT, {...})` to eliminate script injection (REV-L18-01); indexed selector translation (`@N` to `[data-laya-idx="N"]`) (REV-L18-06); and atomic direct methods: `navigate()`, `click()`, `type_text()`, `take_screenshot()`, and `manage_tabs()`.
+    - **Policy Engine Safety & Gating**: Updated `omni_engine/policy/engine.py` Stage 0 and Stage 3 financial checks to match all `browser.` and `browser_` capabilities (REV-L18-02), enforcing `REQUIRE_CONFIRMATION` on financial clicks/typing/navigation below `WORKFLOW_AUTHORIZED`. Calibrated read-only browser capability base risk to 0.15.
+    - **Capability Substrate Integration**: Registered all 7 atomic capability specs in `omni_engine/capabilities/definitions.py` and `build_real_capability_registry()`, assigned `browser_screenshot_v2` to screenshot to prevent alias collision with canonical `browser_screenshot` (REV-L18-08), normalized adapters returning `(True, result.model_dump())` on success and `(False, ToolError(...))` on failure for truthful `ToolOutcome` mapping (REV-L18-09), and strictly preserved the canonical 23-tool count invariant in `build_canonical_registry()`.
+    - **Argument Resolver Mapping**: Added deterministic slot extraction for all 7 modular browser capabilities in `omni_engine/arguments/resolver.py`.
+    - **Adversarial Diff Review**: **PASS (Zero blocking defects)** (Subagent `d28435fb-3826-43a0-aed6-ddf07dd81a36`).
+    - **Comprehensive Test Suite**: Created `tests/test_l18_modular_browser.py` (20 unit and integration tests, 100% pass rate in 0.66s). Full repository suite: **623 passed across 33 test files (+ 47 subtests = 670 total checks)**.
 
 ---
 
@@ -292,6 +303,13 @@ The repository contains a standalone prototype CLI (`laya_agent.py` / `omni_engi
 | **browser** | `visual_browse` | `tool_visual_browse` | `SYSTEM_ACTION` | `LOCAL_OPERATOR` | `POLICY_CONTROLLED` | `NEVER` | `NON_IDEMPOTENT` |
 | **browser** | `browser_screenshot` | `tool_browser_screenshot` | `LOCAL_CREATE` | `SAFE_ASSISTANT` | `NEVER` | `VERIFY_BEFORE_RETRY` | `NATURAL` |
 | **browser** | `browser_interact` (alias `browser.interact`) | `BrowserDriver` | `EXTERNAL_NETWORK` | `LOCAL_OPERATOR` | `POLICY_CONTROLLED` | `VERIFY_BEFORE_RETRY` | `NON_IDEMPOTENT` |
+| **browser** | `browser.navigate` | `BrowserDriver.navigate` | `EXTERNAL_NETWORK` | `LOCAL_OPERATOR` | `POLICY_CONTROLLED` | `VERIFY_BEFORE_RETRY` | `IDEMPOTENT` |
+| **browser** | `browser.snapshot` | `BrowserDriver.snapshot` | `READ_ONLY` | `ADVISOR` | `NEVER` | `SAFE_READ_RETRY` | `READ_ONLY` |
+| **browser** | `browser.click` | `BrowserDriver.click` | `EXTERNAL_NETWORK` | `LOCAL_OPERATOR` | `POLICY_CONTROLLED` | `VERIFY_BEFORE_RETRY` | `NON_IDEMPOTENT` |
+| **browser** | `browser.type` | `BrowserDriver.type_text` | `EXTERNAL_NETWORK` | `LOCAL_OPERATOR` | `POLICY_CONTROLLED` | `VERIFY_BEFORE_RETRY` | `NON_IDEMPOTENT` |
+| **browser** | `browser.extract` | `BrowserDriver.extract` | `READ_ONLY` | `ADVISOR` | `NEVER` | `SAFE_READ_RETRY` | `READ_ONLY` |
+| **browser** | `browser.screenshot` (alias `browser_screenshot_v2`) | `BrowserDriver.take_screenshot` | `LOCAL_CREATE` | `SAFE_ASSISTANT` | `NEVER` | `VERIFY_BEFORE_RETRY` | `NATURAL` |
+| **browser** | `browser.tabs` | `BrowserDriver.manage_tabs` | `EXTERNAL_NETWORK` | `LOCAL_OPERATOR` | `POLICY_CONTROLLED` | `VERIFY_BEFORE_RETRY` | `NON_IDEMPOTENT` |
 | **os** | `system_diagnostics` | `tool_system_diagnostics` | `READ_ONLY` | `ADVISOR` | `NEVER` | `SAFE_READ_RETRY` | `READ_ONLY` |
 | **os** | `list_processes` | `tool_list_processes` | `READ_ONLY` | `ADVISOR` | `NEVER` | `SAFE_READ_RETRY` | `READ_ONLY` |
 | **os** | `kill_process` | `tool_kill_process` | `SYSTEM_ACTION` | `LOCAL_OPERATOR` | `ALWAYS` | `NEVER` | `NON_IDEMPOTENT` |
@@ -364,29 +382,33 @@ The repository contains a standalone prototype CLI (`laya_agent.py` / `omni_engi
   - **L16 Controlled Replanner & Recovery Loop Tests**: 11 passed
   - **L17 Role-Aware Generative Provider Router Tests**: 23 passed
   - **L17.5 Real Cloud Provider Integration Tests**: 18 passed
-- **Pass Rate**: 100% (603 passed, 0 failed, 0 errors, across 32 test files) (+ 47 subtests = 650 total checks).
-- **CI Status**: Commit `49e220f` running on GitHub Actions CI Run `37238048867` (Non-Switching Boundary Check passed in 4s; Deterministic Test Suite executing).
-- **Runtime**: ~315s across full local repository test suite.
+  - **L18 Modular Browser Capability Tests**: 20 passed
+- **Pass Rate**: 100% (623 passed, 0 failed, 0 errors, across 33 test files) (+ 47 subtests = 670 total checks).
+- **CI Status**: Commit `51abcf9` running on GitHub Actions CI Run `37240214114` (Non-Switching Boundary Check passed in 4s; Deterministic Test Suite executing).
+- **Runtime**: ~292s across full local repository test suite.
 
 ---
 
 ## 4. Current Blockers
 
-- **None**. The milestone `L17.5 REAL CLOUD PROVIDER INTEGRATION` is complete, verified, and passing 100% of automated tests.
+- **None**. Checkpoint `L18 MODULAR BROWSER CAPABILITY REBUILD` is complete, verified, and passing 100% of automated tests.
 
 ---
 
 ## 5. Completed Milestone & Hard Stop Enforcement
 
-Within roadmap `L17.5 REAL CLOUD PROVIDER INTEGRATION`:
-- **Status**: **COMPLETE & FULLY VERIFIED (603 automated tests passing, 0 failures, 0 boundary diffs)**
-- **Hard Stop Boundary**: Sequence: L16 (COMPLETED) → L17 (COMPLETED) → L17.5 (COMPLETED) → L18 (ACTIVE) → **HARD STOP** (Do NOT start L19 Memory V2). 0 diffs in `omni_agent.py` and `omni_engine/planner.py`.
+Within roadmap `L18 MODULAR BROWSER CAPABILITY REBUILD`:
+- **Status**: **COMPLETE & FULLY VERIFIED (623 automated tests passing, 0 failures, 0 boundary diffs)**
+- **Hard Stop Boundary**: Sequence: L16 (COMPLETED) → L17 (COMPLETED) → L17.5 (COMPLETED) → L18 (COMPLETED) → **HARD STOP ENFORCED** (Do NOT start L19 Memory V2). 0 diffs in `omni_agent.py` and `omni_engine/planner.py`.
 - **Invariants Upheld**:
-  1. Deterministic Control (Invariant 1): Runtime strictly governs cloud provider dispatch, unconfigured states, and cascading fallbacks.
-  2. Secret Hygiene (`docs/SECURITY_AND_POLICY.md`): Dual-layer error sanitization and regex scrubber prevent plaintext tokens from leaking in tracebacks, exceptions, or logs.
-  3. Strongly Typed Contracts (Invariant 4): Cloud providers conform strictly to `GenerativeProvider(ABC)` contracts.
-  4. Zero-Dependency Footprint: Claude Messages API implemented with Python standard library `urllib.request`.
-  5. Offline Testability: Inversion-of-control transport mocks allow 100% offline unit execution.
-- **Next Milestone**: **L18 Modular Browser Capability Rebuild** (currently active).
+  1. Deterministic Control (Invariant 1): Runtime strictly governs modular browser capability dispatch, multi-tab lifecycle bounds, DOM indexing, selector translation, and financial safety gates.
+  2. Strongly Typed Contracts (Invariant 4): Modular browser requests and results conform strictly to Pydantic v2 contracts with `extra="forbid"`, `validate_assignment=True`.
+  3. Evidence-Based Completion (Invariant 6): Physical outcome verification receipts (DOM mutations, input values, URLs, screenshot files).
+  4. Script Injection Defense: Parameters passed as CDP dictionaries over `page.evaluate(_EXTRACT_SCRIPT, {...})`, eliminating executable JavaScript interpolation.
+  5. Memory Containment: Low-memory launch flags and bounded tab count (`max_tabs=5`) protecting the 8GB RAM host.
+  6. Financial Safety Gate: `PolicyEngine` Stage 0 / Stage 3 checks enforce `REQUIRE_CONFIRMATION` on financial clicks, typing, and navigation below `WORKFLOW_AUTHORIZED`.
+  7. Canonical 23-Tool Inventory Invariant: `build_canonical_registry()` retains exactly 23 source tools; modular capabilities register in `build_real_capability_registry()`.
+  8. Non-Switching Boundary: Exactly 0 diffs on `omni_agent.py` and `omni_engine/planner.py`.
+- **Next Milestone**: **HARD STOP ENFORCED**. Do NOT proceed to L19 (Memory V2) without explicit user authorization.
 
 

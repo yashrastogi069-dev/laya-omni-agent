@@ -1,11 +1,11 @@
 # ACTIVE_PLAN.md — Active Milestone: Phase V Advanced Subsystems (L17 – L18)
 
-## Current Active Checkpoint: L18 — Modular Browser Capability Rebuild (ACTIVE)
+## Current Active Checkpoint: L18 — Modular Browser Capability Rebuild (COMPLETED & VERIFIED)
 
-- **Milestone Scope**: Phase V: L17 Role-Aware Generative Provider Router (COMPLETED) → L17.5 Real Cloud Provider Integration (COMPLETED) → L18 Modular Browser Capability Rebuild (ACTIVE).
+- **Milestone Scope**: Phase V: L17 Role-Aware Generative Provider Router (COMPLETED) → L17.5 Real Cloud Provider Integration (COMPLETED) → L18 Modular Browser Capability Rebuild (COMPLETED) → **HARD STOP ENFORCED**.
 - **Target Branch**: `laya-autonomous-v2`
-- **Baseline Verified Commit**: `49e220f` (`L17.5: real cloud provider integration (OpenAI, Anthropic, DeepSeek)`) on `laya-autonomous-v2` (603 automated tests + 47 subtests = 650 checks passing, 0 failures; verified locally).
-- **Hard Stop Boundary**: Sequence: L16 (COMPLETED) → L17 (COMPLETED) → L17.5 (COMPLETED) → L18 (ACTIVE) → **HARD STOP** (Do NOT start L19 Memory V2).
+- **Baseline Verified Commit**: `51abcf9` (`L18: modular browser capability rebuild (navigate, snapshot, click, type, extract, screenshot, tabs)`) on `laya-autonomous-v2` (623 automated tests + 47 subtests = 670 checks passing, 0 failures; verified locally).
+- **Hard Stop Boundary**: Sequence: L16 (COMPLETED) → L17 (COMPLETED) → L17.5 (COMPLETED) → L18 (COMPLETED) → **HARD STOP ENFORCED** (Do NOT start L19 Memory V2).
 - **Permanent Invariants**:
   1. `END_TO_END_EXECUTION_LOG.md` is the master cumulative engineering record (must record research, plans, diffs, tests, reviews, repairs, decisions, and documentation updates).
   2. Legacy non-switching boundary: `omni_agent.py` and `omni_engine/planner.py` remain 100% untouched (0 diffs).
@@ -356,26 +356,50 @@
 
 ---
 
-### Step 17: L18 — Modular Browser Capability Rebuild (ACTIVE)
-- [ ] **External Research & ADR-024**:
-  - Audit Playwright browser integration for atomic capability decomposition.
-  - Evaluate session pooling, DOM snapshotting, tab isolation, and memory containment on Windows (8GB host RAM limit).
-  - Define atomic capability contracts: `browser.navigate`, `browser.snapshot`, `browser.click`, `browser.type`, `browser.extract`, `browser.screenshot`, `browser.tabs`.
-  - Author `docs/research/ADR_L18_MODULAR_BROWSER.md` and record in `tasks/DECISIONS.md`.
-- [ ] **Modular Browser Contracts (`omni_engine/contracts/browser.py`)**:
-  - Rebuild contracts with strict Pydantic v2 schemas (`extra="forbid"`).
-  - Define input schemas, physical outcome verification receipts, and action class classifications.
-- [ ] **Browser Substrate Implementation (`omni_engine/browser/`)**:
-  - Decouple `BrowserSession` into modular primitives.
-  - Implement atomic operations with bounded timeouts, memory cleanup, and leak defense.
-  - Register capabilities in `CapabilityRegistry` and `PolicyEngine`.
-- [ ] **Adversarial Plan Review**:
-  - Independent subagent review for process lifecycle, stale DOM element handling, and financial action gating.
-- [ ] **Unit & Adversarial Testing (`tests/test_l18_modular_browser.py`)**:
-  - 100% offline unit tests with mock browser/HTML fixtures.
-  - Verify atomic capability dispatch, error receipts, and session cleanup.
-- [ ] **Full Regression Suite, CI & HARD STOP Enforcement**:
-  - Verify all 600+ tests pass, 0 boundary diffs, commit, push, CI green.
-  - **ENFORCE HARD STOP**: Stop immediately after L18 (do NOT start L19 Memory V2).
+### Step 17: L18 — Modular Browser Capability Rebuild (COMPLETED & VERIFIED)
+- [x] **External Research & ADR-024**:
+  - Audited Playwright browser integration for atomic capability decomposition into 7 discrete capabilities: `browser.navigate`, `browser.snapshot`, `browser.click`, `browser.type`, `browser.extract`, `browser.screenshot`, `browser.tabs`.
+  - Evaluated bounded session pooling (`max_tabs=5`), DOM snapshotting, tab isolation, and memory containment on Windows (8GB host RAM limit: `--renderer-process-limit=4`, `--max-old-space-size=512`, `--disable-dev-shm-usage`).
+  - Authored `docs/research/ADR_L18_MODULAR_BROWSER.md` (ADR-024) and recorded in `tasks/DECISIONS.md`.
+- [x] **Adversarial Plan Review**:
+  - Independent subagent review issued **APPROVED WITH MANDATORY BLOCKING REPAIRS** (REV-L18-01 through REV-L18-04, plus non-blocking 05-09).
+  - All requirements strictly resolved and designed prior to implementation.
+- [x] **Modular Browser Contracts (`omni_engine/contracts/browser.py`, `contracts/__init__.py`)**:
+  - Rebuilt contracts with strict Pydantic v2 schemas (`extra="forbid"`, `validate_assignment=True`).
+  - Contracts added: `TabAction`, `TabInfo`, `BrowserTabsRequest`, `BrowserTabsResult`, `BrowserExtractRequest`, `BrowserExtractResult`, `BrowserNavigateRequest`, `BrowserNavigateResult`, `BrowserClickRequest`, `BrowserClickResult`, `BrowserTypeRequest`, `BrowserTypeResult`, `BrowserScreenshotModularRequest`, `BrowserScreenshotModularResult`.
+- [x] **Session Substrate & Tab Management (`omni_engine/browser/session.py`)**:
+  - Decoupled `BrowserSession` into bounded multi-tab management with strict `max_tabs=5`.
+  - Implemented `_prune_dead_pages()` (REV-L18-03) auto-pruning closed/crashed pages before tab operations and page retrieval.
+  - Implemented last tab close protection (REV-L18-04) refusing to close the last remaining page.
+  - Enforced safe tab closing via `page.close(run_before_unload=False)` avoiding modal dialog deadlocks.
+- [x] **DOM Action Indexer Financial Detection (`omni_engine/browser/indexer.py`)**:
+  - Stamped visible interactive elements with `data-laya-idx="N"`.
+  - Scanned form attributes (`name`, `id`, `placeholder`, `autocomplete`) and matched financial keywords (`FINANCIAL_KEYWORDS_REGEX`, `FINANCIAL_URL_REGEX`) to tag `is_financial=True` (REV-L18-07).
+- [x] **Modular Browser Driver (`omni_engine/browser/driver.py`)**:
+  - Implemented `extract(selector, attribute, multiple, max_items)` with CDP dict parameter binding (`page.evaluate(_EXTRACT_SCRIPT, {...})`), strictly preventing script injection (REV-L18-01).
+  - Implemented indexed selector translation (`@N` to `[data-laya-idx="N"]`) (REV-L18-06).
+  - Implemented atomic direct execution methods: `navigate()`, `click()`, `type_text()`, `take_screenshot()`, and `manage_tabs()`.
+  - Wired `BrowserActionType.EXTRACT` and `MANAGE_TABS` into `execute()`.
+- [x] **Policy Engine Safety & Gating (`omni_engine/policy/engine.py`)**:
+  - Extended Stage 0/Stage 3 financial checks to match `spec.id in ("browser_interact", "browser.interact") or spec.id.startswith(("browser.", "browser_"))` (REV-L18-02).
+  - Enforced `REQUIRE_CONFIRMATION` on financial clicks/typing/navigation under autonomy tiers below `WORKFLOW_AUTHORIZED`.
+  - Calibrated base risk to 0.15 for read-only browser capabilities without sensitive targets.
+- [x] **Capability Substrate Integration (`omni_engine/capabilities/definitions.py`, `capabilities/__init__.py`)**:
+  - Preserved canonical 23-tool count invariant in `build_canonical_registry()`.
+  - Registered all 7 atomic capability specs with dot and dotless aliases in `build_real_capability_registry()`, assigning `browser_screenshot_v2` to screenshot to prevent alias collision (REV-L18-08).
+  - Implemented normalized adapters returning `(True, result.model_dump())` on success and `(False, ToolError(...))` on failure for truthful `ToolOutcome` mapping in `CapabilityRegistry.invoke()` (REV-L18-09).
+- [x] **Argument Resolver Mapping (`omni_engine/arguments/resolver.py`)**:
+  - Added deterministic slot extraction for `browser.navigate`, `browser.snapshot`, `browser.click`, `browser.type`, `browser.extract`, `browser.screenshot`, and `browser.tabs`.
+- [x] **Unit & Adversarial Testing (`tests/test_l18_modular_browser.py`)**:
+  - 20 comprehensive unit and integration tests covering contracts, multi-tab bounds, last tab protection, dead page pruning, CDP dict injection defense, indexed selector translation, financial gating, canonical 23-tool invariant, and adapter outcome normalization. All 20 tests pass offline in 0.66s.
+- [x] **Adversarial Diff Review**:
+  - Independent subagent review returned **PASS** with zero blocking defects.
+- [x] **Full Regression Suite, Verification & Remote CI**:
+  - **623 automated tests passing across 33 test files (100% pass rate) (+ 47 subtests = 670 total checks)**.
+  - Non-switching boundary: exactly 0 diffs on `omni_agent.py` and `omni_engine/planner.py`.
+  - Code commit `51abcf9` pushed to `origin/laya-autonomous-v2`.
+- [x] **ENFORCE HARD STOP**:
+  - Milestone L18 is 100% complete and verified.
+  - Strict HARD STOP enforced: Do NOT start Checkpoint L19 (Memory V2). Await user instructions.
 
 

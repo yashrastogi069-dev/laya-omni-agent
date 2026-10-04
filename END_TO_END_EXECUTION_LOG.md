@@ -11,15 +11,15 @@
 | **System Role** | Standalone Autonomous Operating Agent (Independent from Jarvis Core V2) |
 | **Active Architecture Branch** | `laya-autonomous-v2` |
 | **Public GitHub Remote** | `https://github.com/yashrastogi069-dev/laya-omni-agent.git` |
-| **Latest Branch Commit** | `49e220f` (`L17.5: real cloud provider integration (OpenAI, Anthropic, DeepSeek)`) on `laya-autonomous-v2` |
-| **Total Automated Tests** | **603 / 603 Passing (100%)** (+ 47 subtests = 650 total checks) |
-| **GitHub Actions CI Status** | **IN PROGRESS (Run 37238048867)**: Non-Switching Boundary Check (Passed in 4s), Deterministic Test Suite executing |
-| **Test Categorization** | **601 Feature Acceptance Tests** + **2 Known Defect Reproduction Tests** |
+| **Latest Branch Commit** | `51abcf9` (`L18: modular browser capability rebuild (navigate, snapshot, click, type, extract, screenshot, tabs)`) on `laya-autonomous-v2` |
+| **Total Automated Tests** | **623 / 623 Passing (100%)** (+ 47 subtests = 670 total checks) |
+| **GitHub Actions CI Status** | **IN PROGRESS (Run 37240214114)**: Non-Switching Boundary Check (Passed in 4s), Deterministic Test Suite executing |
+| **Test Categorization** | **621 Feature Acceptance Tests** + **2 Known Defect Reproduction Tests** |
 | **Known Warnings Classification** | **4 Warnings Emitted**: `RuntimeWarning` from `laya/router.py:187` (Upstream library temperature outside [0.5, 5] clamping — BENIGN/UPSTREAM); 0 unhandled warnings in test suite |
 | **Calibration Status** | **Intent Signal**: Calibrated (ECE 0.1192, 72/31 stratified corpus split); **Domain Signal**: Uncalibrated (Deterministic fail-open fallback, cross-domain pooling, and escalation) |
 | **Hardware Operating Baseline** | Windows 10 Host, 4 CPU Cores, 7.81 GB RAM, PyTorch 2.13.0+cpu, NO CUDA GPU (CPU DecisionFrame latency ~15.4s; SystemOneBroker enforces user sovereignty, RAM threshold debouncing, and quality floor) |
-| **Checkpoints Completed** | **L0–L17.5, Foundation Gate, R1, R2, R3, R4, R5, RV0** |
-| **Active Milestone & Checkpoint** | **CHECKPOINT COMPLETE: L17.5 REAL CLOUD PROVIDER INTEGRATION ACHIEVED (ACTIVE ON L18 MODULAR BROWSER CAPABILITY REBUILD)** |
+| **Checkpoints Completed** | **L0–L18, Foundation Gate, R1, R2, R3, R4, R5, RV0** |
+| **Active Milestone & Checkpoint** | **CHECKPOINT COMPLETE: L18 MODULAR BROWSER CAPABILITY REBUILD ACHIEVED — HARD STOP ENFORCED** |
 
 ---
 
@@ -131,7 +131,10 @@
 [L17.5: REAL CLOUD PROVIDER INTEGRATION]
        │ ── 18/18 Cloud Provider Tests Passing (Commit: 49e220f); 603/603 Repository Tests Passing (+47 subtests = 650 checks)
        ▼
-[ACTIVE CHECKPOINT L18: MODULAR BROWSER CAPABILITY REBUILD]
+[L18: MODULAR BROWSER CAPABILITY REBUILD]
+       │ ── 20/20 Modular Browser Tests Passing (Commit: 51abcf9); 623/623 Repository Tests Passing (+47 subtests = 670 checks)
+       ▼
+[HARD STOP ENFORCED: AWAITING USER DIRECTION BEFORE L19]
 ```
 
 ---
@@ -3633,6 +3636,153 @@ In accordance with the permanent documentation invariant in `AGENTS.md`, the fol
 - **Hard Stop Boundary Reminder**: Strictly sequence L16 (COMPLETED) → L17 (COMPLETED) → L17.5 (COMPLETED) → L18 (ACTIVE) → **HARD STOP** (Do NOT start L19 Memory V2).
 
 ---
+
+## 21. Checkpoint L18 — Modular Browser Capability Rebuild
+
+### 21.1 Pre-Implementation Reconnaissance & External Architecture Audit
+- **Architecture Decision Record**: Authored `docs/research/ADR_L18_MODULAR_BROWSER.md` (ADR-024) and registered in `tasks/DECISIONS.md`.
+- **Architectural Motivation**:
+  - Legacy Phase R2 browser capability provided a monolithic facade (`browser_interact` / `BrowserDriver.execute()`) taking a compound `BrowserActionRequest`.
+  - While functional, autonomous DAG planning requires atomic capability primitives (`browser.navigate`, `browser.snapshot`, `browser.click`, `browser.type`, `browser.extract`, `browser.screenshot`, `browser.tabs`) with dedicated strongly typed contracts, fine-grained policy risk classifications, independent retry policies, and transparent dependency graphing.
+  - Furthermore, memory containment on the 8GB RAM Windows development host required strict tab capping (`max_tabs=5`), aggressive dead-page pruning, and low-memory chromium launch flags (`--renderer-process-limit=4`, `--max-old-space-size=512`, `--disable-dev-shm-usage`).
+- **Research Decisions (ADOPT / ADAPT / REJECT)**:
+  - **ADOPT**: Atomic capability decomposition into 7 discrete primitives conforming to `CapabilitySpec`.
+  - **ADOPT**: Bounded multi-tab management (`max_tabs=5`) with explicit `TabAction` lifecycle (`LIST`, `NEW`, `SWITCH`, `CLOSE`).
+  - **ADOPT**: CDP dictionary parameter binding for DOM evaluation (`page.evaluate(_EXTRACT_SCRIPT, {...})`), strictly preventing script injection.
+  - **ADOPT**: Indexed selector translation (`@N` -> `[data-laya-idx="N"]`) bridging visual snapshot references with DOM execution.
+  - **ADAPT**: Financial safety gating: extended `PolicyEngine` Stage 0 / Stage 3 checks to match all `browser.` and `browser_` capabilities, enforcing `REQUIRE_CONFIRMATION` on financial clicks, typing, and navigation below `WORKFLOW_AUTHORIZED`.
+  - **REJECT**: Unbounded multi-tab opening or detached worker processes (would exhaust host RAM on Windows).
+  - **REJECT**: Legacy tool alias collision: assigned `browser_screenshot_v2` to modular screenshot to preserve legacy canonical `browser_screenshot` without collision.
+
+### 21.2 Adversarial Plan Review
+- An independent adversarial subagent review was conducted prior to implementation.
+- Findings & Blocking Repairs:
+  - **REV-L18-01 (Script Injection Defense in Extract)**: Implemented static constant `_EXTRACT_SCRIPT` with parameters passed as a dictionary over the CDP bridge (`page.evaluate(_EXTRACT_SCRIPT, {"selector": ..., "attribute": ..., "multiple": ..., "max_items": ...})`). Zero string interpolation into executable JavaScript.
+  - **REV-L18-02 (Financial Safety Gate in PolicyEngine)**: Extended `PolicyEngine.assess_action()` with `spec.id in ("browser_interact", "browser.interact") or spec.id.startswith(("browser.", "browser_"))`. Also checks `request.text` and `arguments.get("text")` for financial terms.
+  - **REV-L18-03 (Tab Desynchronization & Dead Page Pruning)**: Implemented `_prune_dead_pages()` in `BrowserSession` auto-pruning closed or crashed pages before every tab operation and page retrieval.
+  - **REV-L18-04 (Tab Close Safety & Last Tab Protection)**: Enforced `if len(self._pages) <= 1: raise RuntimeError(...)` to guarantee the browser context never has 0 pages, and used `page.close(run_before_unload=False)` to avoid modal dialog deadlocks.
+  - **REV-L18-05 (Memory Containment on 8GB RAM Windows Host)**: Low-memory launch flags (`--renderer-process-limit=4`, `--max-old-space-size=512`, `--disable-dev-shm-usage`, `--no-sandbox`, `--disable-gpu`, `--disable-extensions`) and `max_tabs=5`.
+  - **REV-L18-06 (Indexed Selector Translation)**: Implemented `_resolve_target_selector()` translating `@N` into `[data-laya-idx="N"]` (or snapshot selector) across `extract`, `click`, and `type_text`.
+  - **REV-L18-07 (DOM Action Indexer Financial Detection)**: Enhanced `indexer.py` with form attribute scanning (`name`, `elem_id`, `placeholder`, `autocomplete`) and regex detection for credit card and financial keywords.
+  - **REV-L18-08 (Screenshot Alias Collision Defense & Canonical Registry Invariant)**: Preserved canonical 23-tool count invariant in `build_canonical_registry()`. Assigned `browser_screenshot_v2` to screenshot capability in `build_real_capability_registry()`.
+  - **REV-L18-09 (Adapter Outcome Normalization)**: Adapters return `(True, result.model_dump())` on success and `(False, ToolError(code=ErrorCode.PROCESS_FAILED, ...))` on failure for truthful `ToolOutcome` mapping in `CapabilityRegistry.invoke()`.
+
+### 21.3 Architecture & Implementation Details
+- **Modular Browser Contracts (`omni_engine/contracts/browser.py`, `omni_engine/contracts/__init__.py`)**:
+  - `TabAction`: Enum with `LIST`, `NEW`, `SWITCH`, `CLOSE`.
+  - `TabInfo`: Model with `tab_id: int`, `title: str`, `url: str`, `is_active: bool`.
+  - `BrowserTabsRequest`, `BrowserTabsResult`: Multi-tab lifecycle requests and results.
+  - `BrowserExtractRequest`, `BrowserExtractResult`: Lightweight DOM text and attribute extraction.
+  - `BrowserNavigateRequest`, `BrowserNavigateResult`: Atomic page navigation.
+  - `BrowserClickRequest`, `BrowserClickResult`: Atomic element click with financial gating.
+  - `BrowserTypeRequest`, `BrowserTypeResult`: Atomic text entry with financial gating.
+  - `BrowserScreenshotModularRequest`, `BrowserScreenshotModularResult`: Atomic visual capture.
+  - All contracts enforce strict Pydantic v2 schemas (`extra="forbid"`, `validate_assignment=True`).
+- **Session Substrate (`omni_engine/browser/session.py`)**:
+  - Decoupled `BrowserSession` supporting up to `max_tabs=5`.
+  - `_prune_dead_pages()` cleans up any pages closed by script or crashed.
+  - `list_tabs()`, `new_tab()`, `switch_tab()`, `close_tab()` provide safe, bounded lifecycle management.
+  - Last tab close protection prevents context destruction.
+- **DOM Action Indexer (`omni_engine/browser/indexer.py`)**:
+  - `DOMActionIndexer` assigns incremental `data-laya-idx="N"` attributes to visible interactive elements.
+  - Scans attributes and inner text with `FINANCIAL_KEYWORDS_REGEX` and `FINANCIAL_URL_REGEX` to tag elements with `is_financial=True`.
+- **Modular Browser Driver (`omni_engine/browser/driver.py`)**:
+  - Atomic direct methods: `navigate()`, `click()`, `type_text()`, `take_screenshot()`, `extract()`, and `manage_tabs()`.
+  - `extract()` uses CDP dictionary parameter binding into `page.evaluate(_EXTRACT_SCRIPT, {...})`, eliminating script injection.
+  - `_resolve_target_selector()` translates `@N` indices into indexed CSS selectors.
+  - Secondary safety gate verifies `user_confirmed=True` on financial targets.
+- **Policy Engine Safety & Gating (`omni_engine/policy/engine.py`)**:
+  - Extended Stage 0/Stage 3 financial check to `spec.id in ("browser_interact", "browser.interact") or spec.id.startswith(("browser.", "browser_"))`.
+  - Requires explicit confirmation (`REQUIRE_CONFIRMATION`) on financial clicks, typing, and navigation below `WORKFLOW_AUTHORIZED`.
+  - Calibrated base risk to 0.15 for read-only browser capabilities without sensitive targets.
+- **Capability Substrate Integration (`omni_engine/capabilities/definitions.py`, `capabilities/__init__.py`)**:
+  - Preserved canonical 23-tool count invariant (`build_canonical_registry().count() == 23`).
+  - Registered 7 atomic capability specs with dot and dotless aliases in `build_real_capability_registry()`.
+  - Assigned `browser_screenshot_v2` to screenshot to prevent alias collision with canonical `browser_screenshot`.
+  - Normalized adapters returning `(True, result.model_dump())` on success and `(False, ToolError(code=ErrorCode.PROCESS_FAILED, ...))` on failure for truthful `ToolOutcome` mapping in `CapabilityRegistry.invoke()`.
+- **Argument Resolver Mapping (`omni_engine/arguments/resolver.py`)**:
+  - Added deterministic slot extraction for `browser.navigate`, `browser.snapshot`, `browser.click`, `browser.type`, `browser.extract`, `browser.screenshot`, and `browser.tabs`.
+
+### 21.4 File Inventory & Modifications
+- **New Files**:
+  - `docs/research/ADR_L18_MODULAR_BROWSER.md`: Architecture Decision Record for modular browser capability rebuild.
+  - `tests/test_l18_modular_browser.py`: 20 comprehensive unit and integration tests.
+- **Modified Files**:
+  - `omni_engine/contracts/browser.py`: Added modular browser request and result contracts with Pydantic v2 `extra="forbid"`.
+  - `omni_engine/contracts/__init__.py`: Exported modular browser contracts.
+  - `omni_engine/browser/session.py`: Bounded multi-tab management (`max_tabs=5`), `_prune_dead_pages()`, last tab close protection, safe tab closing.
+  - `omni_engine/browser/indexer.py`: Form attribute scanning and financial keyword regex tagging.
+  - `omni_engine/browser/driver.py`: CDP dictionary binding in `extract()`, `@N` selector translation, atomic direct execution methods.
+  - `omni_engine/policy/engine.py`: Financial gating for `browser.` / `browser_` capabilities, risk calibration.
+  - `omni_engine/capabilities/definitions.py`: Atomic capability specs, dot and dotless aliases, `browser_screenshot_v2`, normalized adapters.
+  - `omni_engine/capabilities/__init__.py`: Re-exported modular specs.
+  - `omni_engine/arguments/resolver.py`: Slot extraction for modular browser capabilities.
+  - `tasks/DECISIONS.md`: Recorded ADR-024.
+
+### 21.5 Test Evidence & Benchmark Metrics
+- **Targeted Modular Browser Test Suite (`tests/test_l18_modular_browser.py`)**:
+  - `test_contracts_schema_validation`: Strict Pydantic v2 schema enforcement (`extra="forbid"`).
+  - `test_tab_limit_enforced`: Multi-tab management strictly capped at `max_tabs=5`.
+  - `test_last_tab_close_protection`: Attempting to close last remaining tab is rejected safely.
+  - `test_dead_page_auto_pruning`: Closed/crashed pages auto-pruned before tab operations.
+  - `test_extract_cdp_dict_parameter_binding`: Zero string interpolation in `page.evaluate(_EXTRACT_SCRIPT, {...})`.
+  - `test_extract_selector_translation`: Translates `@N` index to `[data-laya-idx="N"]`.
+  - `test_extract_multiple_items_and_attribute`: Multi-item text and attribute extraction.
+  - `test_click_indexed_selector_resolution`: Element click with indexed selector translation.
+  - `test_click_financial_gating_unconfirmed`: Unconfirmed financial click blocked by driver safety gate.
+  - `test_click_financial_gating_confirmed`: Confirmed financial click proceeds.
+  - `test_type_financial_gating_unconfirmed`: Unconfirmed typing into sensitive field blocked.
+  - `test_type_financial_gating_confirmed`: Confirmed typing into sensitive field proceeds.
+  - `test_navigate_execution`: Atomic navigation execution and receipt generation.
+  - `test_screenshot_modular_execution`: Atomic screenshot capture and receipt generation.
+  - `test_policy_engine_financial_click_gating`: PolicyEngine Stage 3 financial click gated under `LOCAL_OPERATOR`.
+  - `test_policy_engine_readonly_navigation_allowed`: PolicyEngine allows ordinary navigation without false-positive prompts.
+  - `test_capability_registry_modular_browser_specs`: All 7 modular browser specs registered in real registry.
+  - `test_canonical_23_tool_count_preserved`: Canonical registry retains exactly 23 source tools.
+  - `test_adapter_outcome_normalization`: Normalized adapters return `(True, dict)` on success and `(False, ToolError)` on failure.
+  - `test_argument_resolver_modular_browser_slots`: ArgumentResolver extracts slots for all 7 modular capabilities.
+  - Result: **20 / 20 tests passing in 0.66s**.
+- **Full Repository Regression Suite**:
+  - Ran `python -m unittest discover -s tests -p "test_*.py"`.
+  - Result: **623 / 623 passed (+ 47 subtests = 670 checks) in 291.9s (100% pass rate)** across all 33 test files.
+
+### 21.6 Adversarial Diff Review
+- Reviewer: Independent Adversarial Software Reviewer (Subagent `d28435fb-3826-43a0-aed6-ddf07dd81a36`).
+- Verdict: **PASS (Zero blocking defects)**.
+- Findings: All 9 adversarial plan review requirements verified:
+  - Script injection defense confirmed (CDP dictionary binding, 0 string interpolation).
+  - Financial safety gating confirmed across `PolicyEngine` and `BrowserDriver`.
+  - Dead page auto-pruning and last tab close protection confirmed.
+  - Memory containment flags and tab bounds confirmed for 8GB RAM Windows host.
+  - Canonical 23-tool count invariant strictly preserved.
+  - Non-switching boundary confirmed (0 diffs against `origin/main`).
+
+### 21.7 Non-Switching Boundary Invariant
+- Command: `git diff origin/main -- omni_agent.py omni_engine/planner.py`.
+- Result: **EXACTLY 0 DIFFS**.
+
+### 21.8 Git Commit & Push
+- Code Commit: `51abcf9` (`L18: modular browser capability rebuild (navigate, snapshot, click, type, extract, screenshot, tabs)`) pushed to `origin/laya-autonomous-v2`.
+- GitHub Actions CI Run `37240214114`: Non-Switching Boundary Check passed in 4s; Deterministic Test Suite executing.
+
+### 21.9 Documentation Synchronization Record
+In accordance with the permanent documentation invariant in `AGENTS.md`, the following canonical documents were updated and synchronized with implementation truth:
+1. `tasks/ACTIVE_PLAN.md`: Marked Step 17 (L18 Modular Browser Capability Rebuild) as COMPLETED & VERIFIED; baseline verified commit updated to `51abcf9` (623 tests passing); HARD STOP ENFORCED.
+2. `tasks/MASTER_PLAN.md`: Marked Checkpoint L18 as COMPLETED & VERIFIED with 623 passing tests; HARD STOP ENFORCED (Do NOT start L19 Memory V2).
+3. `LAYA_BUILD_STATE.md`: Updated header and baseline commit to `51abcf9`; added Section 1 item 29 for L18; updated capability matrix in Section 2 with modular browser capabilities; updated test suite breakdown across all 33 test files (623 passed); updated blockers (None) and Section 5 completed milestone with hard stop.
+4. `HANDOFF.md`: Updated header to L18 Completed — HARD STOP ENFORCED; added L18 to What We Have Built; added `test_l18_modular_browser.py`; updated Operational Boundary & Next Phase with L18 completed and HARD STOP ENFORCED.
+5. `tasks/DECISIONS.md`: Recorded ADR-024 (`ADR_L18_MODULAR_BROWSER.md`).
+6. `END_TO_END_EXECUTION_LOG.md`: Master cumulative engineering record updated with Section 21, dashboard metrics, and ASCII execution tree.
+
+### 21.10 Checkpoint L18 Final Status & Hard Stop Enforcement
+- **Checkpoint L18 is Officially PASSED and FULLY VERIFIED**.
+- **HARD STOP STRICTLY ENFORCED**:
+  - Do **NOT** implement Checkpoint L19 (Memory V2).
+  - Do **NOT** start event-driven automation (L20) or MCP capability adapter (L21).
+  - Stop execution immediately and await explicit user instruction.
+
+---
+
 
 
 

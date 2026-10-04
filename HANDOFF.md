@@ -1,7 +1,18 @@
-# HANDOFF.md — Operational Continuation Guide (Checkpoint L17.5 Real Cloud Provider Integration Completed — Active on L18 Modular Browser Capability Rebuild)
+# HANDOFF.md — Operational Continuation Guide (Checkpoint L18 Modular Browser Capability Rebuild Completed — HARD STOP ENFORCED)
 
 ## What We Have Built (Current State)
-A **trustworthy pre-execution control plane, provider broker, five complete real capability execution engines, persisted SQLite Quest runtime, Operation Ledger with exactly-once mutation semantics, Structured DAG Planner with template-first precedence and building-block augmentation, 10-Pass Deterministic Plan Validator Firewall, Deterministic DAG Executor, Evidence-Based Completion Engine & Physical Domain Verifiers, Controlled Replanner & Recovery Loop, Role-Aware Generative Provider Router with User Sovereignty, Real Cloud Provider Integrations (OpenAI, Anthropic, DeepSeek), Hardened Adversarial Durability Gate, and Production V2 Operator CLI** powered by:
+A **trustworthy pre-execution control plane, provider broker, five complete real capability execution engines, modular browser capability rebuild with bounded session management, persisted SQLite Quest runtime, Operation Ledger with exactly-once mutation semantics, Structured DAG Planner with template-first precedence and building-block augmentation, 10-Pass Deterministic Plan Validator Firewall, Deterministic DAG Executor, Evidence-Based Completion Engine & Physical Domain Verifiers, Controlled Replanner & Recovery Loop, Role-Aware Generative Provider Router with User Sovereignty, Real Cloud Provider Integrations (OpenAI, Anthropic, DeepSeek), Hardened Adversarial Durability Gate, and Production V2 Operator CLI** powered by:
+- **Checkpoint L18: Modular Browser Capability Rebuild (COMPLETED & FULLY VERIFIED)**:
+  - ADR-024: Established the rebuild of Playwright browser capabilities into 7 discrete, session-backed primitives (`browser.navigate`, `browser.snapshot`, `browser.click`, `browser.type`, `browser.extract`, `browser.screenshot`, `browser.tabs`) with dotless aliases; bounded multi-tab management with strict `max_tabs=5`; DOM element indexing with form attribute scanning and financial tagging; script injection defense via CDP dictionary parameter binding; and PolicyEngine financial safety gating. Recorded in `tasks/DECISIONS.md`.
+  - Modular Contracts: Implemented in `omni_engine/contracts/browser.py` with `TabAction`, `TabInfo`, `BrowserTabsRequest`, `BrowserTabsResult`, `BrowserExtractRequest`, `BrowserExtractResult`, `BrowserNavigateRequest`, `BrowserNavigateResult`, `BrowserClickRequest`, `BrowserClickResult`, `BrowserTypeRequest`, `BrowserTypeResult`, `BrowserScreenshotModularRequest`, and `BrowserScreenshotModularResult` (`extra="forbid"`, `validate_assignment=True`). Exported in `omni_engine/contracts/__init__.py`.
+  - Session Substrate & Multi-Tab Decoupling: Implemented in `omni_engine/browser/session.py` with bounded multi-tab management (`max_tabs=5`), low-memory flags (`--renderer-process-limit=4`, `--max-old-space-size=512`, `--disable-dev-shm-usage`, `--no-sandbox`, `--disable-gpu`, `--disable-extensions`), `_prune_dead_pages()` auto-pruning closed or crashed pages (REV-L18-03), last tab close protection (REV-L18-04), and safe page closing with `run_before_unload=False`.
+  - DOM Action Indexer Financial Detection: Enhanced `omni_engine/browser/indexer.py` with form attribute scanning (`name`, `elem_id`, `placeholder`, `autocomplete`) and regex detection for credit card and financial keywords (REV-L18-07).
+  - Modular Browser Driver: Implemented in `omni_engine/browser/driver.py` with `extract()` using CDP parameter dictionary binding in `page.evaluate(_EXTRACT_SCRIPT, {...})` to eliminate script injection (REV-L18-01); indexed selector translation (`@N` to `[data-laya-idx="N"]`) (REV-L18-06); and atomic direct methods: `navigate()`, `click()`, `type_text()`, `take_screenshot()`, and `manage_tabs()`.
+  - Policy Engine Safety & Gating: Updated `omni_engine/policy/engine.py` Stage 0 and Stage 3 financial checks to match all `browser.` and `browser_` capabilities (REV-L18-02), enforcing `REQUIRE_CONFIRMATION` on financial clicks/typing/navigation below `WORKFLOW_AUTHORIZED`. Calibrated read-only browser capability base risk to 0.15.
+  - Capability Substrate Integration: Registered all 7 atomic capability specs in `omni_engine/capabilities/definitions.py` and `build_real_capability_registry()`, assigned `browser_screenshot_v2` to screenshot to prevent alias collision with canonical `browser_screenshot` (REV-L18-08), normalized adapters returning `(True, result.model_dump())` on success and `(False, ToolError(...))` on failure for truthful `ToolOutcome` mapping (REV-L18-09), and strictly preserved the canonical 23-tool count invariant in `build_canonical_registry()`.
+  - Argument Resolver Mapping: Added deterministic slot extraction for all 7 modular browser capabilities in `omni_engine/arguments/resolver.py`.
+  - Adversarial Diff Review: **PASS (Zero blocking defects)** (Subagent `d28435fb-3826-43a0-aed6-ddf07dd81a36`).
+  - Unit test suite: `tests/test_l18_modular_browser.py` (20/20 passed in 0.66s). Full repository suite: **623 automated tests (+ 47 subtests = 670 checks) passing across all 33 test files**.
 - **Checkpoint L17.5: Real Cloud Provider Integration (COMPLETED & FULLY VERIFIED)**:
   - ADR-023: Established direct cloud vendor integrations for OpenAI, Anthropic, and DeepSeek with native token resolution, rate-limit backoff budgets, and credential-isolation invariants. Recorded in `tasks/DECISIONS.md`.
   - Zero-Dependency Claude Messages Adapter: Implemented `AnthropicProvider` in `omni_engine/providers/cloud.py` using Python's standard library `urllib.request`. Enforces mandatory `max_tokens` (default 4096, minimum 1), clamped `temperature ∈ [0.0, 1.0]`, top-level `system` segregation (strictly excluding `role: system` from messages), multi-block text traversal, and anti-preamble prompt framing for JSON schema conformance. Supports offline testing via optional `transport_fn`.
@@ -178,6 +189,7 @@ A **trustworthy pre-execution control plane, provider broker, five complete real
   - `tests/test_l16_replanner.py` (11 tests)
   - `tests/test_l17_generative_router.py` (23 tests)
   - `tests/test_l17_5_cloud_providers.py` (18 tests)
+  - `tests/test_l18_modular_browser.py` (20 tests)
   - `tests/test_l1_repairs.py` (12 tests)
   - `tests/test_l2_1_reconciliation.py` (15 tests)
   - `tests/test_l2_contracts.py` (18 tests)
@@ -202,9 +214,9 @@ A **trustworthy pre-execution control plane, provider broker, five complete real
 ---
 
 ## Operational Boundary & Next Phase
-- **Completed Milestone Goal**: `L17.5 Real Cloud Provider Integration`.
-- **Status**: **COMPLETE & FULLY VERIFIED (100% Pass Rate across 603 automated tests + 47 subtests = 650 checks)**.
-- **Hard Stop Boundary**: Sequence: L16 (COMPLETED) → L17 (COMPLETED) → L17.5 (COMPLETED) → L18 (ACTIVE) → **HARD STOP** (Do NOT start L19 Memory V2). 0 diffs in `omni_agent.py` and `omni_engine/planner.py`.
+- **Completed Milestone Goal**: `L18 Modular Browser Capability Rebuild`.
+- **Status**: **COMPLETE & FULLY VERIFIED (100% Pass Rate across 623 automated tests + 47 subtests = 670 checks)**.
+- **Hard Stop Boundary**: Sequence: L16 (COMPLETED) → L17 (COMPLETED) → L17.5 (COMPLETED) → L18 (COMPLETED) → **HARD STOP ENFORCED** (Do NOT start L19 Memory V2). 0 diffs in `omni_agent.py` and `omni_engine/planner.py`.
 - **Milestone Sequence (All Completed)**:
   - RV0: Live Reality Gate across capability engines (System 1, Research, Browser, Windows Desktop, n8n, Antigravity with dirty worktree test) — **PASSED**.
   - L10: Persisted SQLite Quest Engine (`Quest`, `QuestStep`, `QuestEvent`) — **PASSED**.
@@ -219,6 +231,7 @@ A **trustworthy pre-execution control plane, provider broker, five complete real
   - L16: Controlled Replanner & Recovery Loop (ADR-021, strongly typed replanning contracts, blast radius containment, anti-oscillation attempt budgets, sub-DAG grafting, silent failure tolerance, executor coordinator loop integration) — **PASSED**.
   - L17: Role-Aware Generative Provider Router (ADR-022, strongly typed router contracts, model tiers, deterministic user sovereignty hierarchy, recoverable cascading fallbacks, drop-in GenerativeProvider compatibility, MockGenerativeProvider) — **PASSED**.
   - L17.5: Real Cloud Provider Integration (ADR-023, direct OpenAI adapter, zero-dependency Claude Messages adapter via urllib, DeepSeek adapter, SecretScrubber hardening for Anthropic keys and unquoted error headers, dual-layer token redaction, build_standard_generative_router factory) — **PASSED**.
-- **Next Milestone**: **L18 Modular Browser Capability Rebuild** (currently active). Sequence: L16 -> L17 -> L17.5 -> L18 -> **HARD STOP** (Do NOT start L19 Memory V2).
+  - L18: Modular Browser Capability Rebuild (ADR-024, 7 discrete atomic capability primitives `browser.navigate`, `browser.snapshot`, `browser.click`, `browser.type`, `browser.extract`, `browser.screenshot`, `browser.tabs`, bounded multi-tab management `max_tabs=5`, dead page auto-pruning, last tab protection, DOM form attribute scanning with financial tagging, CDP dict injection defense, PolicyEngine financial gating, canonical 23-tool count invariant) — **PASSED**.
+- **Next Milestone**: **HARD STOP ENFORCED**. Do NOT start L19 (Memory V2) without explicit user authorization. Sequence: L16 -> L17 -> L17.5 -> L18 -> **HARD STOP ENFORCED**.
 
 

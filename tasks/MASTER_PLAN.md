@@ -147,10 +147,10 @@ This guarantees that future multi-agent coordination or supervisor routing can b
 ### Phase V: Advanced Subsystems (L17 – L21)
 - [x] **L17 — Role-Aware Generative Provider Router (COMPLETED & VERIFIED)**:
   - Role-aware generative routing across 5 distinct roles (`ARGUMENT_WRITER`, `PLANNER`, `REPLANNER`, `FINALIZER`, `CODING`); performance tier calibration (`FAST`, `BALANCED`, `CAPABLE`); deterministic user sovereignty hierarchy (`USER_LOCKED`, `USER_PREFERRED`, `AUTO`); recoverable cascading fallback lifecycle (`RATE_LIMITED`, `TIMEOUT`, `NETWORK_ERROR`, `UNCONFIGURED`, structured `SCHEMA_VIOLATION`); granular `RouterTelemetry` emitted on every invocation; drop-in `GenerativeProvider(ABC)` compatibility; thread-safe offline testing via `MockGenerativeProvider`. 23/23 unit and integration tests passing in 0.21s. Full repository suite: **585 passed (+ 47 subtests = 632 checks); verified on GitHub Actions CI Run 37236418045**.
-- [ ] **L17.5 — Real Cloud Provider Integration (ACTIVE)**:
-  - Direct cloud vendor integrations for Anthropic, OpenAI, and DeepSeek with native JSON schema extraction, structured health checks, and proxy fallback cascades.
-- [ ] **L18 — Modular Browser Capability Rebuild**:
-  - Rebuild Playwright Edge into atomic, session-backed primitives (`navigate`, `snapshot`, `click`, `type`, `extract`, `screenshot`, `tabs`).
+- [x] **L17.5 — Real Cloud Provider Integration (COMPLETED & VERIFIED)**:
+  - Direct cloud vendor integrations for OpenAI, Anthropic, and DeepSeek; zero-dependency Claude Messages API adapter using `urllib.request` with mandatory `max_tokens` (minimum 1, default 4096), clamped `temperature ∈ [0.0, 1.0]`, top-level `system` segregation, anti-preamble prompt framing, and multi-block text extraction; `DirectOpenAIProvider` with non-throwing `__init__`, empty prompt defense, and structured validation; `DeepSeekProvider` preconfigured for `api.deepseek.com`; `SecretScrubber` hardening for Anthropic keys and unquoted HTTP error dumps; dual-layer token replacement; `build_standard_generative_router` factory. 18/18 unit tests passing in 3.23s. Full repository suite: **603 passed (+ 47 subtests = 650 total checks)**.
+- [ ] **L18 — Modular Browser Capability Rebuild (ACTIVE)**:
+  - Rebuild Playwright Edge into atomic, session-backed primitives (`navigate`, `snapshot`, `click`, `type`, `extract`, `screenshot`, `tabs`). HARD STOP immediately after L18.
 - [ ] **L19 — Memory V2 (Working, Episodic, Semantic, Procedural)**:
   - Persistent SQLite memory storing verified outcome receipts and skill effectiveness scores.
 - [ ] **L20 — Persistent Event-Driven Automation Engine**:

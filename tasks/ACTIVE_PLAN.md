@@ -1,11 +1,11 @@
 # ACTIVE_PLAN.md — Active Milestone: Phase V Advanced Subsystems (L17 – L18)
 
-## Current Active Checkpoint: L17.5 — Real Cloud Provider Integration (ACTIVE)
+## Current Active Checkpoint: L18 — Modular Browser Capability Rebuild (ACTIVE)
 
-- **Milestone Scope**: Phase V: L17 Role-Aware Generative Provider Router (COMPLETED) → L17.5 Real Cloud Provider Integration (ACTIVE) → L18 Modular Browser Capability Rebuild.
+- **Milestone Scope**: Phase V: L17 Role-Aware Generative Provider Router (COMPLETED) → L17.5 Real Cloud Provider Integration (COMPLETED) → L18 Modular Browser Capability Rebuild (ACTIVE).
 - **Target Branch**: `laya-autonomous-v2`
-- **Baseline Verified Commit**: `0133b35` (`L17: role-aware generative provider router`) on `laya-autonomous-v2` (585 automated tests + 47 subtests = 632 checks passing, 0 failures; verified locally and on GitHub Actions CI Run 37236418045).
-- **Hard Stop Boundary**: Sequence: L16 (COMPLETED) → L17 (COMPLETED) → L17.5 (ACTIVE) → L18 → **HARD STOP** (Do NOT start L19 Memory V2).
+- **Baseline Verified Commit**: `49e220f` (`L17.5: real cloud provider integration (OpenAI, Anthropic, DeepSeek)`) on `laya-autonomous-v2` (603 automated tests + 47 subtests = 650 checks passing, 0 failures; verified locally).
+- **Hard Stop Boundary**: Sequence: L16 (COMPLETED) → L17 (COMPLETED) → L17.5 (COMPLETED) → L18 (ACTIVE) → **HARD STOP** (Do NOT start L19 Memory V2).
 - **Permanent Invariants**:
   1. `END_TO_END_EXECUTION_LOG.md` is the master cumulative engineering record (must record research, plans, diffs, tests, reviews, repairs, decisions, and documentation updates).
   2. Legacy non-switching boundary: `omni_agent.py` and `omni_engine/planner.py` remain 100% untouched (0 diffs).
@@ -327,25 +327,55 @@
 
 ---
 
-### Step 16: L17.5 — Real Cloud Provider Integration (ACTIVE)
-- [ ] **External Research & ADR-023**:
-  - Evaluate direct cloud vendor SDKs vs OpenRouter proxying for LAYA autonomous roles (OpenAI, Anthropic, DeepSeek, Google Gemini).
-  - Define authentication token resolution, rate-limit backoff budgets, and credential-isolation invariants (Invariants 1, 4, and `docs/SECURITY_AND_POLICY.md`).
-  - Author `docs/research/ADR_L17_5_REAL_CLOUD_PROVIDERS.md` and record in `tasks/DECISIONS.md`.
-- [ ] **Real Provider Adapters (`omni_engine/providers/cloud/`)**:
-  - Direct Anthropic provider (`AnthropicProvider`) supporting Messages API and tool schemas.
-  - Direct OpenAI provider (`DirectOpenAIProvider`) with native structured output (`response_format={"type": "json_schema"}`).
-  - DeepSeek provider (`DeepSeekProvider`) optimized for `CODING` and `PLANNER` roles.
-  - Standardized health probing, dynamic model listing, and zero-leak credential hygiene.
-- [ ] **Router Cloud Multi-Provider Wire-Up**:
-  - Wire direct cloud providers alongside `OpenRouterProvider` and `MockGenerativeProvider` in `GenerativeRouter`.
-  - Calibrate role default configs to prefer direct endpoints when credentials exist, cascading to OpenRouter.
+### Step 16: L17.5 — Real Cloud Provider Integration (COMPLETED & VERIFIED)
+- [x] **External Research & ADR-023**:
+  - Researched direct cloud vendor APIs vs OpenRouter proxying for LAYA autonomous roles (OpenAI, Anthropic, DeepSeek).
+  - Addressed vendor constraints: Anthropic mandatory `max_tokens` (rejects requests without `max_tokens` or with `max_tokens < 1`), temperature floor/ceiling (`[0.0, 1.0]`), strict exclusion of `role: system` from `messages` array, and anti-preamble prompt framing for JSON schema conformance.
+  - Authored `docs/research/ADR_L17_5_REAL_CLOUD_PROVIDERS.md` (ADR-023) and recorded in `tasks/DECISIONS.md`.
+- [x] **Adversarial Plan Review**:
+  - Independent subagent review issued **APPROVED WITH MANDATORY BLOCKING REPAIRS** (REV-17.5-01 through REV-17.5-06).
+  - All 6 blocking repairs resolved prior to implementation.
+- [x] **Secret Scrubber Hardening (`omni_engine/automation/scrubber.py`)**:
+  - Added regex for Anthropic API keys (`sk-ant-api03-...`, `sk-ant-...`).
+  - Added regex for unquoted HTTP header error dumps (`x-api-key: ...`, `authorization: ...`).
+- [x] **Real Cloud Provider Adapters (`omni_engine/providers/cloud.py`)**:
+  - `DirectOpenAIProvider`: Direct OpenAI API adapter using `openai.OpenAI`, non-throwing `__init__`, empty prompt defense, structured validation, per-invocation model and timeout overrides, and lightweight model health probes.
+  - `AnthropicProvider`: Zero-dependency Claude Messages API adapter implemented via standard library `urllib.request` (zero external dependencies), mandatory `max_tokens` (default 4096, minimum 1), clamped `temperature ∈ [0.0, 1.0]`, top-level `system` segregation, multi-block text traversal, anti-preamble prompt framing, HTTP error normalization, and mock transport injection (`transport_fn`).
+  - `DeepSeekProvider`: Subclass of `DirectOpenAIProvider` preconfigured for `https://api.deepseek.com` and `deepseek-chat`.
+  - `build_standard_generative_router`: Factory wiring direct cloud providers (`openai`, `anthropic`, `deepseek`) alongside `openrouter` and `mock` fallbacks in `GenerativeRouter`.
+  - `sanitize_provider_error`: Dual-layer literal token replacement and regex scrubbing preventing API keys from leaking in tracebacks or error messages.
+- [x] **Exports (`omni_engine/providers/__init__.py`)**:
+  - Exported all cloud provider classes and helpers in `__all__`.
+- [x] **Unit & Adversarial Testing (`tests/test_l17_5_cloud_providers.py`)**:
+  - 18 comprehensive tests covering: OpenAI text and structured generation, Anthropic Messages API payload/traversal and temperature clamping, DeepSeek client configuration, unconfigured provider cascading under `AUTO` / `USER_PREFERRED` and fast-failing under `USER_LOCKED`, secret redaction in exception strings and error dumps, and router URI dispatch. All 18 tests pass in 3.23s.
+- [x] **Adversarial Diff Review, Full Regression & Remote CI**:
+  - Independent subagent review returned **PASS** with zero blocking defects (Subagent `cae1ba2e-74b6-442b-a39e-2e419de6cc59`).
+  - Full test suite: **603 automated tests passing across 32 test files (100% pass rate) (+ 47 subtests = 650 total checks)**.
+  - Non-switching boundary: exactly 0 diffs on `omni_agent.py` and `omni_engine/planner.py`.
+  - Committed (`49e220f`), pushed to `origin/laya-autonomous-v2`.
+
+---
+
+### Step 17: L18 — Modular Browser Capability Rebuild (ACTIVE)
+- [ ] **External Research & ADR-024**:
+  - Audit Playwright browser integration for atomic capability decomposition.
+  - Evaluate session pooling, DOM snapshotting, tab isolation, and memory containment on Windows (8GB host RAM limit).
+  - Define atomic capability contracts: `browser.navigate`, `browser.snapshot`, `browser.click`, `browser.type`, `browser.extract`, `browser.screenshot`, `browser.tabs`.
+  - Author `docs/research/ADR_L18_MODULAR_BROWSER.md` and record in `tasks/DECISIONS.md`.
+- [ ] **Modular Browser Contracts (`omni_engine/contracts/browser.py`)**:
+  - Rebuild contracts with strict Pydantic v2 schemas (`extra="forbid"`).
+  - Define input schemas, physical outcome verification receipts, and action class classifications.
+- [ ] **Browser Substrate Implementation (`omni_engine/browser/`)**:
+  - Decouple `BrowserSession` into modular primitives.
+  - Implement atomic operations with bounded timeouts, memory cleanup, and leak defense.
+  - Register capabilities in `CapabilityRegistry` and `PolicyEngine`.
 - [ ] **Adversarial Plan Review**:
-  - Independent subagent review for credential leakage, timeout deadlines, and offline testability.
-- [ ] **Unit & Adversarial Testing (`tests/test_l17_5_cloud_providers.py`)**:
-  - 100% offline unit tests with mock HTTP transports for Anthropic, OpenAI, DeepSeek adapters.
-  - Verify credential masking in telemetry, error redaction, and fallback between direct and proxy providers.
-- [ ] **Full Regression Suite & Remote CI Verification**:
-  - Verify all 585+ tests pass, 0 diffs on legacy boundary, commit, push, and remote CI verification.
+  - Independent subagent review for process lifecycle, stale DOM element handling, and financial action gating.
+- [ ] **Unit & Adversarial Testing (`tests/test_l18_modular_browser.py`)**:
+  - 100% offline unit tests with mock browser/HTML fixtures.
+  - Verify atomic capability dispatch, error receipts, and session cleanup.
+- [ ] **Full Regression Suite, CI & HARD STOP Enforcement**:
+  - Verify all 600+ tests pass, 0 boundary diffs, commit, push, CI green.
+  - **ENFORCE HARD STOP**: Stop immediately after L18 (do NOT start L19 Memory V2).
 
 

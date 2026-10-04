@@ -11,15 +11,15 @@
 | **System Role** | Standalone Autonomous Operating Agent (Independent from Jarvis Core V2) |
 | **Active Architecture Branch** | `laya-autonomous-v2` |
 | **Public GitHub Remote** | `https://github.com/yashrastogi069-dev/laya-omni-agent.git` |
-| **Latest Branch Commit** | `0133b35` (`L17: role-aware generative provider router`) on `laya-autonomous-v2` |
-| **Total Automated Tests** | **585 / 585 Passing (100%)** (+ 47 subtests = 632 total checks) |
-| **GitHub Actions CI Status** | **100% GREEN (Run 37236418045)**: Deterministic Test Suite (4m18s) & Non-Switching Boundary Check (4s) |
-| **Test Categorization** | **583 Feature Acceptance Tests** + **2 Known Defect Reproduction Tests** |
+| **Latest Branch Commit** | `49e220f` (`L17.5: real cloud provider integration (OpenAI, Anthropic, DeepSeek)`) on `laya-autonomous-v2` |
+| **Total Automated Tests** | **603 / 603 Passing (100%)** (+ 47 subtests = 650 total checks) |
+| **GitHub Actions CI Status** | **IN PROGRESS (Run 37238048867)**: Non-Switching Boundary Check (Passed in 4s), Deterministic Test Suite executing |
+| **Test Categorization** | **601 Feature Acceptance Tests** + **2 Known Defect Reproduction Tests** |
 | **Known Warnings Classification** | **4 Warnings Emitted**: `RuntimeWarning` from `laya/router.py:187` (Upstream library temperature outside [0.5, 5] clamping — BENIGN/UPSTREAM); 0 unhandled warnings in test suite |
 | **Calibration Status** | **Intent Signal**: Calibrated (ECE 0.1192, 72/31 stratified corpus split); **Domain Signal**: Uncalibrated (Deterministic fail-open fallback, cross-domain pooling, and escalation) |
 | **Hardware Operating Baseline** | Windows 10 Host, 4 CPU Cores, 7.81 GB RAM, PyTorch 2.13.0+cpu, NO CUDA GPU (CPU DecisionFrame latency ~15.4s; SystemOneBroker enforces user sovereignty, RAM threshold debouncing, and quality floor) |
-| **Checkpoints Completed** | **L0–L17, Foundation Gate, R1, R2, R3, R4, R5, RV0** |
-| **Active Milestone & Checkpoint** | **CHECKPOINT COMPLETE: L17 ROLE-AWARE GENERATIVE PROVIDER ROUTER ACHIEVED (100% GREEN CI — ACTIVE ON L17.5)** |
+| **Checkpoints Completed** | **L0–L17.5, Foundation Gate, R1, R2, R3, R4, R5, RV0** |
+| **Active Milestone & Checkpoint** | **CHECKPOINT COMPLETE: L17.5 REAL CLOUD PROVIDER INTEGRATION ACHIEVED (ACTIVE ON L18 MODULAR BROWSER CAPABILITY REBUILD)** |
 
 ---
 
@@ -128,7 +128,10 @@
 [L17: ROLE-AWARE GENERATIVE PROVIDER ROUTER]
        │ ── 23/23 Router Tests Passing (Commit: 0133b35); 585/585 Repository Tests Passing (+47 subtests = 632 checks)
        ▼
-[ACTIVE CHECKPOINT L17.5: REAL CLOUD PROVIDER INTEGRATION]
+[L17.5: REAL CLOUD PROVIDER INTEGRATION]
+       │ ── 18/18 Cloud Provider Tests Passing (Commit: 49e220f); 603/603 Repository Tests Passing (+47 subtests = 650 checks)
+       ▼
+[ACTIVE CHECKPOINT L18: MODULAR BROWSER CAPABILITY REBUILD]
 ```
 
 ---
@@ -3529,6 +3532,105 @@ In accordance with the permanent documentation invariant in `AGENTS.md`, the fol
 ### 19.10 Checkpoint L17 Final Status & Transition to L17.5
 - **Checkpoint L17 is Officially PASSED, FULLY VERIFIED, and 100% GREEN ON CI**.
 - **Active Checkpoint Advanced**: **Checkpoint L17.5: Real Cloud Provider Integration**.
+
+---
+
+## 20. Checkpoint L17.5: Real Cloud Provider Integration (OpenAI, Anthropic, DeepSeek)
+
+### 20.1 Overview & Motivation
+Following the completion of Checkpoint L17 (Role-Aware Generative Provider Router), Checkpoint L17.5 introduces native, direct integrations for tier-1 frontier cloud providers:
+1. **Direct OpenAI (`DirectOpenAIProvider`)**: Direct connectivity to `https://api.openai.com/v1` for GPT-4o and GPT-4o-mini.
+2. **Direct Anthropic (`AnthropicProvider`)**: Direct connectivity to Claude Messages API (`https://api.anthropic.com/v1/messages`) for Claude 3.5 Sonnet and Claude 3.5 Haiku.
+3. **DeepSeek (`DeepSeekProvider`)**: Direct connectivity to `https://api.deepseek.com` for DeepSeek-V3 / DeepSeek-Chat, optimized for `CODING` and `PLANNER` roles.
+4. **Standard Router Wiring (`build_standard_generative_router`)**: Multi-provider registry wiring direct cloud providers alongside OpenRouter and Mock providers in `GenerativeRouter`.
+
+### 20.2 Research, Architecture & ADR-023
+- **Research Scope**: Authored `docs/research/ADR_L17_5_REAL_CLOUD_PROVIDERS.md` (ADR-023) and recorded in `tasks/DECISIONS.md`.
+- **Package Dependency Audit**:
+  - `openai>=1.0.0` is present in the host environment and used for `DirectOpenAIProvider` and `DeepSeekProvider`.
+  - `anthropic` SDK is NOT installed on the host. To prevent third-party package bloat and ensure zero external dependencies, `AnthropicProvider` was implemented using Python's standard library `urllib.request`.
+- **Anthropic Messages API Invariants & Edge Cases**:
+  - Anthropic strictly requires `max_tokens` (returns HTTP 400 Bad Request if omitted or `<= 0`). Clamped to `max(1, int(max_tokens if max_tokens is not None else 4096))`.
+  - Anthropic strictly restricts `temperature ∈ [0.0, 1.0]`. Clamped defensively.
+  - Anthropic strictly rejects `"role": "system"` inside the `messages` array. System prompts are extracted and placed strictly in the top-level `payload["system"]` field.
+  - Anti-Preamble Prompt Framing: `generate_structured` injects explicit anti-preamble instructions to ensure Claude does not prepend conversational filler before returning raw JSON.
+- **Dual-Layer Secret Redaction**:
+  - `SecretScrubber` patterns extended to cover Anthropic API keys (`sk-ant-api03-...`, `sk-ant-...`) and unquoted HTTP headers (`x-api-key: ...`, `authorization: ...`).
+  - `sanitize_provider_error`: Performs literal replacement of provider API keys followed by regex scrubbing, ensuring credentials never leak into exceptions, logs, or telemetry envelopes.
+
+### 20.3 Adversarial Plan Review & Blocking Repairs
+An independent adversarial review conducted by Subagent `beff5ca4-b590-44ad-a1bc-b8b2fa20e9b7` issued **APPROVED WITH MANDATORY BLOCKING REPAIRS** (REV-17.5-01 through REV-17.5-06):
+- **REV-17.5-01 (Anthropic Max Tokens & Temperature Floor)**: Mandated `max_tokens >= 1` and clamped `temperature ∈ [0.0, 1.0]`.
+- **REV-17.5-02 (Anthropic Role Segregation & Content Extraction)**: Mandated top-level system prompt segregation and safe multi-block text traversal over `content`.
+- **REV-17.5-03 (Secret Scrubber Completeness & Unquoted Header Defense)**: Mandated regex patterns for unquoted header error dumps and dual-layer literal replacement.
+- **REV-17.5-04 (Non-Throwing Initialization & Safe Unconfigured State)**: Mandated that missing API keys during `__init__` do not throw exceptions; providers set `is_configured = False` and raise `ProviderError(ErrorCode.UNCONFIGURED, ...)` on invocation, enabling transparent router cascading.
+- **REV-17.5-05 (Zero-Dependency Claude Transport)**: Standard library `urllib.request` implementation with optional `transport_fn` dependency injection for 100% offline unit testing.
+- **REV-17.5-06 (Non-Switching Boundary & Verification)**: Maintained 0 diffs on legacy boundary files and verified full test suite.
+
+### 20.4 Implementation Details
+- **`omni_engine/automation/scrubber.py`**:
+  - Added regex for Anthropic keys: `r"\bsk-ant-(?:api\d{2}-)?[A-Za-z0-9_-]{20,}\b"`.
+  - Added regex for unquoted HTTP header dumps: `r"(?i)\b(?:x-api-key|authorization)\s*[:=]\s*['\"]?([^\s'\"]{8,})"`.
+- **`omni_engine/providers/cloud.py`**:
+  - `sanitize_provider_error(error_msg, api_key)`: Dual-layer credential redaction.
+  - `DirectOpenAIProvider`: Implemented OpenAI client wrapper with non-throwing `__init__`, empty prompt defense, structured JSON schema extraction, per-invocation model and timeout overrides, and lightweight model health probing.
+  - `AnthropicProvider`: Implemented Claude Messages API client with mandatory `max_tokens` (default 4096, minimum 1), clamped temperature `[0.0, 1.0]`, top-level system segregation, text block traversal, anti-preamble prompt framing, HTTP error normalization, and mock transport injection (`transport_fn`).
+  - `DeepSeekProvider`: Subclass of `DirectOpenAIProvider` preconfigured for `api.deepseek.com` and `deepseek-chat`.
+  - `build_standard_generative_router()`: Multi-provider router factory instantiating OpenAI, Anthropic, DeepSeek, OpenRouter, and Mock providers in `GenerativeRouter`.
+- **`omni_engine/providers/__init__.py`**:
+  - Exported `DirectOpenAIProvider`, `AnthropicProvider`, `DeepSeekProvider`, `build_standard_generative_router`, and `sanitize_provider_error` in `__all__`.
+
+### 20.5 Test Evidence & Benchmark Metrics
+- **Targeted Cloud Provider Test Suite (`tests/test_l17_5_cloud_providers.py`)**:
+  - `test_direct_openai_text_generation`: OpenAI text completion and usage extraction.
+  - `test_direct_openai_structured_generation`: OpenAI structured JSON schema validation.
+  - `test_direct_openai_empty_prompt_rejected`: Empty prompt fails fast with `INVALID_ARGUMENT`.
+  - `test_direct_openai_unconfigured_behavior`: Unconfigured state raises `UNCONFIGURED`.
+  - `test_anthropic_messages_api_payload_and_traversal`: Messages payload formatting, system segregation, and multi-block traversal.
+  - `test_anthropic_structured_generation_with_strict_preamble_framing`: Anti-preamble framing and schema extraction.
+  - `test_anthropic_temperature_lower_bound_clamping`: Clamps out-of-range temperatures safely to `[0.0, 1.0]`.
+  - `test_anthropic_unconfigured_behavior`: Unconfigured state raises `UNCONFIGURED`.
+  - `test_deepseek_provider_configuration`: DeepSeek base URL and model defaults.
+  - `test_unconfigured_cloud_provider_cascades_transparently`: Unconfigured provider cascades to fallback under `AUTO`.
+  - `test_user_locked_unconfigured_cloud_provider_fails_fast`: `USER_LOCKED` on unconfigured provider fails fast.
+  - `test_secret_redaction_in_exception`: Exception strings redact literal API keys and header dumps.
+  - `test_anthropic_error_code_normalization_and_secret_redaction`: HTTP 401, 429, 500 error code normalization with key redaction.
+  - `test_router_uri_scheme_dispatch_to_cloud_providers`: Router URI syntax (`openai:model`, `anthropic:model`, `deepseek:model`) dispatches correctly.
+  - `test_build_standard_generative_router`: Factory registers all providers and configures role routes.
+  - `test_direct_openai_health_check_success`: Health check verifies client connectivity.
+  - `test_direct_openai_health_check_failure`: Health check normalizes errors safely.
+  - `test_anthropic_health_check_success_and_failure`: Anthropic health probing.
+  - Result: **18 / 18 tests passing in 3.23s**.
+- **Full Repository Regression Suite**:
+  - Ran `python -m unittest discover -s tests -p "test_*.py"`.
+  - Result: **603 / 603 passed (+ 47 subtests = 650 checks) in 315.58s (100% pass rate)** across all 32 test files.
+
+### 20.6 Adversarial Diff Review
+- Reviewer: Independent Adversarial Software Reviewer (Subagent `cae1ba2e-74b6-442b-a39e-2e419de6cc59`).
+- Verdict: **PASS (Zero blocking defects)**.
+- Findings: All 6 adversarial plan review requirements verified; temperature clamping and token budgets confirmed; secret scrubber completeness verified; zero external package dependencies for Anthropic; legacy boundary preserved. Non-blocking recommendation to defensively clamp `target_tokens = max(1, ...)` was applied and verified.
+
+### 20.7 Non-Switching Boundary Invariant
+- Command: `git diff origin/main -- omni_agent.py omni_engine/planner.py`.
+- Result: **EXACTLY 0 DIFFS**.
+
+### 20.8 Git Commit & Push
+- Commit `49e220f` (`L17.5: real cloud provider integration (OpenAI, Anthropic, DeepSeek)`) pushed to `origin/laya-autonomous-v2`.
+- GitHub Actions CI Run `37238048867`: Non-Switching Boundary Check passed in 4s.
+
+### 20.9 Documentation Synchronization Record
+In accordance with the permanent documentation invariant in `AGENTS.md`, the following canonical documents were updated and synchronized with implementation truth:
+1. `tasks/ACTIVE_PLAN.md`: Marked Step 16 (L17.5) as COMPLETED & VERIFIED; added Step 17 (L18 Modular Browser Capability Rebuild) as ACTIVE; updated baseline commit to `49e220f` and test count to 603.
+2. `tasks/MASTER_PLAN.md`: Marked L17.5 as COMPLETED & VERIFIED; added L18 Modular Browser Capability Rebuild as ACTIVE; updated test count to 603.
+3. `LAYA_BUILD_STATE.md`: Updated header and baseline commit to `49e220f`; added Section 1 item 28 for L17.5; updated test suite breakdown across all 32 test files (603 passed); updated active milestone to L18.
+4. `HANDOFF.md`: Updated header to L17.5 Completed — Active on L18; added L17.5 to What We Have Built; added `test_l17_5_cloud_providers.py`; updated Operational Boundary & Next Phase with L17.5 completed and L18 active.
+5. `tasks/DECISIONS.md`: Recorded ADR-023 (`ADR_L17_5_REAL_CLOUD_PROVIDERS.md`).
+6. `END_TO_END_EXECUTION_LOG.md`: Master cumulative engineering record updated with Section 20, dashboard metrics, and ASCII execution tree.
+
+### 20.10 Checkpoint L17.5 Final Status & Transition to L18
+- **Checkpoint L17.5 is Officially PASSED and FULLY VERIFIED**.
+- **Active Checkpoint Advanced**: **Checkpoint L18: Modular Browser Capability Rebuild**.
+- **Hard Stop Boundary Reminder**: Strictly sequence L16 (COMPLETED) → L17 (COMPLETED) → L17.5 (COMPLETED) → L18 (ACTIVE) → **HARD STOP** (Do NOT start L19 Memory V2).
 
 ---
 

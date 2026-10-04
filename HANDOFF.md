@@ -1,7 +1,15 @@
-# HANDOFF.md — Operational Continuation Guide (Checkpoint L17 Generative Router Completed — Active on L17.5 Real Cloud Provider Integration)
+# HANDOFF.md — Operational Continuation Guide (Checkpoint L17.5 Real Cloud Provider Integration Completed — Active on L18 Modular Browser Capability Rebuild)
 
 ## What We Have Built (Current State)
-A **trustworthy pre-execution control plane, provider broker, five complete real capability execution engines, persisted SQLite Quest runtime, Operation Ledger with exactly-once mutation semantics, Structured DAG Planner with template-first precedence and building-block augmentation, 10-Pass Deterministic Plan Validator Firewall, Deterministic DAG Executor, Evidence-Based Completion Engine & Physical Domain Verifiers, Controlled Replanner & Recovery Loop, Role-Aware Generative Provider Router with User Sovereignty, Hardened Adversarial Durability Gate, and Production V2 Operator CLI** powered by:
+A **trustworthy pre-execution control plane, provider broker, five complete real capability execution engines, persisted SQLite Quest runtime, Operation Ledger with exactly-once mutation semantics, Structured DAG Planner with template-first precedence and building-block augmentation, 10-Pass Deterministic Plan Validator Firewall, Deterministic DAG Executor, Evidence-Based Completion Engine & Physical Domain Verifiers, Controlled Replanner & Recovery Loop, Role-Aware Generative Provider Router with User Sovereignty, Real Cloud Provider Integrations (OpenAI, Anthropic, DeepSeek), Hardened Adversarial Durability Gate, and Production V2 Operator CLI** powered by:
+- **Checkpoint L17.5: Real Cloud Provider Integration (COMPLETED & FULLY VERIFIED)**:
+  - ADR-023: Established direct cloud vendor integrations for OpenAI, Anthropic, and DeepSeek with native token resolution, rate-limit backoff budgets, and credential-isolation invariants. Recorded in `tasks/DECISIONS.md`.
+  - Zero-Dependency Claude Messages Adapter: Implemented `AnthropicProvider` in `omni_engine/providers/cloud.py` using Python's standard library `urllib.request`. Enforces mandatory `max_tokens` (default 4096, minimum 1), clamped `temperature ∈ [0.0, 1.0]`, top-level `system` segregation (strictly excluding `role: system` from messages), multi-block text traversal, and anti-preamble prompt framing for JSON schema conformance. Supports offline testing via optional `transport_fn`.
+  - Direct OpenAI & DeepSeek Adapters: Implemented `DirectOpenAIProvider` with non-throwing `__init__`, empty prompt defense, structured Pydantic validation, per-invocation model and timeout overrides, and lightweight model health probes. Implemented `DeepSeekProvider` preconfigured for `api.deepseek.com` and `deepseek-chat`.
+  - Dual-Layer Secret Redaction: Hardened `omni_engine/automation/scrubber.py` to scrub Anthropic API keys (`sk-ant-api03-...`, `sk-ant-...`) and unquoted HTTP header error dumps (`x-api-key: ...`, `authorization: ...`). Implemented `sanitize_provider_error` performing exact literal replacement of provider API keys followed by broad regex scrubbing.
+  - Router Factory: Implemented `build_standard_generative_router` wiring direct cloud providers alongside OpenRouter and Mock providers in `GenerativeRouter`.
+  - Adversarial Diff Review: **PASS (Zero blocking defects)** (Subagent `cae1ba2e-74b6-442b-a39e-2e419de6cc59`).
+  - Unit test suite: `tests/test_l17_5_cloud_providers.py` (18/18 passed in 3.23s). Full repository suite: **603 automated tests (+ 47 subtests = 650 checks) passing across all 32 test files**.
 - **Checkpoint L17: Role-Aware Generative Provider Router (COMPLETED & FULLY VERIFIED)**:
   - ADR-022: Established role taxonomy (`ARGUMENT_WRITER`, `PLANNER`, `REPLANNER`, `FINALIZER`, `CODING`), model tiers (`FAST`, `BALANCED`, `CAPABLE`), deterministic user sovereignty hierarchy (`USER_LOCKED`, `USER_PREFERRED`, `AUTO`), recoverable cascading fallback lifecycle, and drop-in `GenerativeProvider(ABC)` compatibility. Recorded in `tasks/DECISIONS.md`.
   - Strongly Typed Router Contracts: `AgentRole`, `ModelTier`, `ModelSovereigntyLevel`, `RoleRouteConfig`, `RouterTelemetry`, and calibrated `DEFAULT_ROLE_CONFIGS` (`extra="forbid"`). Exported in `omni_engine/contracts/__init__.py`.
@@ -169,6 +177,7 @@ A **trustworthy pre-execution control plane, provider broker, five complete real
   - `tests/test_l15_verification.py` (12 tests)
   - `tests/test_l16_replanner.py` (11 tests)
   - `tests/test_l17_generative_router.py` (23 tests)
+  - `tests/test_l17_5_cloud_providers.py` (18 tests)
   - `tests/test_l1_repairs.py` (12 tests)
   - `tests/test_l2_1_reconciliation.py` (15 tests)
   - `tests/test_l2_contracts.py` (18 tests)
@@ -193,9 +202,9 @@ A **trustworthy pre-execution control plane, provider broker, five complete real
 ---
 
 ## Operational Boundary & Next Phase
-- **Completed Milestone Goal**: `L17 Role-Aware Generative Provider Router`.
-- **Status**: **COMPLETE & FULLY VERIFIED (100% Pass Rate across 585 automated tests + 47 subtests = 632 checks; verified on GitHub Actions CI Run 37236418045)**.
-- **Hard Stop Boundary**: Sequence: L16 (COMPLETED) → L17 (COMPLETED) → L17.5 (ACTIVE) → L18 → **HARD STOP** (Do NOT start L19 Memory V2). 0 diffs in `omni_agent.py` and `omni_engine/planner.py`.
+- **Completed Milestone Goal**: `L17.5 Real Cloud Provider Integration`.
+- **Status**: **COMPLETE & FULLY VERIFIED (100% Pass Rate across 603 automated tests + 47 subtests = 650 checks)**.
+- **Hard Stop Boundary**: Sequence: L16 (COMPLETED) → L17 (COMPLETED) → L17.5 (COMPLETED) → L18 (ACTIVE) → **HARD STOP** (Do NOT start L19 Memory V2). 0 diffs in `omni_agent.py` and `omni_engine/planner.py`.
 - **Milestone Sequence (All Completed)**:
   - RV0: Live Reality Gate across capability engines (System 1, Research, Browser, Windows Desktop, n8n, Antigravity with dirty worktree test) — **PASSED**.
   - L10: Persisted SQLite Quest Engine (`Quest`, `QuestStep`, `QuestEvent`) — **PASSED**.
@@ -209,6 +218,7 @@ A **trustworthy pre-execution control plane, provider broker, five complete real
   - L15: Evidence-Based Verifier & Completion Engine (ADR-020, strongly typed contracts, 8 deterministic domain verifiers, SQLite verification store, ObjectiveCompletionEngine, cryptographic evidence hash, negative constraint audit) — **PASSED**.
   - L16: Controlled Replanner & Recovery Loop (ADR-021, strongly typed replanning contracts, blast radius containment, anti-oscillation attempt budgets, sub-DAG grafting, silent failure tolerance, executor coordinator loop integration) — **PASSED**.
   - L17: Role-Aware Generative Provider Router (ADR-022, strongly typed router contracts, model tiers, deterministic user sovereignty hierarchy, recoverable cascading fallbacks, drop-in GenerativeProvider compatibility, MockGenerativeProvider) — **PASSED**.
-- **Next Milestone**: **L17.5 Real Cloud Provider Integration** (currently active).
+  - L17.5: Real Cloud Provider Integration (ADR-023, direct OpenAI adapter, zero-dependency Claude Messages adapter via urllib, DeepSeek adapter, SecretScrubber hardening for Anthropic keys and unquoted error headers, dual-layer token redaction, build_standard_generative_router factory) — **PASSED**.
+- **Next Milestone**: **L18 Modular Browser Capability Rebuild** (currently active). Sequence: L16 -> L17 -> L17.5 -> L18 -> **HARD STOP** (Do NOT start L19 Memory V2).
 
 

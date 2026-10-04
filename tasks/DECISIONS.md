@@ -293,4 +293,20 @@
   6. **Decoupled Transport for 100% Offline Testing**: Support transport injection / mock handlers allowing offline testing without live external API keys.
   7. **Router Multi-Provider Wire-Up**: Register direct adapters in `GenerativeRouter` under identifiers `"openai"`, `"anthropic"`, `"deepseek"`, accessible via provider URI scheme (`openai:<model>`, `anthropic:<model>`, `deepseek:<model>`).
 
+---
+
+## ADR-024: Modular Browser Capability Rebuild (L18)
+- **Date**: 2026-10-05
+- **Status**: ACCEPTED
+- **Problem**: Monolithic `browser_interact` forces planners to construct artificial nested arguments (`{"action": "navigate", "url": "..."}`), applies elevated mutation risk profiles to read-only actions like snapshots, lacks dedicated in-page extraction, and enforces a rigid single-tab invariant (`max_pages=1`) that prevents multi-tab workflows.
+- **Decision**:
+  1. **Atomic Capability Decomposition**: Deconstruct browser capabilities into 7 discrete, first-class registered capabilities: `browser.navigate`, `browser.snapshot`, `browser.click`, `browser.type`, `browser.extract`, `browser.screenshot`, and `browser.tabs`, each with dotless aliases.
+  2. **Granular Autonomy & Action Classification**: Assign read-only classification (`ActionClass.READ_ONLY`, `AutonomyProfile.SAFE_ASSISTANT`, `ConfirmationPolicy.NEVER`) to `browser.snapshot` and `browser.extract`; assign mutation classification (`ActionClass.EXTERNAL_UPDATE`, `AutonomyProfile.LOCAL_OPERATOR`, `ConfirmationPolicy.POLICY_CONTROLLED`) to `browser.click` and `browser.type`.
+  3. **In-Page DOM Extraction (`browser.extract`)**: Implement lightweight `page.evaluate()` extraction supporting text, HTML, and attribute extraction across single or multiple matching elements without full DOM tree serialization.
+  4. **Bounded Multi-Tab Management (`browser.tabs`)**: Replace rigid `max_pages=1` with bounded multi-tab management capped at `max_tabs = 5`, providing `list`, `new`, `switch`, and `close` actions with automatic active-page tracking.
+  5. **Strict Financial Action Gating (REQ-B4)**: Preserve intrinsic financial safety gating in `browser.click` and `browser.type`, requiring explicit `user_confirmed=True` when interacting with checkout, payment, or purchase elements.
+  6. **Unified Facade Preservation**: Retain legacy `browser_interact` / `browser.interact` capability in `build_real_capability_registry()` for 100% backwards compatibility with Phase R2 tests and existing plans.
+  7. **Substrate & Registry Invariants**: Preserve exact 23-tool canonical registry in `build_canonical_registry()`; register new atomic browser capabilities in `build_real_capability_registry()`, `PolicyEngine`, and `ArgumentResolver`.
+
+
 

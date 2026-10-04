@@ -20,7 +20,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from omni_engine.contracts.browser import BrowserElement, BrowserSnapshot
 
 FINANCIAL_KEYWORDS_REGEX = re.compile(
-    r"\b(checkout|pay(\s+now)?|place\s+order|buy(\s+now)?|complete\s+(order|purchase)|submit\s+payment|confirm\s+purchase|subscribe|card(\s+number)?|cvv|cvc|credit\s+card|billing)\b",
+    r"\b(checkout|pay(\s+now)?|place\s+order|buy(\s+now)?|complete\s+(order|purchase)|submit\s+payment|confirm\s+purchase|subscribe|card([_\s]+number)?|cvv|cvc|credit[_\s]+card|billing)\b",
     re.IGNORECASE,
 )
 
@@ -86,6 +86,10 @@ _DOM_INDEXING_SCRIPT = """
         const href = el.getAttribute('href') || null;
         const inputType = el.getAttribute('type') || (tag === 'input' ? 'text' : null);
         const value = el.value || null;
+        const name = el.getAttribute('name') || '';
+        const elemId = el.id || '';
+        const placeholder = el.getAttribute('placeholder') || '';
+        const autocomplete = el.getAttribute('autocomplete') || '';
 
         elements.push({
             index: '@' + idx,
@@ -96,6 +100,10 @@ _DOM_INDEXING_SCRIPT = """
             href: href,
             input_type: inputType,
             value: value,
+            name: name,
+            elem_id: elemId,
+            placeholder: placeholder,
+            autocomplete: autocomplete,
             is_interactive: true,
             is_visible: true,
             bounding_box: {
@@ -139,7 +147,12 @@ class DOMActionIndexer:
             text = item.get("text", "")
             role = item.get("role", "")
             href = item.get("href") or ""
-            target_str = f"{text} {role} {href}"
+            name = item.get("name") or ""
+            elem_id = item.get("elem_id") or ""
+            placeholder = item.get("placeholder") or ""
+            autocomplete = item.get("autocomplete") or ""
+            # REV-L18-07: form attribute scanning for financial detection
+            target_str = f"{text} {role} {href} {name} {elem_id} {placeholder} {autocomplete}"
 
             is_financial = is_page_financial or bool(FINANCIAL_KEYWORDS_REGEX.search(target_str))
 

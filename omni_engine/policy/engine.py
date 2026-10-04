@@ -153,13 +153,14 @@ class PolicyEngine:
                         if dom in val_lower:
                             sensitive_targets.append(f"domain:{val}")
 
-        # Check financial browser interactions (REQ-B4)
-        if spec.id in ("browser_interact", "browser.interact"):
+        # Check financial browser interactions (REQ-B4 / REV-L18-02)
+        if spec.id in ("browser_interact", "browser.interact") or spec.id.startswith(("browser.", "browser_")):
             action = str(arguments.get("action") or "").lower()
             target = str(arguments.get("target") or "").lower()
             url = str(arguments.get("url") or "").lower()
+            text = str(arguments.get("text") or "").lower()
             financial_terms = ["pay", "checkout", "buy", "order", "purchase", "card", "cvv", "billing", "subscribe"]
-            if action == "confirm_purchase" or any(t in target or t in url for t in financial_terms):
+            if action == "confirm_purchase" or any(t in target or t in url or t in text for t in financial_terms):
                 sensitive_targets.append("financial:browser_checkout")
 
         # Check n8n workflow node types (REQ-BLOCK-5)
@@ -207,7 +208,7 @@ class PolicyEngine:
             "n8n_trigger_workflow",
         ):
             blast_radius = "LOCAL_SYSTEM"
-        elif spec.id in ("web_search", "scrape_url", "http_api", "visual_browse", "browser_screenshot", "ping_test", "deep_research", "research.deep", "browser_interact", "browser.interact"):
+        elif spec.id in ("web_search", "scrape_url", "http_api", "visual_browse", "browser_screenshot", "ping_test", "deep_research", "research.deep", "browser_interact", "browser.interact") or spec.id.startswith(("browser.", "browser_")):
             blast_radius = "EXTERNAL_NETWORK"
 
         # 5. Calculate composite risk score in [0.0, 1.0]
@@ -215,9 +216,18 @@ class PolicyEngine:
         if spec.id == "visual_browse":
             # PRACT-031: Ordinary browser navigation is safe read-only browsing
             base_risk = 0.15
-        elif spec.id in ("browser_interact", "browser.interact"):
+        elif spec.id in ("browser_interact", "browser.interact") or spec.id.startswith(("browser.", "browser_")):
             action = str(arguments.get("action") or "").lower()
-            if action in ("navigate", "snapshot", "extract") and not sensitive_targets:
+            if (
+                spec.id in (
+                    "browser.navigate", "browser_navigate",
+                    "browser.snapshot", "browser_snapshot",
+                    "browser.extract", "browser_extract",
+                    "browser.screenshot", "browser_screenshot_v2",
+                    "browser.tabs", "browser_tabs",
+                )
+                or action in ("navigate", "snapshot", "extract", "tabs", "screenshot")
+            ) and not sensitive_targets:
                 base_risk = 0.15
 
         modifier = 0.0

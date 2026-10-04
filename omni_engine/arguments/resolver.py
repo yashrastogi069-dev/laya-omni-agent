@@ -254,6 +254,68 @@ class ArgumentResolver:
             if quoted and action == "type":
                 slots["text"] = _slot("text", quoted[0], ArgumentExtractionSource.DETERMINISTIC_REGEX)
 
+        elif capability_id in ("browser.navigate", "browser_navigate"):
+            url = extract_url(prompt)
+            if url:
+                slots["url"] = _slot("url", url, ArgumentExtractionSource.DETERMINISTIC_REGEX)
+
+        elif capability_id in ("browser.snapshot", "browser_snapshot"):
+            pass
+
+        elif capability_id in ("browser.click", "browser_click"):
+            target_match = re.search(r"@\d+", prompt)
+            target = target_match.group(0) if target_match else None
+            if not target:
+                quoted = re.findall(r"['\"]([^'\"]+)['\"]", prompt)
+                if quoted:
+                    target = quoted[0]
+            if target:
+                slots["target"] = _slot("target", target, ArgumentExtractionSource.DETERMINISTIC_REGEX)
+
+        elif capability_id in ("browser.type", "browser_type"):
+            target_match = re.search(r"@\d+", prompt)
+            target = target_match.group(0) if target_match else None
+            if target:
+                slots["target"] = _slot("target", target, ArgumentExtractionSource.DETERMINISTIC_REGEX)
+            quoted = re.findall(r"['\"]([^'\"]+)['\"]", prompt)
+            if quoted:
+                slots["text"] = _slot("text", quoted[0], ArgumentExtractionSource.DETERMINISTIC_REGEX)
+
+        elif capability_id in ("browser.extract", "browser_extract"):
+            target_match = re.search(r"@\d+", prompt)
+            target = target_match.group(0) if target_match else None
+            quoted = re.findall(r"['\"]([^'\"]+)['\"]", prompt)
+            if target:
+                slots["selector"] = _slot("selector", target, ArgumentExtractionSource.DETERMINISTIC_REGEX)
+            elif quoted:
+                slots["selector"] = _slot("selector", quoted[0], ArgumentExtractionSource.DETERMINISTIC_REGEX)
+            for attr in ("href", "src", "value", "id", "class", "title"):
+                if attr in prompt.lower():
+                    slots["attribute"] = _slot("attribute", attr, ArgumentExtractionSource.DETERMINISTIC_REGEX)
+                    break
+
+        elif capability_id in ("browser.screenshot", "browser_screenshot_v2"):
+            path = extract_file_path(prompt)
+            if path:
+                slots["output_path"] = _slot("output_path", path, ArgumentExtractionSource.DETERMINISTIC_REGEX)
+
+        elif capability_id in ("browser.tabs", "browser_tabs"):
+            p_lower = prompt.lower()
+            tab_action = "list"
+            if "new" in p_lower or "open" in p_lower:
+                tab_action = "new"
+            elif "switch" in p_lower or "select" in p_lower:
+                tab_action = "switch"
+            elif "close" in p_lower:
+                tab_action = "close"
+            slots["action"] = _slot("action", tab_action, ArgumentExtractionSource.DETERMINISTIC_REGEX)
+            tab_id_match = re.search(r"\btab\s*#?(\d+)\b", prompt, re.IGNORECASE)
+            if tab_id_match:
+                slots["tab_id"] = _slot("tab_id", int(tab_id_match.group(1)), ArgumentExtractionSource.DETERMINISTIC_REGEX)
+            url = extract_url(prompt)
+            if url:
+                slots["url"] = _slot("url", url, ArgumentExtractionSource.DETERMINISTIC_REGEX)
+
         # 4. OS domain tools
         elif capability_id == "kill_process":
             pid = extract_pid(prompt)

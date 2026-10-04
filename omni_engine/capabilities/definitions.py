@@ -7,16 +7,17 @@ Binds the 23 source tools to canonical CapabilitySpecs and executable adapters,
 enforcing 100% parity with omni_engine.tools.OMNI_TOOL_REGISTRY.
 """
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from omni_engine.contracts.enums import (
     ActionClass,
     AutonomyProfile,
     ConfirmationPolicy,
+    ErrorCode,
     IdempotencyClass,
     RetryPolicy,
 )
-from omni_engine.contracts.capability import CapabilitySpec
+from omni_engine.contracts.capability import CapabilitySpec, ToolError
 from omni_engine.tools import OMNI_TOOL_REGISTRY
 
 from .adapters import (
@@ -640,6 +641,173 @@ BROWSER_INTERACT_SPEC = CapabilitySpec(
 
 
 
+
+# -----------------------------------------------------------------------
+# Phase L18: Modular Browser Capabilities (ADR-024)
+# -----------------------------------------------------------------------
+
+BROWSER_NAVIGATE_SPEC = CapabilitySpec(
+    id="browser.navigate",
+    version="1.0.0",
+    name="Browser Navigate",
+    domain="web",
+    description="Navigates the active browser page to a specified URL.",
+    input_schema={
+        "type": "object",
+        "properties": {
+            "url": {"type": "string", "description": "Target web page URL to navigate to"},
+            "timeout_seconds": {"type": "number", "default": 30.0, "description": "Timeout budget for navigation"},
+        },
+        "required": ["url"],
+    },
+    action_class=ActionClass.READ_ONLY,
+    side_effects=False,
+    minimum_autonomy_profile=AutonomyProfile.SAFE_ASSISTANT,
+    confirmation_policy=ConfirmationPolicy.POLICY_CONTROLLED,
+    retry_policy=RetryPolicy.SAFE_READ_RETRY,
+    idempotency_class=IdempotencyClass.READ_ONLY,
+    timeout_seconds=30.0,
+)
+
+BROWSER_SNAPSHOT_SPEC = CapabilitySpec(
+    id="browser.snapshot",
+    version="1.0.0",
+    name="Browser DOM Snapshot",
+    domain="web",
+    description="Captures and indexes interactive elements (@1..@N) in the active browser page.",
+    input_schema={
+        "type": "object",
+        "properties": {},
+    },
+    action_class=ActionClass.READ_ONLY,
+    side_effects=False,
+    minimum_autonomy_profile=AutonomyProfile.SAFE_ASSISTANT,
+    confirmation_policy=ConfirmationPolicy.NEVER,
+    retry_policy=RetryPolicy.SAFE_READ_RETRY,
+    idempotency_class=IdempotencyClass.READ_ONLY,
+    timeout_seconds=10.0,
+)
+
+BROWSER_CLICK_SPEC = CapabilitySpec(
+    id="browser.click",
+    version="1.0.0",
+    name="Browser Element Click",
+    domain="web",
+    description="Clicks an interactive element targeted by index (@1..@N) or CSS selector.",
+    input_schema={
+        "type": "object",
+        "properties": {
+            "target": {"type": "string", "description": "Target element index (@1..@N) or CSS selector"},
+            "user_confirmed": {"type": "boolean", "default": False, "description": "Explicit human confirmation for checkout/financial elements"},
+            "timeout_seconds": {"type": "number", "default": 10.0, "description": "Timeout budget for click"},
+        },
+        "required": ["target"],
+    },
+    action_class=ActionClass.LOCAL_UPDATE,
+    side_effects=True,
+    minimum_autonomy_profile=AutonomyProfile.LOCAL_OPERATOR,
+    confirmation_policy=ConfirmationPolicy.POLICY_CONTROLLED,
+    retry_policy=RetryPolicy.NEVER,
+    idempotency_class=IdempotencyClass.NON_IDEMPOTENT,
+    timeout_seconds=15.0,
+)
+
+BROWSER_TYPE_SPEC = CapabilitySpec(
+    id="browser.type",
+    version="1.0.0",
+    name="Browser Input Typing",
+    domain="web",
+    description="Types text into an input field targeted by index (@1..@N) or CSS selector with physical verification.",
+    input_schema={
+        "type": "object",
+        "properties": {
+            "target": {"type": "string", "description": "Target element index (@1..@N) or CSS selector"},
+            "text": {"type": "string", "description": "Text value to fill into targeted input element"},
+            "press_enter": {"type": "boolean", "default": False, "description": "Whether to press Enter key after typing"},
+            "clear_first": {"type": "boolean", "default": True, "description": "Whether to clear existing value before typing"},
+            "user_confirmed": {"type": "boolean", "default": False, "description": "Explicit human confirmation for financial forms"},
+        },
+        "required": ["target", "text"],
+    },
+    action_class=ActionClass.LOCAL_UPDATE,
+    side_effects=True,
+    minimum_autonomy_profile=AutonomyProfile.LOCAL_OPERATOR,
+    confirmation_policy=ConfirmationPolicy.POLICY_CONTROLLED,
+    retry_policy=RetryPolicy.VERIFY_BEFORE_RETRY,
+    idempotency_class=IdempotencyClass.NON_IDEMPOTENT,
+    timeout_seconds=15.0,
+)
+
+BROWSER_EXTRACT_SPEC = CapabilitySpec(
+    id="browser.extract",
+    version="1.0.0",
+    name="Browser DOM Data Extract",
+    domain="web",
+    description="Extracts readable text or attributes from targeted DOM elements without full DOM capture.",
+    input_schema={
+        "type": "object",
+        "properties": {
+            "selector": {"type": "string", "description": "Target selector (CSS or @N index). Defaults to body."},
+            "attribute": {"type": "string", "description": "Attribute name to extract (e.g. href, src, value). None extracts innerText."},
+            "multiple": {"type": "boolean", "default": True, "description": "Whether to extract from all matching elements or single element."},
+            "max_items": {"type": "integer", "default": 50, "description": "Maximum number of items to return."},
+        },
+    },
+    action_class=ActionClass.READ_ONLY,
+    side_effects=False,
+    minimum_autonomy_profile=AutonomyProfile.SAFE_ASSISTANT,
+    confirmation_policy=ConfirmationPolicy.NEVER,
+    retry_policy=RetryPolicy.SAFE_READ_RETRY,
+    idempotency_class=IdempotencyClass.READ_ONLY,
+    timeout_seconds=10.0,
+)
+
+BROWSER_SCREENSHOT_SPEC = CapabilitySpec(
+    id="browser.screenshot",
+    version="1.0.0",
+    name="Browser Screenshot Capture",
+    domain="web",
+    description="Captures a PNG screenshot of the active browser viewport or full page to disk.",
+    input_schema={
+        "type": "object",
+        "properties": {
+            "output_path": {"type": "string", "description": "Destination path for captured screenshot"},
+            "full_page": {"type": "boolean", "default": False, "description": "Whether to capture full scrollable page"},
+        },
+    },
+    action_class=ActionClass.READ_ONLY,
+    side_effects=False,
+    minimum_autonomy_profile=AutonomyProfile.SAFE_ASSISTANT,
+    confirmation_policy=ConfirmationPolicy.NEVER,
+    retry_policy=RetryPolicy.SAFE_READ_RETRY,
+    idempotency_class=IdempotencyClass.READ_ONLY,
+    timeout_seconds=15.0,
+)
+
+BROWSER_TABS_SPEC = CapabilitySpec(
+    id="browser.tabs",
+    version="1.0.0",
+    name="Browser Multi-Tab Manager",
+    domain="web",
+    description="Lists, opens, switches, or closes tabs across bounded multi-tab browser context.",
+    input_schema={
+        "type": "object",
+        "properties": {
+            "action": {"type": "string", "default": "list", "description": "Tab operation: list, new, switch, close"},
+            "tab_id": {"type": "integer", "description": "Target tab index for switch or close"},
+            "url": {"type": "string", "description": "Initial destination URL when opening a new tab"},
+        },
+    },
+    action_class=ActionClass.LOCAL_UPDATE,
+    side_effects=True,
+    minimum_autonomy_profile=AutonomyProfile.LOCAL_OPERATOR,
+    confirmation_policy=ConfirmationPolicy.POLICY_CONTROLLED,
+    retry_policy=RetryPolicy.NEVER,
+    idempotency_class=IdempotencyClass.NON_IDEMPOTENT,
+    timeout_seconds=15.0,
+)
+
+
 def make_deep_research_adapter(engine: Any = None):
     """Creates a typed adapter wrapping DeepResearchEngine."""
     def adapter(**kwargs) -> Dict[str, Any]:
@@ -701,6 +869,161 @@ def make_browser_interact_adapter(driver: Any = None):
     return adapter
 
 
+# REV-L18-09: Modular adapters return (True, result.model_dump()) or (False, ToolError(...))
+
+def make_browser_navigate_adapter(driver: Any = None):
+    def adapter(**kwargs) -> Tuple[bool, Any]:
+        nonlocal driver
+        if driver is None:
+            from omni_engine.browser.driver import BrowserDriver
+            driver = BrowserDriver()
+        url = str(kwargs.get("url") or "")
+        timeout = float(kwargs.get("timeout_seconds", 30.0))
+        res = driver.navigate(url=url, timeout_seconds=timeout)
+        if res.success:
+            return (True, res.model_dump())
+        return (False, ToolError(
+            code=ErrorCode.PROCESS_FAILED,
+            message=res.error or "Browser navigation failed",
+            details=res.model_dump(),
+        ))
+    return adapter
+
+
+def make_browser_snapshot_adapter(driver: Any = None):
+    def adapter(**kwargs) -> Tuple[bool, Any]:
+        nonlocal driver
+        if driver is None:
+            from omni_engine.browser.driver import BrowserDriver
+            driver = BrowserDriver()
+        snap = driver.snapshot()
+        return (True, snap.model_dump())
+    return adapter
+
+
+def make_browser_click_adapter(driver: Any = None):
+    def adapter(**kwargs) -> Tuple[bool, Any]:
+        nonlocal driver
+        if driver is None:
+            from omni_engine.browser.driver import BrowserDriver
+            driver = BrowserDriver()
+        target = str(kwargs.get("target") or "")
+        confirmed = bool(kwargs.get("user_confirmed", False))
+        timeout = float(kwargs.get("timeout_seconds", 10.0))
+        res = driver.click(target=target, user_confirmed=confirmed, timeout_seconds=timeout)
+        if res.success:
+            return (True, res.model_dump())
+        return (False, ToolError(
+            code=ErrorCode.PROCESS_FAILED,
+            message=res.error or "Browser click failed",
+            details=res.model_dump(),
+        ))
+    return adapter
+
+
+def make_browser_type_adapter(driver: Any = None):
+    def adapter(**kwargs) -> Tuple[bool, Any]:
+        nonlocal driver
+        if driver is None:
+            from omni_engine.browser.driver import BrowserDriver
+            driver = BrowserDriver()
+        target = str(kwargs.get("target") or "")
+        text = str(kwargs.get("text") or "")
+        press_enter = bool(kwargs.get("press_enter", False))
+        clear_first = bool(kwargs.get("clear_first", True))
+        confirmed = bool(kwargs.get("user_confirmed", False))
+        res = driver.type_text(
+            target=target,
+            text=text,
+            press_enter=press_enter,
+            clear_first=clear_first,
+            user_confirmed=confirmed,
+        )
+        if res.success:
+            return (True, res.model_dump())
+        return (False, ToolError(
+            code=ErrorCode.PROCESS_FAILED,
+            message=res.error or "Browser type text failed",
+            details=res.model_dump(),
+        ))
+    return adapter
+
+
+def make_browser_extract_adapter(driver: Any = None):
+    def adapter(**kwargs) -> Tuple[bool, Any]:
+        nonlocal driver
+        if driver is None:
+            from omni_engine.browser.driver import BrowserDriver
+            driver = BrowserDriver()
+        selector = kwargs.get("selector")
+        attribute = kwargs.get("attribute")
+        multiple = bool(kwargs.get("multiple", True))
+        max_items = int(kwargs.get("max_items", 50))
+        res = driver.extract(
+            selector=selector,
+            attribute=attribute,
+            multiple=multiple,
+            max_items=max_items,
+        )
+        if res.success:
+            return (True, res.model_dump())
+        return (False, ToolError(
+            code=ErrorCode.PROCESS_FAILED,
+            message=res.error or "Browser extract failed",
+            details=res.model_dump(),
+        ))
+    return adapter
+
+
+def make_browser_screenshot_modular_adapter(driver: Any = None):
+    def adapter(**kwargs) -> Tuple[bool, Any]:
+        nonlocal driver
+        if driver is None:
+            from omni_engine.browser.driver import BrowserDriver
+            driver = BrowserDriver()
+        output_path = kwargs.get("output_path")
+        full_page = bool(kwargs.get("full_page", False))
+        res = driver.take_screenshot(output_path=output_path, full_page=full_page)
+        if res.success:
+            return (True, res.model_dump())
+        return (False, ToolError(
+            code=ErrorCode.PROCESS_FAILED,
+            message=res.error or "Browser screenshot capture failed",
+            details=res.model_dump(),
+        ))
+    return adapter
+
+
+def make_browser_tabs_adapter(driver: Any = None):
+    def adapter(**kwargs) -> Tuple[bool, Any]:
+        from omni_engine.contracts.browser import TabAction
+        nonlocal driver
+        if driver is None:
+            from omni_engine.browser.driver import BrowserDriver
+            driver = BrowserDriver()
+        act_raw = kwargs.get("action", "list")
+        if isinstance(act_raw, TabAction):
+            act = act_raw
+        else:
+            try:
+                act = TabAction(str(act_raw).lower())
+            except ValueError:
+                act = TabAction.LIST
+        tab_id = kwargs.get("tab_id")
+        if tab_id is not None:
+            tab_id = int(tab_id)
+        url = kwargs.get("url")
+        res = driver.manage_tabs(action=act, tab_id=tab_id, url=url)
+        if res.success:
+            return (True, res.model_dump())
+        return (False, ToolError(
+            code=ErrorCode.PROCESS_FAILED,
+            message=res.error or "Browser tab management failed",
+            details=res.model_dump(),
+        ))
+    return adapter
+
+
 def register_deep_research_capability(
     registry: CapabilityRegistry,
     engine: Any = None,
@@ -716,19 +1039,82 @@ def register_deep_research_capability(
     registry.register(spec=alias_spec, implementation=adapter)
 
 
+def register_browser_capabilities(
+    registry: CapabilityRegistry,
+    driver: Any = None,
+) -> None:
+    """Registers all 7 atomic modular browser capabilities and dotless aliases, plus unified facade."""
+    # 0. Legacy facade: browser_interact & browser.interact
+    facade_adapter = make_browser_interact_adapter(driver)
+    registry.register(spec=BROWSER_INTERACT_SPEC, implementation=facade_adapter)
+    registry.register(
+        spec=BROWSER_INTERACT_SPEC.model_copy(update={"id": "browser.interact"}),
+        implementation=facade_adapter,
+    )
+
+    # 1. browser.navigate & browser_navigate
+    nav_adapter = make_browser_navigate_adapter(driver)
+    registry.register(spec=BROWSER_NAVIGATE_SPEC, implementation=nav_adapter)
+    registry.register(
+        spec=BROWSER_NAVIGATE_SPEC.model_copy(update={"id": "browser_navigate"}),
+        implementation=nav_adapter,
+    )
+
+    # 2. browser.snapshot & browser_snapshot
+    snap_adapter = make_browser_snapshot_adapter(driver)
+    registry.register(spec=BROWSER_SNAPSHOT_SPEC, implementation=snap_adapter)
+    registry.register(
+        spec=BROWSER_SNAPSHOT_SPEC.model_copy(update={"id": "browser_snapshot"}),
+        implementation=snap_adapter,
+    )
+
+    # 3. browser.click & browser_click
+    click_adapter = make_browser_click_adapter(driver)
+    registry.register(spec=BROWSER_CLICK_SPEC, implementation=click_adapter)
+    registry.register(
+        spec=BROWSER_CLICK_SPEC.model_copy(update={"id": "browser_click"}),
+        implementation=click_adapter,
+    )
+
+    # 4. browser.type & browser_type
+    type_adapter = make_browser_type_adapter(driver)
+    registry.register(spec=BROWSER_TYPE_SPEC, implementation=type_adapter)
+    registry.register(
+        spec=BROWSER_TYPE_SPEC.model_copy(update={"id": "browser_type"}),
+        implementation=type_adapter,
+    )
+
+    # 5. browser.extract & browser_extract
+    ext_adapter = make_browser_extract_adapter(driver)
+    registry.register(spec=BROWSER_EXTRACT_SPEC, implementation=ext_adapter)
+    registry.register(
+        spec=BROWSER_EXTRACT_SPEC.model_copy(update={"id": "browser_extract"}),
+        implementation=ext_adapter,
+    )
+
+    # 6. browser.screenshot & browser_screenshot_v2 (REV-L18-08 alias collision defense)
+    shot_adapter = make_browser_screenshot_modular_adapter(driver)
+    registry.register(spec=BROWSER_SCREENSHOT_SPEC, implementation=shot_adapter)
+    registry.register(
+        spec=BROWSER_SCREENSHOT_SPEC.model_copy(update={"id": "browser_screenshot_v2"}),
+        implementation=shot_adapter,
+    )
+
+    # 7. browser.tabs & browser_tabs
+    tabs_adapter = make_browser_tabs_adapter(driver)
+    registry.register(spec=BROWSER_TABS_SPEC, implementation=tabs_adapter)
+    registry.register(
+        spec=BROWSER_TABS_SPEC.model_copy(update={"id": "browser_tabs"}),
+        implementation=tabs_adapter,
+    )
+
+
 def register_browser_capability(
     registry: CapabilityRegistry,
     driver: Any = None,
 ) -> None:
-    """Registers browser_interact and alias browser.interact on a CapabilityRegistry."""
-    adapter = make_browser_interact_adapter(driver)
-
-    # Register primary ID
-    registry.register(spec=BROWSER_INTERACT_SPEC, implementation=adapter)
-
-    # Register dotted alias
-    alias_spec = BROWSER_INTERACT_SPEC.model_copy(update={"id": "browser.interact"})
-    registry.register(spec=alias_spec, implementation=adapter)
+    """Backward-compatible registration function for browser capabilities."""
+    register_browser_capabilities(registry, driver=driver)
 
 
 # -----------------------------------------------------------------------
@@ -1542,6 +1928,13 @@ def register_developer_capabilities(registry: CapabilityRegistry, engine: Any = 
 REAL_CAPABILITY_SPECS: Dict[str, CapabilitySpec] = {
     "deep_research": DEEP_RESEARCH_SPEC,
     "browser_interact": BROWSER_INTERACT_SPEC,
+    "browser.navigate": BROWSER_NAVIGATE_SPEC,
+    "browser.snapshot": BROWSER_SNAPSHOT_SPEC,
+    "browser.click": BROWSER_CLICK_SPEC,
+    "browser.type": BROWSER_TYPE_SPEC,
+    "browser.extract": BROWSER_EXTRACT_SPEC,
+    "browser.screenshot": BROWSER_SCREENSHOT_SPEC,
+    "browser.tabs": BROWSER_TABS_SPEC,
     "desktop.launch_app": DESKTOP_LAUNCH_APP_SPEC,
     "desktop.list_windows": DESKTOP_LIST_WINDOWS_SPEC,
     "desktop.focus_window": DESKTOP_FOCUS_WINDOW_SPEC,
@@ -1573,7 +1966,7 @@ def build_real_capability_registry(
     """Builds a CapabilityRegistry containing the canonical 23 tools PLUS real capability engines."""
     reg = base_registry or build_canonical_registry()
     register_deep_research_capability(reg, engine=research_engine)
-    register_browser_capability(reg, driver=browser_driver)
+    register_browser_capabilities(reg, driver=browser_driver)
     register_desktop_capabilities(reg, driver=desktop_driver)
     register_n8n_capabilities(reg, engine=n8n_engine)
     register_developer_capabilities(reg, engine=developer_engine)

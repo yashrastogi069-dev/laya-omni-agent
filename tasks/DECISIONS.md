@@ -236,3 +236,17 @@
   17. **Current-Attempt Parity in fail_attempt_atomic (L14.2-E5)**: In `fail_attempt_atomic`, check `op_row["current_attempt"] != attempt.attempt_number`, raising `StaleAttemptError`, providing identical stale/zombie attempt protection as the commit path.
   18. **Complete Plan Provenance & Tamper Firewall (L14.2-F3–F5)**: Extend `Plan` with `schema_version`, `plan_version`, `validator_version`, `validation_hash`, `validation_receipt`, and include sorted `metadata` in `Plan.compute_hash()`. Verify F3 (tampered dependencies), F4 (phantom step), and F5 (tampered metadata/budget).
   19. **Policy Latency SLA Benchmark Distribution Proof**: Replace single-sample or fastest-of-five with a 20-run statistical distribution asserting median < 2.0ms (sub-1ms SLA proof) in `tests/test_l9_policy.py`.
+
+---
+
+## ADR-020: Evidence-Based Completion Verifier, Deterministic Verifier Registry & Requirement-Level Objective Verification (L15)
+- **Date**: 2026-10-04
+- **Status**: ACCEPTED
+- **Problem**: Tool execution success does not equate to user objective success. A completed DAG and non-failing tool outputs do not prove that required filesystem artifacts exist, processes terminated, services responded, or negative constraints were honored. Furthermore, models frequently hallucinate completion when physical actions were never executed.
+- **Decision**:
+  1. **Strict Evidence Hierarchy**: Prioritize physical state probes (Tier 1) and structured execution receipts (Tier 2) over derived validation (Tier 3) and bounded semantic judgment (Tier 4). Ban prose (Tier 5) as evidence. Semantic models are strictly prohibited from overriding deterministic physical failures.
+  2. **Strongly Typed Verification Contracts**: Implement `RequirementVerification`, `ConstraintVerification`, and `ObjectiveVerificationResult` in `omni_engine/contracts/verification.py` with canonical `evidence_hash` and cryptographic provenance (`extra="forbid"`).
+  3. **Deterministic Verifier Registry**: Implement decoupled verifiers in `omni_engine/verification/registry.py` covering File, Process, Desktop, Browser, Command, Git, n8n, Data, and Research domains.
+  4. **Requirement & Negative Constraint Completion Engine**: Implement `ObjectiveCompletionEngine` in `omni_engine/verification/engine.py` mapping decomposed requirements and operational constraints against physical evidence receipts, detecting violations in ledger and execution history.
+  5. **Verification Persistence & Quest Transition**: Persist audit records to SQLite `quest_verifications`. Transition Quests strictly: `AWAITING_VERIFICATION -> COMPLETED` only when 100% of mandatory requirements and negative constraints are physically proven; transition to `FAILED` on unrecoverable breaches or negative constraint violations; retain in `AWAITING_VERIFICATION` for L16 replanning if repairable.
+

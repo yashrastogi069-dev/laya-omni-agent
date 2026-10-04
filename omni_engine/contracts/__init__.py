@@ -177,6 +177,15 @@ from .objective import (
     RequirementItem,
     ObjectiveSpec,
 )
+from .verification import (
+    CheckType,
+    RequirementVerificationStatus,
+    ConstraintVerificationStatus,
+    VerificationCheckResult,
+    RequirementVerification,
+    ConstraintVerification,
+    ObjectiveVerificationResult,
+)
 
 __all__ = [
     # Base
@@ -331,6 +340,14 @@ __all__ = [
     "RequirementCoverageState",
     "RequirementItem",
     "ObjectiveSpec",
+    # Evidence-Based Completion Verification (L15)
+    "CheckType",
+    "RequirementVerificationStatus",
+    "ConstraintVerificationStatus",
+    "VerificationCheckResult",
+    "RequirementVerification",
+    "ConstraintVerification",
+    "ObjectiveVerificationResult",
 ]
 
 

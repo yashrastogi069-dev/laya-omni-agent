@@ -1,11 +1,11 @@
-# ACTIVE_PLAN.md — Active Milestone: RV0 Reality Gate → L10–L16 Autonomous Execution & Recovery
+# ACTIVE_PLAN.md — Active Milestone: Phase V Advanced Subsystems (L17 – L18)
 
-## Current Active Checkpoint: L16 — Controlled Replanner & Recovery Loop (ACTIVE)
+## Current Active Checkpoint: L17 — Role-Aware Generative Provider Router (ACTIVE)
 
-- **Milestone Scope**: RV0 → L10 Quest → L11 Operation Ledger → L12 Planner → L13 Validator → L14 Executor → L14.1 Runtime Hardening → L14.2 Adversarial Durability → L14.3 Practical Runtime Integration → L15 Evidence Verifier → L16 Controlled Replanner.
+- **Milestone Scope**: Phase V: L17 Role-Aware Generative Provider Router → L17.5 Real Cloud Provider Integration → L18 Modular Browser Capability Rebuild.
 - **Target Branch**: `laya-autonomous-v2`
-- **Baseline Verified Commit**: `d466eaf` (`L15: evidence-based verifier and completion engine`) on `laya-autonomous-v2` (551 automated tests + 47 subtests = 598 checks passing, 0 failures; 100% GREEN on GitHub Actions CI Run 37232135971).
-- **Hard Stop Boundary**: Sequence: L15 (COMPLETED) → L16 (ACTIVE) → L17 → L17.5 → L18 → **HARD STOP** (Do NOT start L19 Memory V2).
+- **Baseline Verified Commit**: `6546ad9` (`L16: controlled replanner and recovery loop`) on `laya-autonomous-v2` (562 automated tests + 47 subtests = 609 checks passing, 0 failures; verified on GitHub Actions CI Run 37234539308).
+- **Hard Stop Boundary**: Sequence: L16 (COMPLETED) → L17 (ACTIVE) → L17.5 → L18 → **HARD STOP** (Do NOT start L19 Memory V2).
 - **Permanent Invariants**:
   1. `END_TO_END_EXECUTION_LOG.md` is the master cumulative engineering record (must record research, plans, diffs, tests, reviews, repairs, decisions, and documentation updates).
   2. Legacy non-switching boundary: `omni_agent.py` and `omni_engine/planner.py` remain 100% untouched (0 diffs).
@@ -256,31 +256,57 @@
   - Full test suite: 551 automated tests passing across 29 test files.
   - Committed (`d466eaf`), pushed to `origin/laya-autonomous-v2`, and verified 100% GREEN on GitHub Actions CI Run `37232135971`.
 
-### Step 14: L16 — Controlled Replanner & Recovery Loop (ACTIVE)
-- [ ] **External Research & ADR-021**:
-  - Research replanning loops, sub-DAG replacement, blast-radius containment, and retry budgets.
-  - Author `docs/research/ADR_L16_CONTROLLED_REPLANNER.md` and record in `tasks/DECISIONS.md`.
-- [ ] **Replanner Contracts (`omni_engine/contracts/replanning.py`)**:
-  - `ReplanTrigger` (`STEP_FAILURE`, `TIMEOUT`, `PRECONDITION_FAILED`, `VERIFICATION_FAILED`).
-  - `ReplanScope` (`STEP_RETRY`, `DOWNSTREAM_PRUNE_AND_GRAFT`, `SUB_DAG_REPLACE`, `FULL_REPLAN`).
-  - `ReplanRequest`, `ReplanResult`, `PreservedExecutionReceipts`.
-  - Enforce replan budget bounds (`max_replans=3`, `max_replan_depth=2`).
-- [ ] **Recovery & Replanning Engine (`omni_engine/planning/replanner.py`)**:
-  - Identify failed step and compute blast radius (downstream dependent steps).
-  - Preserve successfully completed step receipts and OperationLedger idempotency tokens.
-  - Generate replacement sub-DAG conforming to remaining unfulfilled requirements.
-  - Validate spliced plan via `DeterministicPlanValidator` (10 passes).
-  - Attach revised plan to Quest (`PLAN_ATTACHED` event with `replan_version`).
-- [ ] **Executor Integration (`omni_engine/execution/executor.py`)**:
-  - Wire replan trigger on recoverable step failures before declaring quest `FAILED`.
-  - Resume execution of revised plan without re-executing already committed mutations.
+### Step 14: L16 — Controlled Replanner & Recovery Loop (COMPLETED)
+- [x] **External Research & ADR-021**:
+  - Researched replanning loops, sub-DAG replacement, blast-radius containment, and retry budgets.
+  - Authored `docs/research/ADR_L16_CONTROLLED_REPLANNER.md` and recorded in `tasks/DECISIONS.md`.
+- [x] **Replanner Contracts (`omni_engine/contracts/replanning.py`)**:
+  - `ReplanTrigger` (`STEP_FAILURE`, `TIMEOUT`, `PRECONDITION_FAILED`, `VERIFICATION_FAILED`, `POLICY_REJECTION`).
+  - `ReplanScope` (`STEP_RETRY_WITH_VARIATION`, `SUB_DAG_REPLACE`, `FULL_REPLAN`).
+  - `ReplanRequest`, `ReplanResult` (`extra="forbid"`).
+  - Enforced replan budget bounds (`max_replans=3`). Clean exports in `omni_engine/contracts/__init__.py`.
+  - Added `PlanType.REPLAN_RECOVERED` in `omni_engine/contracts/plan.py` and `QuestEventEnum.PLAN_REVISED` in `omni_engine/contracts/quest.py`.
+  - Added `QuestStatus.RUNNING` transition from `AWAITING_VERIFICATION` in `VALID_QUEST_TRANSITIONS`.
+- [x] **Validator Pass 9 Update (`omni_engine/planning/validator.py`)**:
+  - Added `allow_silent_failure: bool = False` to `DeterministicPlanValidator.__init__`, safely allowing `can_fail_silently=True` on validator instances configured for recovery.
+- [x] **Recovery & Replanning Engine (`omni_engine/planning/replanner.py`)**:
+  - Identified failed step and computed blast radius via BFS graph traversal.
+  - Enforced anti-oscillation check against `previous_failures` (`step_id`, `capability_id`, `args_hash`).
+  - Preserved completed step receipts and OperationLedger idempotency tokens.
+  - Spliced replacement sub-DAG conforming to unfulfilled requirements and rewired downstream dependencies.
+  - Validated revised plan through `DeterministicPlanValidator` (10 passes).
+  - Clean exports in `omni_engine/planning/__init__.py`.
+- [x] **Executor Integration (`omni_engine/execution/executor.py`)**:
+  - Handled `can_fail_silently=True` steps gracefully without failing the Quest.
+  - Wired automatic replanner invocation on step failures before declaring Quest `FAILED`.
+  - Enforced OCC version hygiene by refreshing `base_quest` from store before updating metadata.
+  - Resumed Kahn DAG traversal with revised plan.
+- [x] **Unit & Adversarial Testing (`tests/test_l16_replanner.py`)**:
+  - 11 comprehensive tests: blast radius (leaf vs transitive), budget exhaustion, anti-oscillation blocking duplicate failures, fallback replacement (`web_search` -> `deep_research`), dependency rewiring, silent failure tolerance, mutation preservation (zero re-execution), and end-to-end recovery loops. All 11 tests pass in 0.88s.
+- [x] **Adversarial Diff Review, Verification & CI**:
+  - Independent subagent review returned **PASS** with zero blocking defects.
+  - Full test suite: 562 automated tests passing across 30 test files.
+  - Non-switching boundary: exactly 0 diffs on `omni_agent.py` and `omni_engine/planner.py`.
+  - Committed (`6546ad9`), pushed to `origin/laya-autonomous-v2`, and verified on GitHub Actions CI.
+
+### Step 15: L17 — Role-Aware Generative Provider Router (ACTIVE)
+- [ ] **External Research & ADR-022**:
+  - Research swappable generative model routing for agent roles (`ARGUMENT_WRITER`, `PLANNER`, `REPLANNER`, `FINALIZER`, `CODING`).
+  - Author `docs/research/ADR_L17_GENERATIVE_ROUTER.md` and record in `tasks/DECISIONS.md`.
+- [ ] **Router Contracts (`omni_engine/contracts/router.py`)**:
+  - Role definitions: `AgentRole` enum (`ARGUMENT_WRITER`, `PLANNER`, `REPLANNER`, `FINALIZER`, `CODING`).
+  - Routing configuration: `ModelRoutingPolicy`, `ModelTierPreference`, `RoleRouteConfig`.
+  - strongly typed Pydantic v2 contracts with `extra="forbid"`.
+- [ ] **Role-Aware Generative Provider Router Engine (`omni_engine/providers/router.py`)**:
+  - Route requests based on role, token budget, latency profile, and provider health.
+  - Fallback cascades across available providers (OpenRouter, local Laya, mock).
+  - User sovereignty integration: support user-pinned models per role.
+- [ ] **Integration with Planning & Execution**:
+  - Wire `GenerativePlanner`, `ControlledReplanner`, and argument resolvers through `GenerativeRouter`.
 - [ ] **Adversarial Plan Review**:
-  - Independent subagent review for race conditions, infinite loops, and un-grafted dependencies.
-- [ ] **Unit & Adversarial Testing (`tests/test_l16_replanner.py`)**:
-  - Test recoverable step failure triggers targeted replan.
-  - Test completed steps are never re-executed (idempotency preserved).
-  - Test exhausted replan budget halts and transitions quest to `FAILED`.
-  - Test cycle detection and invalid graft rejection.
-- [ ] **Adversarial Diff Review, Verification & CI**:
-  - Full test suite passing, 0 diffs on legacy boundary, commit, push, and remote CI verification.
+  - Independent subagent review for provider fallbacks, role boundary leakage, and timeout handling.
+- [ ] **Unit & Adversarial Testing (`tests/test_l17_generative_router.py`)**:
+  - Role-based model selection, fallback on provider error/timeout, user-pinned role overrides.
+- [ ] **Full Regression Suite & Remote CI Verification**:
+  - Verify all 562+ tests pass, 0 diffs on legacy boundary, commit, push, and remote CI verification.
 

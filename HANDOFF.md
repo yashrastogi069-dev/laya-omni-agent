@@ -1,7 +1,15 @@
-# HANDOFF.md — Operational Continuation Guide (Checkpoint L15 Evidence-Based Verifier Completed — Active on L16 Controlled Replanner)
+# HANDOFF.md — Operational Continuation Guide (Checkpoint L16 Controlled Replanner Completed — Active on L17 Role-Aware Generative Provider Router)
 
 ## What We Have Built (Current State)
-A **trustworthy pre-execution control plane, provider broker, five complete real capability execution engines, persisted SQLite Quest runtime, Operation Ledger with exactly-once mutation semantics, Structured DAG Planner with template-first precedence and building-block augmentation, 10-Pass Deterministic Plan Validator Firewall, Deterministic DAG Executor, Evidence-Based Completion Engine & Physical Domain Verifiers, Hardened Adversarial Durability Gate, and Production V2 Operator CLI** powered by:
+A **trustworthy pre-execution control plane, provider broker, five complete real capability execution engines, persisted SQLite Quest runtime, Operation Ledger with exactly-once mutation semantics, Structured DAG Planner with template-first precedence and building-block augmentation, 10-Pass Deterministic Plan Validator Firewall, Deterministic DAG Executor, Evidence-Based Completion Engine & Physical Domain Verifiers, Controlled Replanner & Recovery Loop, Hardened Adversarial Durability Gate, and Production V2 Operator CLI** powered by:
+- **Checkpoint L16: Controlled Replanner & Recovery Loop (COMPLETED & FULLY VERIFIED)**:
+  - ADR-021: Established bounded recovery loop, anti-oscillation checks against `previous_failures`, BFS blast radius isolation, idempotency preservation, replacement sub-DAG grafting, and silent failure support. Recorded in `tasks/DECISIONS.md`.
+  - Strongly Typed Replanning Contracts: `ReplanTrigger`, `ReplanScope`, `ReplanRequest`, `ReplanResult` (`extra="forbid"`). Exported in `omni_engine/contracts/__init__.py`. Added `PlanType.REPLAN_RECOVERED` in `omni_engine/contracts/plan.py` and `QuestEventEnum.PLAN_REVISED` in `omni_engine/contracts/quest.py`. Updated `VALID_QUEST_TRANSITIONS[QuestStatus.AWAITING_VERIFICATION]` to include `QuestStatus.RUNNING`.
+  - Validator Pass 9 Tolerance: Added `allow_silent_failure: bool = False` to `DeterministicPlanValidator.__init__`, safely allowing `can_fail_silently=True` on validator instances configured for recovery.
+  - Controlled Replanner Engine: Implemented `ControlledReplanner` in `omni_engine/planning/replanner.py`. Computes transitive blast radius using BFS DAG traversal, checks anti-oscillation fingerprints against `previous_failures`, preserves completed steps and idempotency tokens, synthesizes replacement sub-DAGs using deterministic capability fallbacks (`DEFAULT_CAPABILITY_FALLBACKS`), rewires downstream dependencies, and validates spliced plans through all 10 validator passes.
+  - Executor Coordinator Integration: Integrated replanning directly into `DeterministicDAGExecutor._run_coordinator_loop()`. Non-critical steps marked `can_fail_silently=True` are logged and tolerated without aborting the quest. On recoverable step failure, in-flight workers are cancelled, the replanner is triggered within budget, the revised plan is attached, OCC version hygiene is enforced by refreshing `base_quest`, and Kahn DAG traversal resumes cleanly.
+  - Adversarial Diff Review: **PASS (Zero blocking defects)** (Subagent `ae2d404c-f2eb-433f-ae36-1b767d83f780`).
+  - Unit test suite: `tests/test_l16_replanner.py` (11/11 passed in 0.88s). Full repository suite: **562 automated tests (+ 47 subtests = 609 checks) passing across all 30 test files; verified on GitHub Actions CI**.
 - **Checkpoint L15: Evidence-Based Verifier & Completion Engine (COMPLETED & FULLY VERIFIED)**:
   - ADR-020: Established deterministic physical verification precedence, evidence hashing, negative constraint auditing, and state machine transition rules. Recorded in `tasks/DECISIONS.md`.
   - Strongly Typed Verification Contracts: `CheckType` (`PHYSICAL`, `STRUCTURED_RECEIPT`, `SEMANTIC_ASSERTION`, `POLICY_AUDIT`), `RequirementVerificationStatus`, `ConstraintVerificationStatus`, `VerificationCheckResult`, `RequirementVerification`, `ConstraintVerification`, and `ObjectiveVerificationResult` (`extra="forbid"`). Enforces `@model_validator` ensuring physical check failures strictly block `VERIFIED_SUCCESS`. Canonical SHA-256 `compute_evidence_hash()`.
@@ -131,8 +139,10 @@ A **trustworthy pre-execution control plane, provider broker, five complete real
 
 ## Current Architecture & State
 - Repository: Public GitHub `https://github.com/yashrastogi069-dev/laya-omni-agent` on branch `laya-autonomous-v2`.
-- Active Milestone Goal: **L14.2: Runtime Closure, Adversarial Durability & Evidence Integrity Gate (COMPLETED)**.
-- Full Test Suite: **551/551 tests passing (+ 47 subtests = 598 total checks, 100% pass rate)** across 29 test modules:
+## Current Architecture & State
+- Repository: Public GitHub `https://github.com/yashrastogi069-dev/laya-omni-agent` on branch `laya-autonomous-v2`.
+- Active Milestone Goal: **L16: Controlled Replanner & Recovery Loop (COMPLETED)**.
+- Full Test Suite: **562/562 tests passing (+ 47 subtests = 609 total checks, 100% pass rate)** across 30 test modules:
   - `tests/test_foundation_broker.py` (27 tests)
   - `tests/test_l0_baselines.py` (10 tests)
   - `tests/test_l10_quest.py` (13 tests)
@@ -144,6 +154,7 @@ A **trustworthy pre-execution control plane, provider broker, five complete real
   - `tests/test_l14_3_practical.py` (21 tests)
   - `tests/test_l14_executor.py` (17 tests)
   - `tests/test_l15_verification.py` (12 tests)
+  - `tests/test_l16_replanner.py` (11 tests)
   - `tests/test_l1_repairs.py` (12 tests)
   - `tests/test_l2_1_reconciliation.py` (15 tests)
   - `tests/test_l2_contracts.py` (18 tests)
@@ -168,9 +179,9 @@ A **trustworthy pre-execution control plane, provider broker, five complete real
 ---
 
 ## Operational Boundary & Next Phase
-- **Completed Milestone Goal**: `L15 Evidence-Based Verifier & Completion Engine`.
-- **Status**: **COMPLETE & FULLY VERIFIED (100% Pass Rate across 551 automated tests + 47 subtests = 598 checks; 100% GREEN on GitHub Actions CI Run 37232135971)**.
-- **Hard Stop Boundary**: Sequence: L15 (COMPLETED) → L16 (ACTIVE) → L17 → L17.5 → L18 → **HARD STOP** (Do NOT start L19 Memory V2). 0 diffs in `omni_agent.py` and `omni_engine/planner.py`.
+- **Completed Milestone Goal**: `L16 Controlled Replanner & Recovery Loop`.
+- **Status**: **COMPLETE & FULLY VERIFIED (100% Pass Rate across 562 automated tests + 47 subtests = 609 checks; verified on GitHub Actions CI Run 37234539308)**.
+- **Hard Stop Boundary**: Sequence: L16 (COMPLETED) → L17 (ACTIVE) → L17.5 → L18 → **HARD STOP** (Do NOT start L19 Memory V2). 0 diffs in `omni_agent.py` and `omni_engine/planner.py`.
 - **Milestone Sequence (All Completed)**:
   - RV0: Live Reality Gate across capability engines (System 1, Research, Browser, Windows Desktop, n8n, Antigravity with dirty worktree test) — **PASSED**.
   - L10: Persisted SQLite Quest Engine (`Quest`, `QuestStep`, `QuestEvent`) — **PASSED**.
@@ -182,6 +193,7 @@ A **trustworthy pre-execution control plane, provider broker, five complete real
   - L14.2: Runtime Closure, Adversarial Durability & Evidence Integrity Gate (14 audit areas L14.2-A through L14.2-N, database-level CAS concurrency, D1–D6 transaction fault injection, plan tamper firewall, append-only reconciliation history) — **PASSED**.
   - L14.3: Practical Runtime Integration & Operator-Control Closure (PRACT-001..036, ObjectiveDecomposer, Template-as-Building-Block, SessionManager, SemanticArgumentValidator, Production V2 Operator CLI, cross-mount Windows resilience) — **PASSED**.
   - L15: Evidence-Based Verifier & Completion Engine (ADR-020, strongly typed contracts, 8 deterministic domain verifiers, SQLite verification store, ObjectiveCompletionEngine, cryptographic evidence hash, negative constraint audit) — **PASSED**.
-- **Next Milestone**: **L16 Controlled Replanner & Recovery Loop** (currently active).
+  - L16: Controlled Replanner & Recovery Loop (ADR-021, strongly typed replanning contracts, blast radius containment, anti-oscillation attempt budgets, sub-DAG grafting, silent failure tolerance, executor coordinator loop integration) — **PASSED**.
+- **Next Milestone**: **L17 Role-Aware Generative Provider Router** (currently active).
 
 

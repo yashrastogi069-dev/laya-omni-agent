@@ -11,15 +11,15 @@
 | **System Role** | Standalone Autonomous Operating Agent (Independent from Jarvis Core V2) |
 | **Active Architecture Branch** | `laya-autonomous-v2` |
 | **Public GitHub Remote** | `https://github.com/yashrastogi069-dev/laya-omni-agent.git` |
-| **Latest Branch Commit** | `d466eaf` (`L15: evidence-based verifier and completion engine`) on `laya-autonomous-v2` |
-| **Total Automated Tests** | **551 / 551 Passing (100%)** (+ 47 subtests = 598 total checks) |
-| **GitHub Actions CI Status** | **100% GREEN (Run 37232135971)**: Deterministic Test Suite (4m58s) & Non-Switching Boundary Check (6s) |
-| **Test Categorization** | **549 Feature Acceptance Tests** + **2 Known Defect Reproduction Tests** |
+| **Latest Branch Commit** | `6546ad9` (`L16: controlled replanner and recovery loop`) on `laya-autonomous-v2` |
+| **Total Automated Tests** | **562 / 562 Passing (100%)** (+ 47 subtests = 609 total checks) |
+| **GitHub Actions CI Status** | **100% GREEN (Run 37234539308)**: Deterministic Test Suite (4m13s) & Non-Switching Boundary Check (5s) |
+| **Test Categorization** | **560 Feature Acceptance Tests** + **2 Known Defect Reproduction Tests** |
 | **Known Warnings Classification** | **4 Warnings Emitted**: `RuntimeWarning` from `laya/router.py:187` (Upstream library temperature outside [0.5, 5] clamping — BENIGN/UPSTREAM); 0 unhandled warnings in test suite |
 | **Calibration Status** | **Intent Signal**: Calibrated (ECE 0.1192, 72/31 stratified corpus split); **Domain Signal**: Uncalibrated (Deterministic fail-open fallback, cross-domain pooling, and escalation) |
 | **Hardware Operating Baseline** | Windows 10 Host, 4 CPU Cores, 7.81 GB RAM, PyTorch 2.13.0+cpu, NO CUDA GPU (CPU DecisionFrame latency ~15.4s; SystemOneBroker enforces user sovereignty, RAM threshold debouncing, and quality floor) |
-| **Checkpoints Completed** | **L0–L15, Foundation Gate, R1, R2, R3, R4, R5, RV0** |
-| **Active Milestone & Checkpoint** | **CHECKPOINT COMPLETE: L15 EVIDENCE-BASED VERIFIER & COMPLETION ENGINE ACHIEVED (100% GREEN CI — ACTIVE ON L16)** |
+| **Checkpoints Completed** | **L0–L16, Foundation Gate, R1, R2, R3, R4, R5, RV0** |
+| **Active Milestone & Checkpoint** | **CHECKPOINT COMPLETE: L16 CONTROLLED REPLANNER & RECOVERY LOOP ACHIEVED (100% GREEN CI — ACTIVE ON L17)** |
 
 ---
 
@@ -122,7 +122,10 @@
 [L15: EVIDENCE-BASED VERIFICATION & COMPLETION ENGINE]
        │ ── 12/12 Verification Tests Passing (Commit: d466eaf); 551/551 Repository Tests Passing (+47 subtests = 598 checks)
        ▼
-[ACTIVE CHECKPOINT L16: CONTROLLED REPLANNER & RECOVERY LOOP]
+[L16: CONTROLLED REPLANNER & RECOVERY LOOP]
+       │ ── 11/11 Replanner Tests Passing (Commit: 6546ad9); 562/562 Repository Tests Passing (+47 subtests = 609 checks)
+       ▼
+[ACTIVE CHECKPOINT L17: ROLE-AWARE GENERATIVE PROVIDER ROUTER]
 ```
 
 ---
@@ -3316,6 +3319,95 @@ All 36 findings are permanently recorded in `tasks/PRACTICAL_FINDINGS.md` and su
 ### 17.12 Checkpoint L15 Final Status & Transition to L16
 - **Checkpoint L15 is Officially PASSED, FULLY VERIFIED, and 100% GREEN ON CI**.
 - **Active Checkpoint Advanced**: **Checkpoint L16: Controlled Replanner & Recovery Loop**.
+
+---
+
+## 18. Phase IV Checkpoint L16: Controlled Replanner & Recovery Loop
+
+### 18.1 ADR-021: Controlled Replanner & Bounded Recovery Architecture
+- **Research Scope**: Investigated bounded DAG recovery strategies, anti-oscillation failure deduplication, topological blast radius containment, idempotency token preservation, replacement sub-DAG synthesis, and non-critical silent failure handling.
+- **Architectural Findings & Decisions (ADR-021 in `docs/research/ADR_L16_CONTROLLED_REPLANNER.md` & `tasks/DECISIONS.md`)**:
+  1. **Strictly Bounded Replanning Budget**: Unconstrained ReAct loops are strictly forbidden (Invariant 1). Replanning is bounded by `max_replans=3`. Upon exceeding budget, execution halts immediately with `QuestStatus.FAILED`.
+  2. **Anti-Oscillation Failure Fingerprinting**: Evaluates `(step_id, capability_id, args_hash)` against `previous_failures`. Duplicate failure permutations are rejected deterministically before replanning dispatch.
+  3. **Topological BFS Blast Radius Containment**: Rather than invalidating the entire plan, replanning computes a transitive parent-to-child BFS from the failed step. Succeeded steps and independent parallel branches are strictly preserved.
+  4. **Idempotency Token & Mutation Preservation**: Succeeded steps retain their physical execution receipts. Succeeded mutations in `OperationLedger` retain their committed state and exactly 1 recorded attempt, ensuring zero replay or duplicate side effects during recovery.
+  5. **10-Pass Validator Firewall on Spliced DAGs**: Revised plans must pass all 10 deterministic passes of `DeterministicPlanValidator` before attachment to Quest.
+  6. **Non-Critical Silent Failure Support**: Non-critical auxiliary steps marked `can_fail_silently=True` log telemetry but do not abort the Quest or trigger replanning; coordinator loop treats them as tolerated failures and allows independent downstream steps to proceed to `AWAITING_VERIFICATION`.
+
+### 18.2 Strongly Typed Replanning Contracts
+- Implemented in `omni_engine/contracts/replanning.py` (`extra="forbid"`, Pydantic v2):
+  - `ReplanTrigger` enum: `STEP_FAILURE`, `TIMEOUT`, `PRECONDITION_FAILED`, `VERIFICATION_FAILED`, `POLICY_REJECTION`.
+  - `ReplanScope` enum: `STEP_RETRY_WITH_VARIATION`, `SUB_DAG_REPLACE`, `FULL_REPLAN`.
+  - `ReplanRequest`: `quest_id`, `failed_step_id`, `trigger`, `error_message`, `replan_attempt`, `max_replans`, `preserved_step_ids`, `previous_failures`.
+  - `ReplanResult`: `success`, `revised_plan`, `scope`, `replan_version`, `added_step_ids`, `pruned_step_ids`, `preserved_step_ids`, `error`, `latency_ms`.
+- Contract Extensions:
+  - `omni_engine/contracts/plan.py`: Added `PlanType.REPLAN_RECOVERED`.
+  - `omni_engine/contracts/quest.py`: Added `QuestEventEnum.PLAN_REVISED`.
+  - Updated `VALID_QUEST_TRANSITIONS[QuestStatus.AWAITING_VERIFICATION]` to include `QuestStatus.RUNNING` to enable post-verification remediation cycles.
+  - Clean exports in `omni_engine/contracts/__init__.py`.
+
+### 18.3 Plan Validator Pass 9 Update
+- File: `omni_engine/planning/validator.py`.
+- Added `allow_silent_failure: bool = False` to `DeterministicPlanValidator.__init__`.
+- Preserved L14.2 Pass 9 contract for default validator instances (`test_h1_can_fail_silently_rejected_by_validator` in `test_l14_2_durability.py`) while permitting configured recovery engines to validate plans with `can_fail_silently=True`.
+
+### 18.4 Controlled Replanner Engine
+- File: `omni_engine/planning/replanner.py`.
+- `compute_blast_radius(steps, failed_step_id)`: Transitive BFS graph traversal identifying failed step and downstream dependents.
+- Deterministic Capability Fallbacks (`DEFAULT_CAPABILITY_FALLBACKS`):
+  - `web_search` -> `deep_research`
+  - `scrape_url` -> `deep_research`
+  - `browser.interact` -> `desktop.launch_app`
+- `_synthesize_replacement_steps`: Uses deterministic capability fallbacks, parameter filtering, or generative provider fallback.
+- `replan(request, active_plan, quest)`: Verifies attempt budget, checks anti-oscillation against `previous_failures`, preserves completed steps, rewires downstream dependencies to terminal replacement step, increments `plan_version`, validates via `DeterministicPlanValidator`, and returns `ReplanResult`.
+- Exported in `omni_engine/planning/__init__.py`.
+
+### 18.5 Executor Coordinator Integration
+- File: `omni_engine/execution/executor.py`.
+- Accepts `replanner: Optional[ControlledReplanner] = None`, `enable_replanning: bool = True`, `max_replans: int = 3`.
+- `tolerated_silent_steps`: Non-critical steps with `can_fail_silently=True` are tracked and tolerated. When all steps are either completed or tolerated silent failures, execution transitions to `AWAITING_VERIFICATION`.
+- Automatic Replanning in Kahn Coordinator Loop:
+  - On step failure: Cancels in-flight read workers, invokes `self.replanner.replan()`.
+  - Enforces OCC version hygiene: fetches `latest_quest` from store before updating metadata and inserting replacement steps.
+  - Records `PLAN_ATTACHED` event with `replan_version` and revised plan hash.
+  - Slices new steps into `step_map`, clears failed steps, and continues graph traversal.
+  - If replan fails or budget is exhausted: transitions Quest to `QuestStatus.FAILED`.
+
+### 18.6 Unit & Integration Test Suite
+- File: `tests/test_l16_replanner.py`.
+- 11 comprehensive tests (100% pass rate in 0.88s):
+  - `test_compute_blast_radius_single_leaf_step`: Leaf step failure blast radius contains only itself.
+  - `test_compute_blast_radius_transitive_descendants`: Root failure includes transitive children in blast radius while independent branches are excluded.
+  - `test_replan_request_budget_exceeded`: Replanning halts with `success=False` when attempt > max_replans.
+  - `test_anti_oscillation_gate_blocks_duplicate_failed_step`: Duplicate failure permutation blocked.
+  - `test_replan_deterministic_fallback_replaces_capability_and_preserves_dependents`: Failed `web_search` replaced by `deep_research` and downstream dependencies rewired.
+  - `test_replan_preserves_completed_steps`: Completed step receipts strictly preserved in revised plan.
+  - `test_replan_validation_firewall_blocks_invalid_graft`: Spliced plans violating validator rules are rejected.
+  - `test_can_fail_silently_tolerates_step_failure`: Silent failure tolerated, Quest completes to `AWAITING_VERIFICATION`.
+  - `test_executor_automatic_recovery_via_replanner`: End-to-end automatic recovery via replanner and spliced execution.
+  - `test_executor_exhausted_replans_halts_as_failed`: Exhausted budget transitions Quest to `FAILED`.
+  - `test_replan_preserves_completed_mutations_without_reexecution`: Committed mutations strictly never re-executed on replanning subsequent step.
+- Full repository regression suite across all 30 test files: **562 / 562 passed (+ 47 subtests = 609 checks) in 281.80s (100% pass rate)**.
+
+### 18.7 Adversarial Diff Review
+- Reviewer: Read-Only Adversarial Software Reviewer (Subagent `ae2d404c-f2eb-433f-ae36-1b767d83f780`).
+- Verdict: **PASS (Zero Blocking Defects Found)**.
+- Summary: All replanning contracts, blast radius calculations, anti-oscillation budgeting, OCC version handling, and idempotency preservation strictly satisfy repository invariants and AGENTS.md directives.
+
+### 18.8 Non-Switching Boundary Invariant
+- Executed: `git diff origin/main -- omni_agent.py omni_engine/planner.py`.
+- Result: **EXACTLY 0 DIFFS**. Legacy entrypoints remain 100% untouched.
+
+### 18.9 GitHub Actions CI Verification
+- Commit `6546ad9` pushed to `origin/laya-autonomous-v2`.
+- Workflow run `37234539308` executed on GitHub Actions Windows runner:
+  - `Deterministic Test Suite` passed in 4m 13s (562 tests passed, 0 failures, 0 errors).
+  - `Non-Switching Boundary Check` passed in 5s (0 diffs).
+  - **100% GREEN ON GITHUB ACTIONS CI**.
+
+### 18.10 Checkpoint L16 Final Status & Transition to L17
+- **Checkpoint L16 is Officially PASSED, FULLY VERIFIED, and 100% GREEN ON CI**.
+- **Active Checkpoint Advanced**: **Checkpoint L17: Role-Aware Generative Provider Router**.
 
 ---
 

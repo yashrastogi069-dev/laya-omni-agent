@@ -23,11 +23,15 @@ from ..contracts.execution import (
     StepExecutionReceipt,
     UnresolvedArgumentError,
 )
+import hashlib
+import json
 from ..contracts.operation import MutationState, OperationCommitUncertainError
 from ..contracts.plan import Plan, PlanStep, PlanType
 from ..contracts.policy import PolicyDecision, PolicyEffect
 from ..contracts.quest import (
     Quest,
+    QuestEvent,
+    QuestEventEnum,
     QuestNotFoundError,
     QuestStatus,
     QuestStep,
@@ -36,8 +40,15 @@ from ..contracts.quest import (
     TERMINAL_QUEST_STATES,
     TERMINAL_STEP_STATES,
 )
+from ..contracts.replanning import (
+    ReplanRequest,
+    ReplanResult,
+    ReplanScope,
+    ReplanTrigger,
+)
 from ..capabilities.registry import CapabilityRegistry
 from ..operations.ledger import OperationLedger
+from ..planning.replanner import ControlledReplanner
 from ..planning.validator import DeterministicPlanValidator
 from ..policy.engine import PolicyEngine
 from ..quest.engine import QuestEngine
@@ -57,6 +68,9 @@ class DeterministicDAGExecutor:
         operation_ledger: OperationLedger,
         plan_validator: Optional[DeterministicPlanValidator] = None,
         max_parallel_workers: int = 4,
+        replanner: Optional[ControlledReplanner] = None,
+        enable_replanning: bool = True,
+        max_replans: int = 3,
     ):
         self.quest_engine = quest_engine
         self.capability_registry = capability_registry
@@ -65,8 +79,12 @@ class DeterministicDAGExecutor:
         self.plan_validator = plan_validator or DeterministicPlanValidator(
             capability_registry=capability_registry,
             policy_engine=policy_engine,
+            allow_silent_failure=True,
         )
         self.max_parallel_workers = max(1, max_parallel_workers)
+        self.replanner = replanner
+        self.enable_replanning = enable_replanning
+        self.max_replans = max_replans
 
         # In-memory lease registry (BLK-5)
         self._active_leases: Set[str] = set()
@@ -403,7 +421,7 @@ class DeterministicDAGExecutor:
                 quest = self.quest_engine.transition_quest(quest_id, QuestStatus.RUNNING, reason="Starting DAG execution")
 
             # 4. Coordinator Loop
-            return self._run_coordinator_loop(quest_id, inputs or {}, start_time, initial_status)
+            return self._run_coordinator_loop(quest_id, inputs or {}, start_time, initial_status, active_plan=active_plan)
         finally:
             self._cancellation_events.pop(quest_id, None)
             self._cancellation_reasons.pop(quest_id, None)
@@ -539,6 +557,7 @@ class DeterministicDAGExecutor:
                 start_time,
                 initial_status,
                 confirmed_step_id=confirmed_step_id,
+                active_plan=self._reconstruct_plan(quest),
             )
         finally:
             self._cancellation_events.pop(quest_id, None)
@@ -555,11 +574,14 @@ class DeterministicDAGExecutor:
         start_time: float,
         initial_status: QuestStatus,
         confirmed_step_id: Optional[str] = None,
+        active_plan: Optional[Plan] = None,
     ) -> QuestExecutionSummary:
         """Executes the Kahn-style DAG traversal on a single coordinator thread."""
         quest = self.quest_engine.get_quest(quest_id)
         if not quest:
             raise QuestNotFoundError(f"Quest '{quest_id}' not found.")
+
+        current_active_plan = active_plan or self._reconstruct_plan(quest)
 
         # Build effective inputs from metadata and parameters (AUDIT-12)
         effective_inputs = dict(quest.metadata.get("inputs", {}))
@@ -581,6 +603,7 @@ class DeterministicDAGExecutor:
         step_map: Dict[str, QuestStep] = {s.step_id: s for s in quest.steps}
         completed_steps: Dict[str, QuestStep] = {}
         failed_steps: Dict[str, QuestStep] = {}
+        tolerated_silent_steps: Dict[str, QuestStep] = {}
 
         # 1. Crash recovery / State reconciliation (BLK-5 / AUDIT-06 / AUDIT-07)
         paused_for_reconciliation_step: Optional[QuestStep] = None
@@ -588,7 +611,10 @@ class DeterministicDAGExecutor:
             if s.status == StepStatus.COMPLETED:
                 completed_steps[s.step_id] = s
             elif s.status == StepStatus.FAILED:
-                failed_steps[s.step_id] = s
+                if getattr(s, "can_fail_silently", False):
+                    tolerated_silent_steps[s.step_id] = s
+                else:
+                    failed_steps[s.step_id] = s
             elif s.status == StepStatus.AWAITING_RECONCILIATION:
                 paused_for_reconciliation_step = s
             elif s.status == StepStatus.RUNNING:
@@ -711,9 +737,144 @@ class DeterministicDAGExecutor:
                         error=reconcile_step.error,
                     )
 
-                # If any step previously failed, halt quest
+                # If any step previously failed, check silent failure, replanning, or halt quest
                 if failed_steps:
                     first_failure = next(iter(failed_steps.values()))
+
+                    # 1. Check if the step can fail silently (L16)
+                    if getattr(first_failure, "can_fail_silently", False):
+                        logger.info(
+                            f"Step '{first_failure.step_id}' failed but can_fail_silently=True; tolerating failure."
+                        )
+                        tolerated_silent_steps[first_failure.step_id] = first_failure
+                        del failed_steps[first_failure.step_id]
+                        continue
+
+                    # 2. Check if replanning is available and within budget (L16)
+                    current_replan_count = quest.metadata.get("replan_count", 0)
+                    if self.enable_replanning and self.replanner is not None and current_replan_count < self.max_replans:
+                        # Drain in-flight read workers first
+                        for fut in in_flight:
+                            fut.cancel()
+                        while in_flight:
+                            self._drain_one_future(in_flight, step_map, completed_steps, failed_steps, quest_id)
+
+                        # Trigger replanner
+                        replan_req = ReplanRequest(
+                            quest_id=quest_id,
+                            failed_step_id=first_failure.step_id,
+                            trigger=ReplanTrigger.STEP_FAILURE,
+                            error_message=first_failure.error or "Step execution failed",
+                            replan_attempt=current_replan_count + 1,
+                            max_replans=self.max_replans,
+                            preserved_step_ids=[s.step_id for s in step_map.values() if s.status == StepStatus.COMPLETED],
+                            previous_failures=quest.metadata.get("previous_failures", []),
+                        )
+
+                        replan_res = self.replanner.replan(replan_req, current_active_plan, quest)
+                        if replan_res.success and replan_res.revised_plan:
+                            logger.info(
+                                f"Replanning succeeded for quest '{quest_id}': scope={replan_res.scope.value}, new plan version={replan_res.replan_version}"
+                            )
+
+                            # Apply replanned plan to Quest
+                            latest_quest = self.quest_engine.get_quest(quest_id)
+                            base_quest = latest_quest if latest_quest is not None else quest
+                            new_meta = dict(base_quest.metadata or {})
+                            new_meta["replan_count"] = current_replan_count + 1
+                            prev_fails = list(new_meta.get("previous_failures", []))
+                            prev_fails.append({
+                                "step_id": first_failure.step_id,
+                                "capability_id": first_failure.capability_id,
+                                "args_hash": hashlib.sha256(json.dumps(first_failure.arguments or {}, sort_keys=True).encode()).hexdigest()[:12],
+                                "error": first_failure.error,
+                            })
+                            new_meta["previous_failures"] = prev_fails
+                            new_meta["plan_hash"] = replan_res.revised_plan.compute_hash()
+                            new_meta["plan_provenance"] = {
+                                "plan_id": replan_res.revised_plan.plan_id,
+                                "plan_type": replan_res.revised_plan.plan_type.value,
+                                "plan_hash": new_meta["plan_hash"],
+                                "plan_version": replan_res.replan_version,
+                                "replan_scope": replan_res.scope.value,
+                            }
+
+                            # Convert replacement PlanSteps to QuestSteps
+                            new_quest_steps: List[QuestStep] = []
+                            for ps in replan_res.revised_plan.steps:
+                                if ps.step_id in step_map:
+                                    existing_qs = step_map[ps.step_id]
+                                    updated_qs = existing_qs.model_copy(update={"dependencies": ps.dependencies})
+                                    new_quest_steps.append(updated_qs)
+                                else:
+                                    action_class = ActionClass.LOCAL_UPDATE
+                                    if self.capability_registry and self.capability_registry.has(ps.capability_id):
+                                        spec = self.capability_registry.get_spec(ps.capability_id)
+                                        if spec:
+                                            action_class = spec.action_class
+                                    new_qs = QuestStep(
+                                        step_id=ps.step_id,
+                                        quest_id=quest_id,
+                                        capability_id=ps.capability_id,
+                                        action_class=action_class,
+                                        intent=ps.intent,
+                                        arguments=ps.arguments,
+                                        dependencies=ps.dependencies,
+                                        status=StepStatus.PENDING,
+                                        timeout_s=ps.timeout_s,
+                                        max_attempts=ps.max_attempts,
+                                        can_fail_silently=ps.can_fail_silently,
+                                        metadata=dict(ps.metadata),
+                                    )
+                                    new_quest_steps.append(new_qs)
+
+                            # Persist newly added steps
+                            steps_to_insert = [s for s in new_quest_steps if s.step_id not in step_map]
+                            if steps_to_insert:
+                                self.quest_engine.store.save_steps(quest_id, steps_to_insert)
+
+                            # Record plan attached event
+                            self.quest_engine.store.record_event(
+                                QuestEvent(
+                                    quest_id=quest_id,
+                                    event_type=QuestEventEnum.PLAN_ATTACHED,
+                                    payload={
+                                        "replan_version": replan_res.replan_version,
+                                        "scope": replan_res.scope.value,
+                                        "added_steps": replan_res.added_step_ids,
+                                    },
+                                )
+                            )
+
+                            # Update Quest metadata in store using fresh base_quest version
+                            quest = base_quest.model_copy(update={"steps": new_quest_steps, "metadata": new_meta})
+                            self.quest_engine.store.update_quest(quest)
+
+                            # Refresh step_map and current_active_plan
+                            step_map = {s.step_id: s for s in new_quest_steps}
+                            current_active_plan = replan_res.revised_plan
+                            failed_steps.clear()
+                            continue
+
+                        # If replanning was attempted but failed, format diagnostic error
+                        replan_err = replan_res.error or "Replanning failed to find alternative"
+                        self.quest_engine.transition_quest(
+                            quest_id,
+                            QuestStatus.FAILED,
+                            reason=f"Step '{first_failure.step_id}' failed and recovery failed: {replan_err}",
+                        )
+                        return self._build_summary(
+                            quest_id,
+                            initial_status,
+                            QuestStatus.FAILED,
+                            len(step_map),
+                            completed_steps,
+                            failed_steps,
+                            start_time,
+                            error=f"{first_failure.error} (Replanning failed: {replan_err})",
+                        )
+
+                    # Default failure halt
                     self.quest_engine.transition_quest(
                         quest_id,
                         QuestStatus.FAILED,
@@ -731,7 +892,7 @@ class DeterministicDAGExecutor:
                     )
 
                 # Check if all steps completed -> Invariant 6: AWAITING_VERIFICATION
-                if len(completed_steps) == len(step_map):
+                if len(completed_steps) + len(tolerated_silent_steps) == len(step_map):
                     self.quest_engine.transition_quest(
                         quest_id,
                         QuestStatus.AWAITING_VERIFICATION,
@@ -751,7 +912,7 @@ class DeterministicDAGExecutor:
                 running_ids = set(in_flight.values())
                 ready_steps: List[QuestStep] = []
                 for step_id, step in step_map.items():
-                    if step_id in completed_steps or step_id in running_ids:
+                    if step_id in completed_steps or step_id in tolerated_silent_steps or step_id in running_ids:
                         continue
                     if step.status in (StepStatus.PENDING, StepStatus.READY, StepStatus.PAUSED):
                         # Verify all dependencies are completed
@@ -761,7 +922,7 @@ class DeterministicDAGExecutor:
 
                 # If no steps ready and no work in flight -> deadlock/orphan failure
                 if not ready_steps and not in_flight:
-                    uncompleted = [sid for sid in step_map if sid not in completed_steps]
+                    uncompleted = [sid for sid in step_map if sid not in completed_steps and sid not in tolerated_silent_steps]
                     self.quest_engine.transition_quest(
                         quest_id,
                         QuestStatus.FAILED,

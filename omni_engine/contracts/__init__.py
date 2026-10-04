@@ -186,6 +186,12 @@ from .verification import (
     ConstraintVerification,
     ObjectiveVerificationResult,
 )
+from .replanning import (
+    ReplanTrigger,
+    ReplanScope,
+    ReplanRequest,
+    ReplanResult,
+)
 
 __all__ = [
     # Base
@@ -348,6 +354,11 @@ __all__ = [
     "RequirementVerification",
     "ConstraintVerification",
     "ObjectiveVerificationResult",
+    # Controlled Replanning & Recovery (L16)
+    "ReplanTrigger",
+    "ReplanScope",
+    "ReplanRequest",
+    "ReplanResult",
 ]
 
 

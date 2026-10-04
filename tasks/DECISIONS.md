@@ -250,3 +250,18 @@
   4. **Requirement & Negative Constraint Completion Engine**: Implement `ObjectiveCompletionEngine` in `omni_engine/verification/engine.py` mapping decomposed requirements and operational constraints against physical evidence receipts, detecting violations in ledger and execution history.
   5. **Verification Persistence & Quest Transition**: Persist audit records to SQLite `quest_verifications`. Transition Quests strictly: `AWAITING_VERIFICATION -> COMPLETED` only when 100% of mandatory requirements and negative constraints are physically proven; transition to `FAILED` on unrecoverable breaches or negative constraint violations; retain in `AWAITING_VERIFICATION` for L16 replanning if repairable.
 
+---
+
+## ADR-021: Controlled Replanner, Sub-DAG Replacement, Blast-Radius Containment & Bounded Recovery Loop (L16)
+- **Date**: 2026-10-05
+- **Status**: ACCEPTED
+- **Problem**: In the existing runtime, any step failure causes immediate and total Quest failure, discarding all prior progress and preventing recovery from transient issues or alternative tool strategies. Conversely, unconstrained LLM loops frequently enter infinite cycles, repeat completed mutations, and hallucinate completion.
+- **Decision**:
+  1. **Deterministic Replanning Control (Invariant 1)**: Deterministic software governs the replanning decision, blast-radius calculation, preservation of completed work, and anti-oscillation bounds. Generative models only propose alternatives.
+  2. **Explicit Trigger Taxonomy**: Define `ReplanTrigger` (`STEP_FAILURE`, `TIMEOUT`, `PRECONDITION_FAILED`, `VERIFICATION_FAILED`) and `ReplanScope` (`STEP_RETRY_WITH_VARIATION`, `SUB_DAG_REPLACE`, `FULL_REPLAN`) in `omni_engine/contracts/replanning.py`.
+  3. **Blast-Radius Containment & Preserved Execution Receipts**: Downstream transitive dependents $Descendants(S_{fail})$ are identified; completed steps outside the blast radius are preserved along with their physical execution receipts and `OperationLedger` idempotency tokens (zero re-execution of committed mutations).
+  4. **10-Pass Validation Gate**: Every spliced/revised plan must pass all 10 passes of `DeterministicPlanValidator` before execution.
+  5. **Anti-Oscillation & Budget Bounds**: Hard cap on replanning attempts (`max_replans=3`, `max_replan_depth=2`) and failure-fingerprint checking preventing identical failed steps from repeating.
+  6. **Support for can_fail_silently**: In Pass 9 of `DeterministicPlanValidator`, support `can_fail_silently=True` for optional steps without failing the quest.
+
+

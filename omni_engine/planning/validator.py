@@ -66,9 +66,11 @@ class DeterministicPlanValidator:
         capability_registry: Optional[CapabilityRegistry] = None,
         policy_engine: Optional[PolicyEngine] = None,
         registry: Optional[CapabilityRegistry] = None,
+        allow_silent_failure: bool = False,
     ) -> None:
         self.capability_registry = capability_registry or registry or build_real_capability_registry()
         self.policy_engine = policy_engine or PolicyEngine()
+        self.allow_silent_failure = allow_silent_failure
 
     @staticmethod
     def extract_resource_identity(step: PlanStep) -> Optional[str]:
@@ -459,7 +461,7 @@ class DeterministicPlanValidator:
         # =====================================================================
         p9_errors: List[str] = []
         for step in plan.steps:
-            if getattr(step, "can_fail_silently", False):
+            if getattr(step, "can_fail_silently", False) and not self.allow_silent_failure:
                 p9_errors.append(
                     f"Step '{step.step_id}' specifies can_fail_silently=True, which is an unsupported runtime capability deferred to Checkpoint L16 (Controlled Replanner)."
                 )

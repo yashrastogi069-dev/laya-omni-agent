@@ -10,6 +10,7 @@ Exports:
 from .dag import DAGTopology
 from .engine import StructuredDAGPlanner
 from .generative_planner import GenerativePlanner
+from .replanner import ControlledReplanner, DEFAULT_CAPABILITY_FALLBACKS
 from .template_planner import SkillTemplatePlanner
 from .validator import DeterministicPlanValidator
 
@@ -18,5 +19,7 @@ __all__ = [
     "SkillTemplatePlanner",
     "GenerativePlanner",
     "StructuredDAGPlanner",
+    "ControlledReplanner",
+    "DEFAULT_CAPABILITY_FALLBACKS",
     "DeterministicPlanValidator",
 ]

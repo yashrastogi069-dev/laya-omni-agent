@@ -60,6 +60,7 @@ class QuestEventEnum(str, Enum):
     QUEST_COMPLETED = "quest_completed"
     QUEST_FAILED = "quest_failed"
     QUEST_CANCELLED = "quest_cancelled"
+    PLAN_REVISED = "plan_revised"
 
 
 # Terminal states from which no further transitions are allowed
@@ -115,6 +116,7 @@ VALID_QUEST_TRANSITIONS: Dict[QuestStatus, Set[QuestStatus]] = {
         QuestStatus.COMPLETED,
         QuestStatus.FAILED,
         QuestStatus.CANCELLED,
+        QuestStatus.RUNNING,
     },
     QuestStatus.COMPLETED: set(),
     QuestStatus.FAILED: set(),

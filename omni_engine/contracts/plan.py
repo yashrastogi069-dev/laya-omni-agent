@@ -19,6 +19,7 @@ class PlanType(str, Enum):
     TEMPLATE_DERIVED = "template_derived"
     GENERATIVE_SYNTHESIZED = "generative_synthesized"
     COMPOSITE = "composite"
+    REPLAN_RECOVERED = "replan_recovered"
 
 
 # Domain-specific exceptions

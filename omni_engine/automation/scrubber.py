@@ -14,6 +14,8 @@ from typing import Any, Dict, List, Set, Union
 SECRET_PATTERNS = [
     # OpenAI API Keys
     re.compile(r"\bsk-(?:proj-|live-)?[A-Za-z0-9_-]{20,}\b"),
+    # Anthropic API Keys
+    re.compile(r"\bsk-ant-(?:api\d{2}-)?[A-Za-z0-9_-]{20,}\b"),
     # GitHub Personal Access Tokens
     re.compile(r"\b(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{36,}\b"),
     # Bearer / Basic Auth Tokens
@@ -22,6 +24,8 @@ SECRET_PATTERNS = [
     re.compile(r"\bAKIA[0-9A-Z]{16}\b"),
     # n8n API Key
     re.compile(r"(?i)\b(?:x-n8n-api-key|n8n[-_]api[-_]key)\s*[:=]\s*[\"']?([A-Za-z0-9\-_]{16,})[\"']?"),
+    # Unquoted or quoted Header tokens (x-api-key, authorization)
+    re.compile(r"(?i)\b(?:x-api-key|authorization)\s*[:=]\s*['\"]?([^\s'\"]{8,})"),
     # Generic Secret / Token assignments (quoted values >= 8 chars)
     re.compile(r"(?i)(?:api[_-]?key|access[_-]?token|client[_-]?secret|secret_key|private_key|password)\s*[:=]\s*[\"']([^\"'\s]{8,})[\"']"),
     # SSH / RSA / EC Private Keys

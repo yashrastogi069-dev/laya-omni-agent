@@ -278,4 +278,19 @@
   5. **Contract Drop-In Invariant**: `GenerativeRouter` implements `GenerativeProvider(ABC)`, maintaining backward compatibility while providing role-aware dispatch methods.
   6. **Mock Provider Integration**: Equip `MockGenerativeProvider` for 100% offline, deterministic testing with programmable returns and error simulation.
 
+---
+
+## ADR-023: Real Cloud Provider Integration (L17.5)
+- **Date**: 2026-10-05
+- **Status**: ACCEPTED
+- **Problem**: Relying exclusively on OpenRouter proxying introduces a single point of failure (SPOF), proxy latency overhead, rate-limit bottlenecks, and prevents utilization of vendor-native features (e.g. Anthropic native Messages API, OpenAI native JSON schema mode, DeepSeek direct pricing).
+- **Decision**:
+  1. **Direct Production Adapters**: Implement native provider adapters for `DirectOpenAIProvider` (`https://api.openai.com/v1`), `AnthropicProvider` (`https://api.anthropic.com/v1/messages`), and `DeepSeekProvider` (`https://api.deepseek.com`).
+  2. **Dependency Minimization Invariant**: Use the verified existing `openai` client for OpenAI and DeepSeek; implement `AnthropicProvider` using standard library `urllib.request` (with optional `anthropic` client if installed), avoiding external package bloat while supporting the full Claude Messages API format.
+  3. **Zero-Leak Secret Hygiene**: Credentials resolved from environment variables (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `DEEPSEEK_API_KEY`); regex sanitization strips API keys from error messages; zero token persistence in telemetry or logs.
+  4. **Graceful Unconfigured Degradation**: Unconfigured adapters set `is_configured=False` and raise typed `ProviderError(ErrorCode.UNCONFIGURED)` rather than crashing at startup.
+  5. **Invocation-Local Overrides & Thread Safety**: Support per-invocation `model` and `timeout` overrides without mutating provider instance state.
+  6. **Decoupled Transport for 100% Offline Testing**: Support transport injection / mock handlers allowing offline testing without live external API keys.
+  7. **Router Multi-Provider Wire-Up**: Register direct adapters in `GenerativeRouter` under identifiers `"openai"`, `"anthropic"`, `"deepseek"`, accessible via provider URI scheme (`openai:<model>`, `anthropic:<model>`, `deepseek:<model>`).
+
 
